@@ -1,0 +1,90 @@
+# CLAUDE.md — hicode
+
+> **hicode** é um gerenciador de projetos autônomo que funde **Loop Engineering**
+> (`METODOLOGIA.md`) com o framework **Nexus** (15 agentes + gate Crivo, adaptado de
+> `prompter-main`, agora em `.claude/`). O plano de projeto completo está em `plano/00..05`.
+> Esta é a **autoridade de instrução** deste repositório.
+
+## O que o hicode gerencia
+
+O hicode é o **plano de controle**; ele gerencia **outro repositório** (o produto-alvo). O
+repo-alvo de produção ainda **não foi confirmado** — até lá, valida-se o loop localmente. Os
+worktrees, PRs, testes/lint e deploy operam contra o repo-alvo, não contra este.
+
+## Princípio nº 1 — Executar primeiro, polir depois
+
+Ordem **fixa** de toda unidade de trabalho (card):
+
+1. **Executar a tarefa** → resultado funcional **mínimo, sem polir** (`EXECUTED`).
+2. **Preview** → o app sobe no worktree, gera **screenshot + URL viva**; aparece no dashboard
+   (`PREVIEW`). É **onde o resultado é visto** (ex.: uma página nova).
+3. **Aprovação do preview** (`PREVIEW_OK`) → humano confirma que é o resultado certo (auto para
+   mudanças sem superfície visual). Rejeição volta a `EXECUTED` com o motivo.
+4. **Só então polir:** melhorar arquitetura (`REFINED`) → testes/lint/ts (`TESTS_GREEN`) →
+   segurança (`SEC_CLEARED`) → code-review (`REVIEWED`) → limpeza (`CLEANED`).
+5. **PR (humano)** → **Deploy**.
+
+Nunca rodar testes/refactor/segurança antes do preview aprovado: valida-se a **intenção** cedo.
+
+## Modelo autônomo (como o hicode roda)
+
+- A **espinha** é o **card** (`cards/<NNN-slug>.md`): única fonte de verdade editável. Dashboard
+  e índice são **derivados** dos cards, nunca co-autorados. Quem carimba estado/custo é o
+  harness/hook lendo `cards/runs/*.json` — **não** a fala do modelo.
+- O **heartbeat** (cron local; GitHub Actions depois) roda `/hicode-triage` stateless: descobre
+  trabalho, escreve cards, regenera o dashboard.
+- Por card, o **harness** (`workflows/card-pipeline.mjs`, via Workflow tool) executa o pipeline com
+  o `gated()` + retry(2) + HALT do Nexus, e fecha o **loop verde lendo exit code real em disco**.
+- **CONFIRM substituído:** no modo autônomo, a fase `CONFIRM` interativa do `/nexus` é trocada pelo
+  **gate Crivo sobre o plano** (`PLAN_APPROVED`) + a **aprovação do preview** + a **porta do PR**.
+  O `/nexus` interativo continua disponível para trabalho manual.
+- **Spec só para mudança grande/cross-cutting/breaking** (`/spec`); fix/typo nasce direto (Direct
+  mode). Formato: spec delta estilo OpenSpec (`## ADDED/MODIFIED/REMOVED Requirements`, `### Requisito`,
+  `#### Cenário` GIVEN/WHEN/THEN), cada Cenário com tag `verify: sql|test|manual`.
+- **Verificação de banco:** Supabase MCP (`read_only=true` + `project_ref`) como verificador
+  read-only; a fronteira real é um role SELECT-only num projeto de dev.
+
+## Roteamento de agentes (modo default, sem digitar `/nexus`)
+
+Delegue **trabalho de domínio substancial** ao agente certo; faça você mesmo só o trivial
+(poucas linhas), leitura/exploração, dúvidas conceituais e a própria orquestração.
+
+- Implementar/revisar/refatorar feature → **limpio**
+- Refatoração segura sem mudar comportamento → **rufus**
+- Dead-code (sinaliza, não remove) → **pluto**
+- Testes (escrever, cobertura, mutation) → **testudo**
+- Segurança (auth, secrets, CVE, IaC) → **escudo**
+- Banco/dados (schema, migrations, índices, queries) → **radix**
+- Performance (profiling, otimização) → **celer**
+- Frontend (React/RN/Solid) → **vitro**
+- CI/CD, IaC, deploy → **continuum** (gera, **nunca aplica**)
+- Observabilidade (logs, métricas, tracing, RCA) → **corvinus**
+- Documentação (.md, ADR, OpenAPI, diagramas) → **glossia**
+- Apresentações/dashboards `.html` → **fulgor**
+- Pesquisa externa (libs, docs, RFCs, trade-offs) → **quaero**
+- Remover comentários → **pura**
+- Revisão adversarial após agente gated, gate de spec, code-review de diff → **crivo**
+
+Regras:
+- Pipeline multi-agente (ordem/gates) → prefira **`/nexus`** (manual) ou o harness por card (autônomo).
+- Resultado de agente **gated** (limpio, escudo, testudo, rufus, radix, celer) passa pelo **crivo**
+  antes de "pronto".
+- Nunca inventar agentes fora do catálogo. Se nenhum se aplica, faça você mesmo.
+
+## Convenções globais
+
+- **NUNCA** adicionar trailer `Co-Authored-By: Claude ...` em commits, nem `🤖 Generated with
+  Claude Code` em PRs.
+- **Clean Code (Uncle Bob):** **não** escrever comentários/docstrings que expliquem a lógica do
+  código — se "precisa de explicação", extraia para nomes reveladores. Permitido: cabeçalho de
+  licença, diretivas de tooling (`eslint-disable`, `@ts-expect-error`, `type: ignore`...),
+  marcadores acionáveis (`TODO`/`FIXME`/`HACK`), referência de ticket. Imposto pelo hook
+  `.claude/hooks/block-comments.mjs`. Não vale para IaC/config (`.tf`, `.yaml`, `.sh`). Limpeza
+  reativa → agente **pura**.
+
+## Segurança (modo autônomo)
+
+`acceptEdits` (nunca `bypassPermissions`); `cwd-guard` confina cada agente ao worktree do card;
+denylist de ops destrutivas (conveniência, não fronteira); banco read-only via role SELECT-only;
+Continuum nunca aplica deploy; **proibido rodar 24/7 desacompanhado antes do sandbox** (container
++ egress restrito). Detalhe em `plano/02-arquitetura.md` §7.

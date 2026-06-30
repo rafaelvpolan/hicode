@@ -1,0 +1,193 @@
+// TEMPLATE — revise/ajuste antes de usar
+//
+// settings.hooks.example.json — Bloco de permissions + hooks para long-run autônomo
+//
+// INSTRUÇÕES:
+// 1. Abra seu ~/.claude/settings.json
+// 2. Localize as chaves "permissions" e "hooks" (criar se não existirem)
+// 3. Copie e adapte este bloco
+// 4. Certifique-se que os paths dos scripts (.sh) existem e têm permissão +x
+// 5. Teste com um prompt curto antes de iniciar long-run de 12h
+//
+// PATHS ESPERADOS DOS SCRIPTS:
+// ~/.claude/hooks/long-run/check-usage-gate.sh
+// ~/.claude/hooks/long-run/inject-longrun-memory.sh
+//
+// Se usar caminhos diferentes, ajuste na seção "command" abaixo.
+
+{
+  "permissions": {
+    "allow": [
+      "Read",                  // permitir leitura de arquivos
+      "Bash(git *)",          // permitir qualquer comando git
+      "Edit"                  // permitir edição de arquivo (create, modify)
+    ],
+    "deny": [
+      // Bloqueios absolutos — nunca são auto-aprovados, mesmo em bypassPermissions
+      "Bash(rm -rf *)",
+      "Bash(rm -r *)",
+      "Bash(git push --force *)",
+      "Bash(git push origin main *)",
+      "Bash(git push origin master *)",
+      "Bash(kubectl delete *)",
+      "Bash(kubectl apply *)",
+      "Bash(terraform destroy *)",
+      "Bash(terraform apply *)",
+      "Bash(DROP TABLE *)",
+      "Bash(DROP DATABASE *)",
+      "Bash(psql * -c \"DROP *\")",
+      "Bash(mysql * -e \"DROP *\")",
+      "Bash(npm publish *)",
+      "Bash(yarn publish *)",
+      "Bash(docker push *)"
+    ],
+    "ask": [
+      // Comandos que precisam de aprovação explícita a cada execução
+      "Bash(git push *)"      // qualquer git push requer confirmação (exceto os em deny)
+    ],
+    "defaultMode": "acceptEdits"  // auto-aprova leitura/edição/mkdir no workdir
+  },
+
+  "hooks": {
+    // ========================================================================
+    // Hook PreToolUse: Gate de 90% de quota
+    // ========================================================================
+    // IMPORTANTE: Adicionar matchers PARA TODAS AS TOOLS (Bash, Edit, Write, Read)
+    // para que nenhuma ferramenta passe após 90%.
+    // Se só Bash é matched, Edit/Write/Read continuam — queimando quota silenciosamente.
+    // ========================================================================
+    "PreToolUse": [
+      {
+        "matcher": "Bash",    // aplica a commands Bash
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/long-run/check-usage-gate.sh",
+            "timeout": 10,    // 10 segundos para o script responder
+            "onTimeout": "allow"  // se timeout, deixa passar (melhor que bloquear)
+          }
+        ]
+      },
+      {
+        "matcher": "Edit",    // aplica a edições de arquivo
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/long-run/check-usage-gate.sh",
+            "timeout": 10,
+            "onTimeout": "allow"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",   // aplica a criação/escrita de novo arquivo
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/long-run/check-usage-gate.sh",
+            "timeout": 10,
+            "onTimeout": "allow"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",    // aplica a leitura de arquivo
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/long-run/check-usage-gate.sh",
+            "timeout": 10,
+            "onTimeout": "allow"
+          }
+        ]
+      }
+    ],
+
+    // ========================================================================
+    // Hook SessionStart: Injetar contexto da memória de longrun
+    // ========================================================================
+    "SessionStart": [
+      {
+        "matcher": "*",       // aplica a toda sessão
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/long-run/inject-longrun-memory.sh",
+            "timeout": 5
+          },
+          {
+            // valor INICIAL do status. O gate só vê o uso SUBIR se um cron mantiver
+            // o arquivo fresco (ver NOTA 6). SessionStart sozinho deixa o status velho.
+            "type": "command",
+            "command": "BUDGET=8000000 ~/.claude/hooks/long-run/watch-usage.sh --write",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+
+    // OPCIONAL: Hook Stop para gravar checkpoint automaticamente
+    // Descomente se quiser que o estado seja atualizado ao fim de cada turno
+    // "Stop": [
+    //   {
+    //     "matcher": "*",
+    //     "hooks": [
+    //       {
+    //         "type": "command",
+    //         "command": "~/.claude/hooks/long-run/save-checkpoint.sh",
+    //         "timeout": 5,
+    //         "onTimeout": "continue"  // não bloqueia se timeout
+    //       }
+    //     ]
+    //   }
+    // ]
+  }
+}
+
+// ============================================================================
+// NOTAS IMPORTANTES
+// ============================================================================
+//
+// 1. PATHS:
+//    - Ajuste "~/.claude/hooks/long-run/..." para onde você copiou os scripts
+//    - Scripts precisam de +x: chmod +x ~/.claude/hooks/long-run/*.sh
+//
+// 2. FORMATO DO SETTINGS.JSON:
+//    - Se o arquivo já tem "permissions" ou "hooks", MESCLE não substitua
+//    - JSON não permite comentários — remova todos antes de salvar
+//    - Cuidado com vírgulas em listas (última item não tem vírgula)
+//
+// 3. MATCHERS DE HOOK:
+//    - [IMPORTANTE] Agora há MÚLTIPLOS matchers (Bash, Edit, Write, Read)
+//      para garantir que NENHUMA tool passe após 90%
+//    - Se remover matchers, tools não capturadas continuarão após limite
+//    - Testar com: claude -p "edit test.txt" --permission-mode acceptEdits
+//      (o gate deve ser ativado antes da edição)
+//
+// 4. TESTES:
+//    - Rode um prompt curto com: claude -p "teste" --permission-mode acceptEdits
+//    - Verifique /tmp/check-usage-gate.log e /tmp/inject-longrun-memory.log
+//    - Se hooks não rodarem, verifique se settings.json é JSON válido (use jq . < settings.json)
+//    - Validar que /tmp/claude_usage_current.json existe e está fresco (criado pelo cron do
+//      watch-usage.sh --write do NOTA 6 — NÃO por um "statusline hook")
+//
+// 5. DENYLIST:
+//    - Customize conforme sua tarefa (ex: adicionar "Bash(npm publish *)" se quiser)
+//    - Regras em "deny" funcionam mesmo em "bypassPermissions"
+//    - Regras em "ask" promitam a cada execução
+//
+// 6. COMO O ARQUIVO DE STATUS FICA FRESCO (essencial — senão o gate não protege):
+//    O check-usage-gate.sh lê /tmp/claude_usage_current.json. SessionStart só grava o valor
+//    INICIAL — durante o run o uso SOBE, então o arquivo precisa ser REESCRITO de tempos em
+//    tempos por um processo EXTERNO. Método padrão (verificável, sem endpoint não-documentado):
+//      cron rodando watch-usage.sh --write a cada X min. Ex. (crontab -e):
+//        */10 * * * * BUDGET=8000000 ~/.claude/hooks/long-run/watch-usage.sh --write
+//    Alternativa [VERIFICAR]: write-status-from-oauth.sh (endpoint OAuth não-oficial).
+//
+// 7. FALHA ABERTO (leia!): com "onTimeout":"allow" + arquivo de status ausente/velho, o gate
+//    ASSUME 0% e DEIXA PASSAR — ou seja, SEM proteção de 90%. Garanta que o cron está rodando
+//    e que o status está fresco ANTES de confiar 12h. Logs em /tmp/check-usage-gate.log e
+//    /tmp/watch-usage* ajudam a confirmar. Se preferir falhar FECHADO, troque "onTimeout"
+//    para "deny" (risco de travar a sessão se o gate ficar lento).
+//
+// ============================================================================

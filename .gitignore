@@ -1,0 +1,22 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Runtime do harness (gerados em execução; não versionar)
+*.log
+.claude/worktrees/
+cards/runs/
+cards/previews/
+
+# Nuxt
+panel/.nuxt/
+panel/.output/
+panel/.data/
+
+# Dependências / segredos
+node_modules/
+.env
+.env.*

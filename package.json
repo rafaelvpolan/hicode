@@ -1,0 +1,14 @@
+{
+  "name": "hicode",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "panel": "cd panel && bun run dev",
+    "panel:build": "cd panel && bun run build",
+    "runner": "node runner.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
+}
