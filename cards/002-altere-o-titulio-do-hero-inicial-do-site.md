@@ -2,11 +2,12 @@
 id: 002
 slug: altere-o-titulio-do-hero-inicial-do-site
 title: Altere o titulo do hero inicial do site para:
-status: PREVIEW_OK
+status: PR_OPEN
+pr_url: https://github.com/rafaelvpolan/hicode-site/pull/2
 risk: low
 repo: rafaelvpolan/hicode-site
 created: 2026-06-30T02:11:33Z
-updated: 2026-06-30T02:40:29Z
+updated: 2026-06-30T11:06:44Z
 cost_usd: 0.6179
 preview_url: http://localhost:5173
 ---
@@ -28,3 +29,6 @@ Loops inteligentes constroem sistemas.
 2026-06-30T02:22:44Z EXECUTED->PREVIEW http://localhost:5173 + screenshot
 2026-06-30T02:23:33Z PREVIEW->PREVIEW_OK preview aprovado
 2026-06-30T02:40:29Z EDIT tarefa via painel
+2026-06-30T11:06:44Z PREVIEW_OK->TESTS_GREEN npm run build exit=0
+2026-06-30T11:06:44Z PREVIEW_OK->HALTED push falhou: error: src refspec hicode/002-altere-o-titulio-do-hero-inicial-do-site does not match any
+error: failed to push some ref

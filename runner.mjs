@@ -148,35 +148,117 @@ function writeRun(id, res) {
   return rec
 }
 
+function cardsByStatus(status) {
+  return cardFiles()
+    .map(f => ({ ...splitFrontMatter(readFileSync(join(CARDS_DIR, f), 'utf8')).fm, file: f }))
+    .filter(c => c.id && c.status === status)
+}
+
+function runGit(target, args) { return run('git', args, { cwd: target, timeout: 60000 }) }
+
+function repoBase(repoName) {
+  try {
+    const repos = JSON.parse(readFileSync(REPOS_FILE, 'utf8'))
+    const r = repos.find(x => x.name === repoName)
+    if (r && r.branch) return r.branch
+  } catch { void 0 }
+  return 'main'
+}
+
+function hasBuildScript(target) {
+  try {
+    const pkg = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8'))
+    return !!(pkg.scripts && pkg.scripts.build)
+  } catch { return false }
+}
+
+async function prepareBranch(target, card) {
+  const branch = `hicode/${card.fm.id}-${card.fm.slug}`
+  const base = repoBase(card.fm.repo)
+  await runGit(target, ['checkout', base])
+  await runGit(target, ['pull', '--ff-only'])
+  await runGit(target, ['checkout', '-B', branch])
+  return branch
+}
+
+async function handleExecute(id) {
+  const card = readCard(id)
+  const target = repoPath(card.fm.repo)
+  if (!existsSync(target)) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED repo nao encontrado: ${target}`)
+    return
+  }
+  let branch = card.fm.branch || ''
+  try { branch = await prepareBranch(target, card) } catch (e) { process.stdout.write(`[runner] aviso: branch prep falhou (${String(e && e.message)})\n`) }
+  process.stdout.write(`[runner] card #${id}: implementando em ${target} (branch ${branch})\n`)
+  const res = await implement(card, target)
+  const rec = writeRun(id, res)
+  if (!res.ok) {
+    patchCard(id, { status: 'HALTED', cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->HALTED ${res.reason}`)
+    process.stdout.write(`[runner] card #${id}: HALTED (${res.reason})\n`)
+    return
+  }
+  patchCard(id, { branch, cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'} (custo $${res.cost || '?'} · ${rec.tokens_total} tokens)`)
+  await runGit(target, ['add', '-A'])
+  await runGit(target, ['-c', 'commit.gpgsign=false', 'commit', '-m', `feat: ${card.fm.title} (#${id})`])
+  await new Promise(r => setTimeout(r, 2500))
+  const shot = await screenshot(id)
+  patchCard(id, { status: 'PREVIEW', preview_url: PREVIEW_URL }, `${isoNow()} EXECUTED->PREVIEW ${PREVIEW_URL}${shot ? ' + screenshot' : ' (sem screenshot)'}`)
+  process.stdout.write(`[runner] card #${id}: PREVIEW pronto\n`)
+}
+
+async function handleFinish(id) {
+  const card = readCard(id)
+  const target = repoPath(card.fm.repo)
+  const base = repoBase(card.fm.repo)
+  const branch = card.fm.branch || `hicode/${id}-${card.fm.slug}`
+  const msg = `feat: ${card.fm.title} (#${id})`
+  process.stdout.write(`[runner] card #${id}: finalizando (checkout + build + push + PR)\n`)
+  const co = await runGit(target, ['checkout', branch])
+  if (co.err) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED checkout da branch ${branch} falhou`)
+    return
+  }
+  if (hasBuildScript(target)) {
+    const b = await run('npm', ['run', 'build'], { cwd: target, timeout: 240000 })
+    if (b.err) {
+      patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED build falhou`)
+      process.stdout.write(`[runner] card #${id}: HALTED (build falhou)\n`)
+      return
+    }
+    patchCard(id, {}, `${isoNow()} PREVIEW_OK->TESTS_GREEN npm run build exit=0`)
+  } else {
+    patchCard(id, {}, `${isoNow()} PREVIEW_OK->TESTS_GREEN (sem script build)`)
+  }
+  const p = await runGit(target, ['push', '-u', 'origin', branch])
+  if (p.err) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED push falhou: ${String(p.stderr || '').slice(0, 120)}`)
+    return
+  }
+  const body = `Gerado pelo motor hicode (agentes Nexus). Card #${id}.\n\n${(card.desc || '').slice(0, 500)}`
+  const pr = await run('gh', ['pr', 'create', '--repo', card.fm.repo, '--base', base, '--head', branch, '--title', msg, '--body', body], { cwd: target, timeout: 60000 })
+  const url = String(pr.stdout || '').trim().split('\n').filter(Boolean).pop() || ''
+  if (pr.err && !url) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED gh pr create falhou: ${String(pr.stderr || '').slice(0, 120)}`)
+    return
+  }
+  patchCard(id, { status: 'PR_OPEN', pr_url: url }, `${isoNow()} REVIEWED->PR_OPEN ${url}`)
+  process.stdout.write(`[runner] card #${id}: PR_OPEN ${url}\n`)
+}
+
 let busy = false
 async function tick() {
   if (busy) return
-  const queue = executingCards()
-  if (!queue.length) return
+  const exec = cardsByStatus('EXECUTING')
+  const finish = cardsByStatus('PREVIEW_OK')
+  const job = exec[0] ? { kind: 'execute', id: exec[0].id } : finish[0] ? { kind: 'finish', id: finish[0].id } : null
+  if (!job) return
   busy = true
-  const id = queue[0].id
   try {
-    const card = readCard(id)
-    const target = repoPath(card.fm.repo)
-    if (!existsSync(target)) {
-      patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED repo nao encontrado: ${target}`)
-      return
-    }
-    process.stdout.write(`[runner] card #${id}: implementando em ${target}\n`)
-    const res = await implement(card, target)
-    const rec = writeRun(id, res)
-    if (!res.ok) {
-      patchCard(id, { status: 'HALTED', cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->HALTED ${res.reason}`)
-      process.stdout.write(`[runner] card #${id}: HALTED (${res.reason})\n`)
-      return
-    }
-    patchCard(id, { cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'} (custo $${res.cost || '?'} · ${rec.tokens_total} tokens)`)
-    await new Promise(r => setTimeout(r, 2500))
-    const shot = await screenshot(id)
-    patchCard(id, { status: 'PREVIEW', preview_url: PREVIEW_URL }, `${isoNow()} EXECUTED->PREVIEW ${PREVIEW_URL}${shot ? ' + screenshot' : ' (sem screenshot)'}`)
-    process.stdout.write(`[runner] card #${id}: PREVIEW pronto (custo $${res.cost || '?'})\n`)
+    if (job.kind === 'execute') await handleExecute(job.id)
+    else await handleFinish(job.id)
   } catch (e) {
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED erro: ${String((e && e.message) || e)}`)
+    patchCard(job.id, { status: 'HALTED' }, `${isoNow()} HALTED erro: ${String((e && e.message) || e)}`)
   } finally {
     busy = false
   }
