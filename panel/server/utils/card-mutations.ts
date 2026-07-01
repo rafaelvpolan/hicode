@@ -45,6 +45,22 @@ export function createSprint(repo: string, features: SprintFeatureInput[]): Crea
   return { ok: true, created: created.length, cards: created }
 }
 
+export function resumeFrom(id: string, step: string): CardRecord | null {
+  const f = findCardFile(id)
+  if (!f) return null
+  const p = join(CARDS_DIR, f)
+  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
+  const keys = order.length ? order : Object.keys(fm)
+  const from = fm.status || 'INBOX'
+  fm.resume_from = step
+  if (!keys.includes('resume_from')) keys.push('resume_from')
+  fm.status = 'PREVIEW_OK'
+  fm.updated = isoNow()
+  const nb = appendLog(body, `${isoNow()} ${from}->PREVIEW_OK replay a partir de ${step}`)
+  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
+  return { ...fm, file: f }
+}
+
 export function transition(id: string, status: CardStatus, note?: string): CardRecord | null {
   const f = findCardFile(id)
   if (!f) return null

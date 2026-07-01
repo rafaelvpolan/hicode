@@ -8,7 +8,7 @@ const { state, runs, gh, sprintRepo, load } = useDashboard()
 const {
   newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
   addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
-  start, pause, resume, act, reject, removeCard, openEdit, saveEdit, closeEdit,
+  start, pause, resume, act, reject, replay, removeCard, openEdit, saveEdit, closeEdit,
 } = useCardActions({ load, gh, sprintRepo })
 
 const cardsRef = toRef(state, 'cards')
@@ -68,6 +68,7 @@ const { kpis } = usePhases(cardsRef, runs)
         @reject="reject"
         @edit="openEdit"
         @remove="removeCard"
+        @replay="(step) => replay(c.id, step)"
       />
     </section>
   </main>

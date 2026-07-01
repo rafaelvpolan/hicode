@@ -98,6 +98,11 @@ export function useCardActions(options: CardActionsOptions) {
     await load()
   }
 
+  async function replay(id: string, step: string): Promise<void> {
+    await $fetch<CardActionResponse>(`/api/cards/${id}/replay`, { method: 'POST', body: { step } })
+    await load()
+  }
+
   async function removeCard(c: CardView): Promise<void> {
     if (!window.confirm(`Remover o card #${c.id} "${c.title}"?\nApaga o arquivo do card.`)) return
     await $fetch(`/api/cards/${c.id}`, { method: 'DELETE' })
@@ -134,6 +139,6 @@ export function useCardActions(options: CardActionsOptions) {
   return {
     newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
     addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
-    start, pause, resume, act, reject, removeCard, openEdit, saveEdit, closeEdit,
+    start, pause, resume, act, reject, replay, removeCard, openEdit, saveEdit, closeEdit,
   }
 }
