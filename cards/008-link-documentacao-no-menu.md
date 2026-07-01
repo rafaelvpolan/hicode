@@ -2,11 +2,11 @@
 id: 008
 slug: link-documentacao-no-menu
 title: Link Documentacao no menu
-status: PR_OPEN
+status: MERGED
 risk: low
 repo: rafaelvpolan/hicode-site
 created: 2026-07-01T00:10:01Z
-updated: 2026-07-01T00:15:57Z
+updated: 2026-07-01T10:24:53Z
 branch: hicode/008-link-documentacao-no-menu
 worktree: /home/rpolan/projects/.hicode-worktrees/hicode-site/008-link-documentacao-no-menu
 preview_url: http://localhost:5208
@@ -15,6 +15,7 @@ verify: ok
 cost_usd: 2.8965
 tokens_total: 113948
 pr_url: https://github.com/rafaelvpolan/hicode-site/pull/6
+merged_at: 2026-07-01T00:28:04Z
 ---
 
 ## Objetivo
@@ -35,3 +36,4 @@ Adicione um link "Docs" no menu de navegacao do topo, apontando para o repositor
 2026-07-01T00:15:51Z Limpeza (pura): The changed file (`src/App.vue`) contains no prose comments in its logic — no `//` or `/* */` blocks in the script, and  (custo $0.3058 · 28148 tokens)
 2026-07-01T00:15:53Z build (tsc + vite) exit=0
 2026-07-01T00:15:57Z REVIEWED->PR_OPEN https://github.com/rafaelvpolan/hicode-site/pull/6 (merge e do humano)
+2026-07-01T10:24:53Z PR_OPEN->MERGED PR mergeada no GitHub (merge humano) https://github.com/rafaelvpolan/hicode-site/pull/6
