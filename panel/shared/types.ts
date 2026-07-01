@@ -109,6 +109,9 @@ export interface ProjectPreviewResponse {
   url: string
   running: boolean
   started?: boolean
+  source?: 'wip' | 'main'
+  branch?: string
+  cardId?: string
   error?: string
 }
 
