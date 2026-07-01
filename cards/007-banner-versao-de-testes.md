@@ -2,11 +2,11 @@
 id: 007
 slug: banner-versao-de-testes
 title: Banner versao de testes
-status: PR_OPEN
+status: MERGED
 risk: low
 repo: rafaelvpolan/hicode-site
 created: 2026-06-30T11:59:00Z
-updated: 2026-07-01T00:08:52Z
+updated: 2026-07-01T02:36:22Z
 branch: hicode/007-banner-versao-de-testes
 worktree: /home/rpolan/projects/.hicode-worktrees/hicode-site/007-banner-versao-de-testes
 cost_usd: 2.1467
@@ -15,6 +15,7 @@ preview_pid: 185537
 verify: ok
 tokens_total: 9100
 pr_url: https://github.com/rafaelvpolan/hicode-site/pull/5
+merged_at: 2026-06-30T23:47:46Z
 ---
 
 ## Objetivo
@@ -32,3 +33,4 @@ Adicione um banner fixo e bem visivel no topo do site, acima do menu, com o text
 2026-06-30T23:19:41Z REVIEWED->PR_OPEN https://github.com/rafaelvpolan/hicode-site/pull/5 (merge e do humano)
 2026-07-01T00:08:51Z PR_OPEN->PREVIEW_OK preview aprovado
 2026-07-01T00:08:52Z PREVIEW_OK->HALTED worktree ausente: /home/rpolan/projects/.hicode-worktrees/hicode-site/007-banner-versao-de-testes
+2026-07-01T02:36:22Z PR_OPEN->MERGED PR mergeada no GitHub (merge humano) https://github.com/rafaelvpolan/hicode-site/pull/5

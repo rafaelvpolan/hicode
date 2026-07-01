@@ -2,11 +2,11 @@
 id: 006
 slug: coloque-botao-voltar-ao-topo-do-lado-inf
 title: Coloque botão voltar ao topo do lado inferior direito
-status: PR_OPEN
+status: MERGED
 risk: low
 repo: rafaelvpolan/hicode-site
 created: 2026-06-30T11:51:44Z
-updated: 2026-06-30T11:56:03Z
+updated: 2026-07-01T02:36:21Z
 branch: hicode/006-coloque-botao-voltar-ao-topo-do-lado-inf
 worktree: /home/rpolan/projects/.hicode-worktrees/hicode-site/006-coloque-botao-voltar-ao-topo-do-lado-inf
 cost_usd: 0.7325
@@ -14,6 +14,7 @@ tokens_total: 1775
 preview_url: http://localhost:5206
 preview_pid: 183205
 pr_url: https://github.com/rafaelvpolan/hicode-site/pull/4
+merged_at: 2026-06-30T23:52:34Z
 ---
 
 ## Objetivo
@@ -28,3 +29,4 @@ Coloque botão voltar ao topo do lado inferior direito
 2026-06-30T11:55:56Z PREVIEW->PREVIEW_OK preview aprovado
 2026-06-30T11:55:59Z PREVIEW_OK->TESTS_GREEN npm run build exit=0
 2026-06-30T11:56:03Z REVIEWED->PR_OPEN https://github.com/rafaelvpolan/hicode-site/pull/4 (merge e do humano)
+2026-07-01T02:36:21Z PR_OPEN->MERGED PR mergeada no GitHub (merge humano) https://github.com/rafaelvpolan/hicode-site/pull/4
