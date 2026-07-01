@@ -1,0 +1,136 @@
+import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { isoNow } from '../card'
+import type { StepMap, StepMetric, Usage } from '../card'
+import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL } from './config'
+import { readCard, patchCard, repoPath, repoBase } from './card-store'
+import { ensureWorktree, removeWorktree, runGit, worktreePath } from './git'
+import { hasBuildScript, previewPort, screenshot, startPreview, waitHttp } from './preview'
+import { implement, verifyVisual } from './claude'
+import { writeRun } from './runs'
+
+interface ExecuteSteps {
+  Fila: StepMetric
+  Executando: StepMetric
+  Feito: StepMetric
+  Preview: StepMetric
+  Aprovado: StepMetric
+  Arquitetura: StepMetric
+  Testes: StepMetric
+  Seguranca: StepMetric
+  Review: StepMetric
+  Limpeza: StepMetric
+  Revalidacao: StepMetric
+}
+
+function zeroMetric(): StepMetric {
+  return { time: 0, cost: 0, tokens: 0 }
+}
+
+function toSeconds(ms: number): number {
+  return Math.round(ms / 1000)
+}
+
+function tokensOf(u: Usage | undefined): number {
+  return u ? (u.tokens_in || 0) + (u.tokens_out || 0) + (u.tokens_cache_create || 0) : 0
+}
+
+function initialSteps(): ExecuteSteps {
+  return {
+    Fila: zeroMetric(),
+    Executando: zeroMetric(),
+    Feito: zeroMetric(),
+    Preview: zeroMetric(),
+    Aprovado: zeroMetric(),
+    Arquitetura: zeroMetric(),
+    Testes: zeroMetric(),
+    Seguranca: zeroMetric(),
+    Review: zeroMetric(),
+    Limpeza: zeroMetric(),
+    Revalidacao: zeroMetric(),
+  }
+}
+
+function asStepMap(steps: ExecuteSteps): StepMap {
+  return { ...steps }
+}
+
+export async function handleExecute(id: string): Promise<void> {
+  const card = readCard(id)
+  if (!card) return
+  const repoName = card.fm.repo ?? ''
+  const slug = card.fm.slug ?? ''
+  const target = repoPath(repoName)
+  if (!existsSync(target)) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED repo nao encontrado: ${target}`)
+    return
+  }
+  const base = repoBase(repoName)
+  const branch = `hicode/${id}-${slug}`
+  const wt = worktreePath(target, id, slug)
+  patchCard(id, { branch, worktree: wt }, `${isoNow()} EXECUTING: criando worktree ${branch}`)
+  try {
+    await ensureWorktree(target, wt, branch, base)
+  } catch (e) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED ${String((e as Error)?.message ?? e).slice(0, 140)}`)
+    return
+  }
+  process.stdout.write(`[runner] #${id}: implementando em worktree ${wt}\n`)
+  const t0 = Date.now()
+  const shotPath = join(CARDS_DIR, 'previews', String(id), 'preview.png')
+  const steps = initialSteps()
+  let tx = Date.now()
+  let res = await implement(card, wt, '')
+  steps.Executando.time += toSeconds(Date.now() - tx)
+  steps.Executando.cost += parseFloat(res.cost) || 0
+  steps.Executando.tokens += tokensOf(res.usage)
+  if (!res.ok) {
+    const rec = writeRun(id, res, toSeconds(Date.now() - t0), asStepMap(steps))
+    patchCard(id, { status: 'HALTED', cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->HALTED ${res.reason}`)
+    await removeWorktree(target, wt)
+    return
+  }
+  patchCard(id, {}, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'}`)
+  const port = previewPort(id)
+  const pid = hasBuildScript(target) ? startPreview(wt, port) : 0
+  const url = pid ? `http://localhost:${port}` : ''
+  if (pid) await waitHttp(url, 30)
+  const tp = Date.now()
+  let verify = { ok: true, reason: 'sem dev server (check visual pulado)', cost: 0, tokens: 0 }
+  let attempt = 0
+  while (pid) {
+    await new Promise(r => setTimeout(r, 2500))
+    await screenshot(id, url)
+    verify = await verifyVisual(card, shotPath)
+    steps.Preview.cost += verify.cost || 0
+    steps.Preview.tokens += verify.tokens || 0
+    patchCard(id, {}, `${isoNow()} check visual (IA, ${VERIFY_MODEL}): ${verify.ok ? 'OK' : 'FALHOU'} — ${verify.reason}`)
+    if (verify.ok || attempt >= MAX_VERIFY) break
+    attempt++
+    process.stdout.write(`[runner] #${id}: check visual falhou, reexecutando (${attempt})\n`)
+    const tx2 = Date.now()
+    const r2 = await implement(card, wt, `A verificacao visual falhou: ${verify.reason}. Garanta que o elemento/mudanca pedido apareca DE FATO e visivelmente na pagina.`)
+    steps.Executando.time += toSeconds(Date.now() - tx2)
+    steps.Executando.cost += parseFloat(r2.cost) || 0
+    steps.Executando.tokens += tokensOf(r2.usage)
+    if (r2.ok) res = r2
+  }
+  steps.Preview.time = toSeconds(Date.now() - tp)
+  const tf = Date.now()
+  await runGit(wt, ['add', '-A'])
+  await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', `feat: ${card.fm.title ?? ''} (#${id})`])
+  steps.Feito.time = toSeconds(Date.now() - tf)
+  const costSum = steps.Executando.cost + steps.Preview.cost
+  const duration = toSeconds(Date.now() - t0)
+  const rec = writeRun(id, { ...res, cost: costSum.toFixed(4) }, duration, asStepMap(steps))
+  const vlabel = verify.ok ? 'visual OK' : 'visual NAO confirmado'
+  patchCard(id, {
+    status: 'PREVIEW',
+    preview_url: url,
+    preview_pid: String(pid || ''),
+    verify: verify.ok ? 'ok' : 'falhou',
+    cost_usd: costSum.toFixed(4),
+    tokens_total: String(rec.tokens_total),
+  }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${vlabel}: ${verify.reason})`)
+  process.stdout.write(`[runner] #${id}: PREVIEW ${url} (${vlabel})\n`)
+}

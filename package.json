@@ -6,15 +6,15 @@
   "scripts": {
     "panel": "cd panel && bun run dev",
     "panel:build": "cd panel && bun run build",
-    "runner": "tsx runner.ts",
+    "runner": "bun runner.ts",
     "typecheck": "tsc --noEmit",
     "typecheck:panel": "cd panel && bun run typecheck",
-    "test": "npm run typecheck && npm run typecheck:panel"
+    "lint:types": "bun scripts/check-no-any.mjs",
+    "test": "bun run typecheck && bun run lint:types && bun run typecheck:panel"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "playwright": "^1.61.1",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }

@@ -1,0 +1,13 @@
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+export const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
+export const CARDS_DIR = join(ROOT, 'cards')
+export const REPOS_FILE = join(ROOT, 'config', 'repos.json')
+export const WT_BASE = join(dirname(ROOT), '.hicode-worktrees')
+export const PREVIEW_BASE_PORT = Number(process.env.HICODE_PREVIEW_BASE || 5200)
+export const POLL_MS = Number(process.env.HICODE_POLL_MS || 5000)
+export const RUN_TIMEOUT_MS = Number(process.env.HICODE_RUN_TIMEOUT_MS || 300000)
+export const MAX_CONCURRENCY = Number(process.env.HICODE_CONCURRENCY || 3)
+export const MAX_VERIFY = Number(process.env.HICODE_VERIFY_RETRIES || 1)
+export const VERIFY_MODEL = process.env.HICODE_VERIFY_MODEL || 'sonnet'
