@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import type { ApiError, ProjectPreviewResponse } from '#shared/types'
 
-export default defineEventHandler(async (event) => {
+export default defineEventHandler(async (event): Promise<ProjectPreviewResponse | ApiError> => {
   const repos = readRepos()
   const repo = repos[0]
   if (!repo) { setResponseStatus(event, 400); return { error: 'nenhum repo configurado' } }
