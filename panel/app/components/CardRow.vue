@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CardView, RunView } from '#shared/types'
-import { PHASES, STEP_LIST, phaseIdx, stClass } from '../composables/usePhases'
+import { PHASES, RESUME_STEP_BY_STATUS, STEP_LIST, phaseIdx, stClass } from '../composables/usePhases'
 import { fmtDt, fmtTime, runsFor } from '../composables/useFormat'
 
 interface CardRowProps {
@@ -16,12 +16,17 @@ interface CardRowEmits {
   reject: [id: string]
   edit: [card: CardView]
   remove: [card: CardView]
+  replay: [step: string]
 }
 
 const props = defineProps<CardRowProps>()
 defineEmits<CardRowEmits>()
 
 const cardRuns = computed(() => runsFor(props.runs, props.card.id))
+
+function resumeStepFor(status: string): string | null {
+  return RESUME_STEP_BY_STATUS[status] ?? null
+}
 </script>
 
 <template>
@@ -39,7 +44,16 @@ const cardRuns = computed(() => runsFor(props.runs, props.card.id))
     <div v-if="card.status === 'HALTED'" class="halt">⛔ HALTED — precisa de você</div>
     <div v-else-if="card.status === 'PAUSED'" class="paused">⏸ pausado — clique Retomar</div>
     <div v-else class="stepper">
-      <span v-for="(p, i) in PHASES" :key="p[0]" class="st" :class="stClass(i, phaseIdx(card.status))"><i></i><b>{{ p[1] }}</b></span>
+      <span v-for="(p, i) in PHASES" :key="p[0]" class="st" :class="stClass(i, phaseIdx(card.status))">
+        <i></i><b>{{ p[1] }}</b>
+        <button
+          v-if="resumeStepFor(p[0])"
+          class="replay"
+          type="button"
+          title="rodar a partir daqui"
+          @click="$emit('replay', resumeStepFor(p[0]) as string)"
+        >▶</button>
+      </span>
     </div>
 
     <div class="erow-actions">
@@ -97,6 +111,9 @@ button.icon:hover{ border-color:var(--acc); color:var(--tx) } button.icon.del:ho
 .st.done i{ background:var(--ok) } .st.done b{ color:var(--mut); font-weight:500 }
 .st.now i{ background:var(--acc); box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 30%,transparent) } .st.now b{ color:var(--tx) }
 .st.todo b{ color:#566 } .st.todo i{ opacity:.5 } .st b{ font-weight:600 }
+.st .replay{ opacity:0; width:auto; font-size:10px; line-height:1; padding:1px 5px; margin:0; border:1px solid var(--bd); border-radius:5px; background:var(--panel2); color:var(--acc); cursor:pointer; transition:opacity .12s }
+.st:hover .replay{ opacity:1 }
+.st .replay:hover{ border-color:var(--acc) }
 .erow-actions{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap }
 .erow-actions button{ padding:6px 12px; font-size:13px }
 .erow-actions button.ghost{ background:var(--panel2); border-color:var(--bd); color:var(--tx); font-weight:500 }

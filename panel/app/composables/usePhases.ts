@@ -22,8 +22,16 @@ export const STEP_LIST: StepListItem[] = [
   { k: 'Fila', l: 'Fila' }, { k: 'Executando', l: 'Executando' }, { k: 'Feito', l: 'Feito' },
   { k: 'Preview', l: 'Preview' }, { k: 'Aprovado', l: 'Aprovado' }, { k: 'Arquitetura', l: 'Arquitetura' },
   { k: 'Testes', l: 'Testes' }, { k: 'Seguranca', l: 'Segurança' }, { k: 'Review', l: 'Review' }, { k: 'Limpeza', l: 'Limpeza' },
-  { k: 'Reajuste', l: 'Reajuste' }, { k: 'Revalidacao', l: 'Revalidação' },
+  { k: 'Reajuste', l: 'Reajuste' }, { k: 'Conflito', l: 'Conflito' }, { k: 'Revalidacao', l: 'Revalidação' },
 ]
+
+export const RESUME_STEP_BY_STATUS: Record<string, string> = {
+  REFINED: 'Arquitetura',
+  TESTS_GREEN: 'Testes',
+  SEC_CLEARED: 'Seguranca',
+  REVIEWED: 'Review',
+  CLEANED: 'Limpeza',
+}
 
 export function phaseIdx(status: CardStatus): number {
   return PHASES.findIndex((p) => p[0] === status)
