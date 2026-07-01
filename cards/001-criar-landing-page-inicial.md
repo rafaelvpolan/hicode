@@ -2,7 +2,7 @@
 id: 001
 slug: criar-landing-page-inicial
 title: Landing page responsiva sobre o hicode (repo + donate + stars)
-status: PR_OPEN
+status: MERGED
 risk: low
 repo: rafaelvpolan/hicode-site
 branch: feat/landing-page

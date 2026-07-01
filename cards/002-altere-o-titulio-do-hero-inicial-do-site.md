@@ -2,7 +2,7 @@
 id: 002
 slug: altere-o-titulio-do-hero-inicial-do-site
 title: Altere o titulo do hero inicial do site para:
-status: PR_OPEN
+status: MERGED
 pr_url: https://github.com/rafaelvpolan/hicode-site/pull/2
 risk: low
 repo: rafaelvpolan/hicode-site

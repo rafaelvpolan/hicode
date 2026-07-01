@@ -2,7 +2,7 @@
 id: 004
 slug: rodape-feito-com-hicode
 title: Rodape: feito com hicode
-status: PR_OPEN
+status: MERGED
 pr_url: https://github.com/rafaelvpolan/hicode-site/pull/2
 risk: low
 repo: rafaelvpolan/hicode-site

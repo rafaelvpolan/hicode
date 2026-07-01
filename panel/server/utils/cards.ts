@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, rmSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, resolve, dirname, basename } from 'node:path'
 
 export const STATUSES = ['INBOX', 'READY', 'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'PAUSED', 'EXECUTED', 'PREVIEW', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED', 'PR_OPEN', 'MERGED', 'DEPLOYED', 'HALTED']
 
@@ -93,6 +93,7 @@ export function getState() {
     status: c.status || 'INBOX', risk: c.risk || 'low',
     repo: c.repo || '', updated: c.updated || '',
     desc: c.desc || '', cost_usd: c.cost_usd || '', tokens_total: c.tokens_total || '',
+    verify: c.verify || '', revalidacao: c.revalidacao || '',
     preview_url: c.preview_url || '', pr_url: c.pr_url || '',
     shot: existsSync(join(CARDS_DIR, 'previews', String(c.id), 'preview.png')),
   }))
@@ -101,6 +102,10 @@ export function getState() {
 
 export function readRepos(): Record<string, string>[] {
   try { return JSON.parse(readFileSync(REPOS_FILE, 'utf8')) } catch { return [] }
+}
+
+export function repoLocalPath(name: string): string {
+  return join(dirname(ROOT), basename(name || ''))
 }
 
 export function addRepo(input: Record<string, string>) {

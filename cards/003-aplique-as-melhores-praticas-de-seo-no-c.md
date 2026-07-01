@@ -2,7 +2,7 @@
 id: 003
 slug: aplique-as-melhores-praticas-de-seo-no-c
 title: Aplique as melhores praticas de SEO no contexto inteiro do site
-status: PR_OPEN
+status: MERGED
 pr_url: https://github.com/rafaelvpolan/hicode-site/pull/2
 risk: low
 repo: rafaelvpolan/hicode-site
