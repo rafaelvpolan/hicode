@@ -4,6 +4,7 @@ import { MAX_CONCURRENCY } from './config'
 import { cardsByStatus, patchCard } from './card-store'
 import { handleExecute } from './execute'
 import { handleFinish } from './finish'
+import { checkMerged } from './merge'
 
 const active = new Set<string>()
 
@@ -26,6 +27,7 @@ export function pending(): Job[] {
 }
 
 export function tick(): void {
+  void checkMerged(Date.now())
   for (const job of pending()) {
     if (active.size >= MAX_CONCURRENCY) break
     void runJob(job)
