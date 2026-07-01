@@ -1,5 +1,7 @@
 import { MAX_CONCURRENCY, POLL_MS, RUN_TIMEOUT_MS } from './lib/runner/config'
-import { pending, runJob, tick } from './lib/runner/queue'
+import { pending, reconcileStranded, runJob, tick } from './lib/runner/queue'
+
+reconcileStranded()
 
 if (process.argv.includes('--once')) {
   void Promise.all(pending().slice(0, MAX_CONCURRENCY).map(runJob)).then(() => process.exit(0))

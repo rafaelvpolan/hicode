@@ -8,6 +8,17 @@ import { checkMerged } from './merge'
 
 const active = new Set<string>()
 
+const FINISH_STATES = ['REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED']
+
+export function reconcileStranded(): void {
+  for (const s of FINISH_STATES) {
+    for (const c of cardsByStatus(s)) {
+      patchCard(c.id ?? '', { status: 'PREVIEW_OK' }, `${isoNow()} ${s}->PREVIEW_OK recuperado apos reinicio do daemon (finish reiniciado)`)
+      process.stdout.write(`[runner] #${c.id}: recuperado ${s}->PREVIEW_OK\n`)
+    }
+  }
+}
+
 export async function runJob(job: Job): Promise<void> {
   active.add(job.id)
   try {
