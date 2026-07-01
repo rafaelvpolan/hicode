@@ -10,4 +10,5 @@ export const POLL_MS = Number(process.env.HICODE_POLL_MS || 5000)
 export const RUN_TIMEOUT_MS = Number(process.env.HICODE_RUN_TIMEOUT_MS || 300000)
 export const MAX_CONCURRENCY = Number(process.env.HICODE_CONCURRENCY || 3)
 export const MAX_VERIFY = Number(process.env.HICODE_VERIFY_RETRIES || 1)
+export const MAX_REAJUSTE = Number(process.env.HICODE_REAJUSTE_RETRIES || 2)
 export const VERIFY_MODEL = process.env.HICODE_VERIFY_MODEL || 'sonnet'

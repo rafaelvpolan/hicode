@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { StepMap, Status } from '../card'
-import { CARDS_DIR } from './config'
+import { CARDS_DIR, MAX_REAJUSTE } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { removeWorktree, run, runGit, worktreePath } from './git'
 import { hasBuildScript, previewPort, httpOk, screenshot, startPreview, stopPreview, waitHttp } from './preview'
@@ -52,14 +52,26 @@ export async function handleFinish(id: string): Promise<void> {
   }
   if (hasBuildScript(target)) {
     const tb = Date.now()
-    const b = await run('npm', ['run', 'build'], { cwd: wt, timeout: 240000 })
+    let b = await run('npm', ['run', 'build'], { cwd: wt, timeout: 240000 })
     const testesStep = fsteps.Testes ?? { time: 0, cost: 0, tokens: 0 }
     fsteps.Testes = { time: testesStep.time + Math.round((Date.now() - tb) / 1000), cost: testesStep.cost, tokens: testesStep.tokens }
+    let reajuste = 0
+    while (b.err && reajuste < MAX_REAJUSTE) {
+      reajuste++
+      const tr = Date.now()
+      const detail = String(b.stderr || b.stdout || '').slice(0, 1500)
+      const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou. Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`)
+      b = await run('npm', ['run', 'build'], { cwd: wt, timeout: 240000 })
+      const prev = fsteps.Reajuste ?? { time: 0, cost: 0, tokens: 0 }
+      fsteps.Reajuste = { time: prev.time + Math.round((Date.now() - tr) / 1000), cost: prev.cost + rr.cost, tokens: prev.tokens + rr.tokens }
+      patchCard(id, {}, `${isoNow()} REAJUSTE (${reajuste}/${MAX_REAJUSTE}, rufus): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
+      process.stdout.write(`[runner] #${id}: REAJUSTE ${reajuste} (rufus)\n`)
+    }
     if (b.err) {
-      patchCard(id, { status: 'HALTED' }, `${isoNow()} build->HALTED build falhou`)
+      patchCard(id, { status: 'HALTED' }, `${isoNow()} build->HALTED build falhou apos ${reajuste} reajuste(s)`)
       return
     }
-    patchCard(id, {}, `${isoNow()} build (tsc + vite) exit=0`)
+    patchCard(id, {}, `${isoNow()} build (tsc + vite) exit=0${reajuste ? ` (apos ${reajuste} reajuste)` : ''}`)
   }
   const rport = previewPort(id)
   const rurl = `http://localhost:${rport}`

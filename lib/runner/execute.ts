@@ -20,6 +20,7 @@ interface ExecuteSteps {
   Seguranca: StepMetric
   Review: StepMetric
   Limpeza: StepMetric
+  Reajuste: StepMetric
   Revalidacao: StepMetric
 }
 
@@ -47,6 +48,7 @@ function initialSteps(): ExecuteSteps {
     Seguranca: zeroMetric(),
     Review: zeroMetric(),
     Limpeza: zeroMetric(),
+    Reajuste: zeroMetric(),
     Revalidacao: zeroMetric(),
   }
 }
