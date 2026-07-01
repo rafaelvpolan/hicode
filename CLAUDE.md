@@ -89,6 +89,17 @@ Regras:
   marcadores acionáveis (`TODO`/`FIXME`/`HACK`), referência de ticket. Imposto pelo hook
   `.claude/hooks/block-comments.mjs`. Não vale para IaC/config (`.tf`, `.yaml`, `.sh`). Limpeza
   reativa → agente **pura**.
+- **Proibido código monolítico:** arquivo de código não pode passar de **350 linhas** nem ser
+  um **god-file** (**≥20 funções e <3 exports**). Separe em módulos coesos — **types** num
+  arquivo, **helpers** puros em outro, cada grupo de **funções/responsabilidade** no seu próprio
+  arquivo. Em `.vue`, extraia lógica para **composables** e quebre em **componentes** menores.
+  Imposto pelo hook `.claude/hooks/block-monolithic.mjs` (conta só o `<script>` em `.vue`; não
+  vale para config/IaC/docs). Exceção com dívida técnica assumida: diretiva `hicode:allow-monolith`
+  no topo do arquivo.
+- **Tudo tipado (`strict`):** proibido `any` (explícito ou implícito); toda função com tipo de
+  retorno; `$fetch<T>()` sempre tipado. **Frontend é Vue 3 Composition API** (`<script setup
+  lang="ts">` + composables) — **nunca React/JSX**. `typecheck` (`tsc --noEmit` na raiz,
+  `nuxi typecheck` no painel) faz parte da suíte de testes.
 
 ## Segurança (modo autônomo)
 
