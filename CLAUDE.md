@@ -38,6 +38,14 @@ Nunca rodar testes/refactor/segurança antes do preview aprovado: valida-se a **
 - **CONFIRM substituído:** no modo autônomo, a fase `CONFIRM` interativa do `/nexus` é trocada pelo
   **gate Crivo sobre o plano** (`PLAN_APPROVED`) + a **aprovação do preview** + a **porta do PR**.
   O `/nexus` interativo continua disponível para trabalho manual.
+- **Merge é SEMPRE humano.** O fluxo automatizado (motor) termina em `PR_OPEN`: abre o PR e PARA.
+  O motor e o Claude **NUNCA** dão merge — nada de `gh pr merge`. Quem revisa o diff e mergeia é o
+  humano, no GitHub. Mesmo se o usuário disser "fazer o merge", o agente deixa o PR pronto e aponta
+  o link; o clique de merge é do humano. É a porta anti-rendição-cognitiva.
+- **Toda task parte do `main` ATUALIZADO.** Antes de criar a branch de trabalho: `git fetch origin
+  main` + `pull --ff-only` (ou, em worktree, criar de `origin/main` recém-buscado). Nunca ramificar
+  de estado velho nem de outra branch de feature. Detalhe na skill **`branch-from-main`**; o motor
+  já cumpre isso em `prepareBranch`/`ensureWorktree`.
 - **Spec só para mudança grande/cross-cutting/breaking** (`/spec`); fix/typo nasce direto (Direct
   mode). Formato: spec delta estilo OpenSpec (`## ADDED/MODIFIED/REMOVED Requirements`, `### Requisito`,
   `#### Cenário` GIVEN/WHEN/THEN), cada Cenário com tag `verify: sql|test|manual`.

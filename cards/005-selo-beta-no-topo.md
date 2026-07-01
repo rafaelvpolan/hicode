@@ -2,7 +2,7 @@
 id: 005
 slug: selo-beta-no-topo
 title: Selo beta no topo
-status: PR_OPEN
+status: MERGED
 risk: low
 repo: rafaelvpolan/hicode-site
 created: 2026-06-30T11:05:07Z
