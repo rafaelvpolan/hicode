@@ -1,7 +1,16 @@
-export default defineEventHandler(async (event) => {
+import type { CardActionResponse, CardRisk } from '#shared/types'
+
+interface CardActionBody {
+  reason?: string
+  title?: string
+  desc?: string
+  risk?: CardRisk
+}
+
+export default defineEventHandler(async (event): Promise<CardActionResponse> => {
   const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
   const action = getRouterParam(event, 'action')
-  const b = await readBody(event).catch(() => ({}))
+  const b = await readBody<CardActionBody>(event).catch(() => ({}) as CardActionBody)
   let card = null
   if (action === 'start') card = transition(id, 'EXECUTING', 'iniciado pelo painel')
   else if (action === 'pause') card = transition(id, 'PAUSED', 'pausado pelo painel')

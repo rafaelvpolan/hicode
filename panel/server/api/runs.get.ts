@@ -1,1 +1,3 @@
-export default defineEventHandler(() => ({ runs: getRuns() }))
+import type { RunsResponse } from '#shared/types'
+
+export default defineEventHandler((): RunsResponse => ({ runs: getRuns() }))

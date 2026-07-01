@@ -36,7 +36,7 @@ git worktree add -B hicode/<slug> ../.hicode-worktrees/<repo>/<slug> origin/main
 
 ## No motor autônomo (já aplicado)
 
-O `runner.mjs` **já cumpre esta regra** em `prepareBranch` → `ensureWorktree`: faz
+O `runner.ts` **já cumpre esta regra** em `prepareBranch` → `ensureWorktree`: faz
 `git fetch origin <base>` e cria o worktree da branch a partir de `origin/<base>` (main atualizado)
 **antes de qualquer edição do agente**. Portanto todo card nasce do `main` mais recente e o PR
 sai limpo (base `main`).
