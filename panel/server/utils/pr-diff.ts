@@ -30,7 +30,7 @@ function runGh(args: string[]): Promise<GhResult> {
 }
 
 export function parsePrUrl(url: string): PrRef | null {
-  const m = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/)
+  const m = url.match(/github\.com\/([\w.-]+)\/([\w.-]+)\/pull\/(\d+)/)
   if (!m) return null
   return { owner: m[1] ?? '', repo: m[2] ?? '', number: m[3] ?? '' }
 }
@@ -59,7 +59,7 @@ export async function prChangedFiles(url: string): Promise<ReviewChangedFile[]> 
 
 async function blobAt(pr: PrRef, path: string, ref: string): Promise<string> {
   if (!ref) return ''
-  const r = await runGh(['api', `repos/${pr.owner}/${pr.repo}/contents/${encodePath(path)}?ref=${ref}`, '--jq', '.content'])
+  const r = await runGh(['api', `repos/${pr.owner}/${pr.repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`, '--jq', '.content'])
   if (!r.ok) return ''
   const b64 = r.stdout.replace(/\s+/g, '')
   if (!b64) return ''
