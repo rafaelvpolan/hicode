@@ -42,8 +42,8 @@ export async function handleCorrect(id: string): Promise<void> {
   const instruction = card.fm.correction ?? ''
   const file = card.fm.correction_file ?? ''
   const wt = card.fm.worktree ?? ''
-  if (!wt || !existsSync(wt)) {
-    patchCard(id, { status: 'HALTED', correction: '', correction_file: '' }, `${isoNow()} CORRECTING->HALTED correção sem worktree`)
+  if (!wt || !existsSync(join(wt, '.git'))) {
+    patchCard(id, { status: 'HALTED', correction: '', correction_file: '' }, `${isoNow()} CORRECTING->HALTED correção sem worktree valido`)
     return
   }
   const target = repoPath(card.fm.repo ?? '')

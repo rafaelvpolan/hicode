@@ -53,6 +53,7 @@ function emptyReview(id: string, error: string): ReviewResponse {
     questions: [],
     files: [],
     correcting: false,
+    canCorrect: false,
     error,
   }
 }
@@ -98,7 +99,7 @@ export default defineEventHandler(async (event): Promise<ReviewResponse> => {
   let source: ReviewResponse['source'] = 'none'
   let files: ReviewChangedFile[] = []
 
-  if (wt && existsSync(wt)) {
+  if (wt && existsSync(join(wt, '.git'))) {
     source = 'wip'
     files = await changedFiles(wt, `origin/${base}..HEAD`, `origin/${base}...HEAD`)
   } else if (prUrl) {
@@ -122,5 +123,6 @@ export default defineEventHandler(async (event): Promise<ReviewResponse> => {
     questions: parseQuestions(card.review_questions || ''),
     files,
     correcting: card.status === 'CORRECTING',
+    canCorrect: source === 'wip' && card.status === 'PREVIEW',
   }
 })

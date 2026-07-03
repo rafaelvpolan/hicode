@@ -162,6 +162,7 @@ export interface ReviewResponse {
   questions: string[]
   files: ReviewChangedFile[]
   correcting: boolean
+  canCorrect: boolean
   error?: string
 }
 

@@ -42,7 +42,7 @@ const filesByPhase = computed<PhaseGroup[]>(() => {
 })
 
 const verdictLabel = computed<string>(() => data.value?.verdict || 'sem veredito')
-const canCorrect = computed<boolean>(() => data.value?.status === 'PREVIEW')
+const canCorrect = computed<boolean>(() => data.value?.canCorrect ?? false)
 
 function verdictClass(verdict: string | undefined): string {
   const normalized = (verdict || '').toUpperCase()

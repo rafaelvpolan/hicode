@@ -81,7 +81,7 @@ export function requestCorrection(id: string, file: string, instruction: string)
   const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
   const keys = order.length ? order : Object.keys(fm)
   const from = fm.status || 'INBOX'
-  if (from !== 'PREVIEW' || !fm.worktree || !existsSync(fm.worktree)) return null
+  if (from !== 'PREVIEW' || !fm.worktree || !existsSync(join(fm.worktree, '.git'))) return null
   fm.correction = instruction
   fm.correction_file = file
   fm.status = 'CORRECTING'

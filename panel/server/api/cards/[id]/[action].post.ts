@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import type { CardActionResponse, CardRisk } from '#shared/types'
 
 const VALID_RESUME_STEPS = new Set(['Arquitetura', 'Testes', 'Seguranca', 'Review', 'Limpeza'])
@@ -33,7 +34,7 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
     if (!instruction) { setResponseStatus(event, 400); return { error: 'instrução vazia' } }
     const cur = readCards().find(c => c.id === id)
     if (!cur) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
-    if (cur.status !== 'PREVIEW' || !cur.worktree || !existsSync(cur.worktree)) {
+    if (cur.status !== 'PREVIEW' || !cur.worktree || !existsSync(join(cur.worktree, '.git'))) {
       setResponseStatus(event, 409)
       return { error: 'correção só no preview com worktree ativo — aprove/rejeite este card ou use /codefox no PR' }
     }
