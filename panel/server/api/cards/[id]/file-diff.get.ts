@@ -42,28 +42,22 @@ export default defineEventHandler(async (event): Promise<FileDiffResponse> => {
   const card = readCards().find(c => c.id === id)
   if (!card) return { path, status: '', before: '', after: '', error: 'card não encontrado' }
 
-  const branch = card.branch || ''
   const repoName = card.repo || ''
   const wt = card.worktree || ''
   const repo = readRepos().find(r => r.name === repoName)
   const base = repo?.branch || 'main'
-  const target = repoLocalPath(repoName)
-  const hasWt = !!wt && existsSync(wt)
-  const diffCwd = hasWt ? wt : target
-  const diffRange = hasWt ? `origin/${base}...HEAD` : `origin/${base}...origin/${branch}`
+  const hasWt = !!wt && existsSync(join(wt, '.git'))
 
-  const status = await statusFor(diffCwd, diffRange, path)
-
-  const beforeResult = await execGit(diffCwd, ['show', `origin/${base}:${path}`])
-  const before = beforeResult.ok ? beforeResult.stdout : ''
-
-  let after = ''
-  if (hasWt && existsSync(join(wt, path))) {
-    after = readFileSync(join(wt, path), 'utf8')
-  } else {
-    const afterResult = await execGit(target, ['show', `origin/${branch}:${path}`])
-    after = afterResult.ok ? afterResult.stdout : ''
+  if (!hasWt) {
+    if (!card.pr_url) return { path, status: '', before: '', after: '', error: 'sem worktree nem PR' }
+    const c = await prFileContent(card.pr_url, path)
+    return { path, status: c.status, before: truncate(c.before), after: truncate(c.after) }
   }
+
+  const status = await statusFor(wt, `origin/${base}...HEAD`, path)
+  const beforeResult = await execGit(wt, ['show', `origin/${base}:${path}`])
+  const before = beforeResult.ok ? beforeResult.stdout : ''
+  const after = existsSync(join(wt, path)) ? readFileSync(join(wt, path), 'utf8') : ''
 
   return { path, status, before: truncate(before), after: truncate(after) }
 })

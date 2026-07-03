@@ -91,7 +91,6 @@ export default defineEventHandler(async (event): Promise<ReviewResponse> => {
   const prUrl = card.pr_url || ''
   const repo = readRepos().find(r => r.name === repoName)
   const base = repo?.branch || 'main'
-  const target = repoLocalPath(repoName)
 
   const shot = existsSync(join(CARDS_DIR, 'previews', id, 'preview.png'))
   const previewUrl = card.preview_url || ''
@@ -104,9 +103,7 @@ export default defineEventHandler(async (event): Promise<ReviewResponse> => {
     files = await changedFiles(wt, `origin/${base}..HEAD`, `origin/${base}...HEAD`)
   } else if (prUrl) {
     source = 'pr'
-    await execGit(target, ['fetch', 'origin', base])
-    await execGit(target, ['fetch', 'origin', branch])
-    files = await changedFiles(target, `origin/${base}..origin/${branch}`, `origin/${base}...origin/${branch}`)
+    files = await prChangedFiles(prUrl)
   }
 
   return {

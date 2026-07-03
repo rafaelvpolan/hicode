@@ -25,7 +25,7 @@ defineEmits<CardRowEmits>()
 
 const REVIEWABLE_STATUSES: CardView['status'][] = [
   'PREVIEW', 'CORRECTING', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN',
-  'SEC_CLEARED', 'REVIEWED', 'CLEANED', 'PR_OPEN',
+  'SEC_CLEARED', 'REVIEWED', 'CLEANED', 'PR_OPEN', 'MERGED',
 ]
 
 const cardRuns = computed(() => runsFor(props.runs, props.card.id))
