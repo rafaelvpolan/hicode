@@ -12,6 +12,8 @@ interface CardActionBody {
   step?: string
   file?: string
   instruction?: string
+  line?: number
+  lineContent?: string
 }
 
 export default defineEventHandler(async (event): Promise<CardActionResponse> => {
@@ -50,7 +52,8 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
       setResponseStatus(event, 409)
       return { error: 'correção só no preview com worktree ativo — aprove/rejeite este card ou use /codefox no PR' }
     }
-    card = requestCorrection(id, (b?.file || '').trim(), instruction)
+    const line = typeof b?.line === 'number' && b.line > 0 ? String(b.line) : ''
+    card = requestCorrection(id, (b?.file || '').trim(), instruction, line, (b?.lineContent || '').slice(0, 300))
   } else { setResponseStatus(event, 400); return { error: 'acao invalida' } }
   if (!card) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
   return { ok: true, card }
