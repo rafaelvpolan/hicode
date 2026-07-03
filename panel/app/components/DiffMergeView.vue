@@ -12,6 +12,7 @@ interface DiffMergeViewProps {
   before: string
   after: string
   filename: string
+  onSelectLine?: (line: number, text: string) => void
 }
 
 const props = defineProps<DiffMergeViewProps>()
@@ -43,13 +44,26 @@ function sharedExtensions(filename: string): Extension[] {
   ]
 }
 
+function lineSelectExtension(): Extension {
+  return EditorView.domEventHandlers({
+    mousedown(event, view) {
+      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+      if (pos != null) {
+        const ln = view.state.doc.lineAt(pos)
+        props.onSelectLine?.(ln.number, ln.text)
+      }
+      return false
+    },
+  })
+}
+
 function createMergeView(): void {
   const parent = containerRef.value
   if (!parent) return
   mergeViewRef.value?.destroy()
   mergeViewRef.value = new MergeView({
     a: { doc: props.before, extensions: sharedExtensions(props.filename) },
-    b: { doc: props.after, extensions: sharedExtensions(props.filename) },
+    b: { doc: props.after, extensions: [...sharedExtensions(props.filename), lineSelectExtension()] },
     parent,
     highlightChanges: true,
     gutter: true,

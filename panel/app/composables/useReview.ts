@@ -14,7 +14,7 @@ export interface UseReviewReturn {
   openReview: (id: string) => Promise<void>
   close: () => void
   loadFileDiff: (path: string) => Promise<void>
-  submitCorrection: (path: string, instruction: string) => Promise<void>
+  submitCorrection: (path: string, instruction: string, line?: number, lineContent?: string) => Promise<void>
 }
 
 export function useReview(): UseReviewReturn {
@@ -80,13 +80,18 @@ export function useReview(): UseReviewReturn {
     }
   }
 
-  async function submitCorrection(path: string, instruction: string): Promise<void> {
+  async function submitCorrection(path: string, instruction: string, line?: number, lineContent?: string): Promise<void> {
     if (!cardId.value) return
     correcting.value = true
     try {
       await $fetch<CorrectResponse>(`/api/cards/${cardId.value}/correct`, {
         method: 'POST',
-        body: { file: path, instruction },
+        body: {
+          file: path,
+          instruction,
+          ...(line !== undefined ? { line } : {}),
+          ...(lineContent !== undefined ? { lineContent } : {}),
+        },
       })
     } finally {
       await refresh()
