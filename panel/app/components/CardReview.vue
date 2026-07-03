@@ -13,7 +13,7 @@ interface CardReviewEmits {
 }
 
 const props = defineProps<CardReviewProps>()
-defineEmits<CardReviewEmits>()
+const emit = defineEmits<CardReviewEmits>()
 
 const { data, loading, error, diffs, correcting, openReview, close, loadFileDiff, submitCorrection } = useReview()
 
@@ -54,6 +54,7 @@ function verdictClass(verdict: string | undefined): string {
 
 function handleClose(): void {
   close()
+  emit('close')
 }
 </script>
 
