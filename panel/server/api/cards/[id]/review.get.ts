@@ -68,6 +68,17 @@ function parseQuestions(raw: string): string[] {
   }
 }
 
+async function ignoredPaths(cwd: string, paths: string[]): Promise<Set<string>> {
+  if (!paths.length) return new Set()
+  const r = await execGit(cwd, ['check-ignore', '--no-index', '--', ...paths])
+  return new Set(r.stdout.split('\n').map(s => s.trim()).filter(Boolean))
+}
+
+async function withoutIgnored(cwd: string, files: ReviewChangedFile[]): Promise<ReviewChangedFile[]> {
+  const ignored = await ignoredPaths(cwd, files.map(f => f.path))
+  return ignored.size ? files.filter(f => !ignored.has(f.path)) : files
+}
+
 async function changedFiles(cwd: string, range: string, diffRange: string): Promise<ReviewChangedFile[]> {
   const diff = await execGit(cwd, ['diff', '--name-status', diffRange])
   if (!diff.ok) return []
@@ -91,6 +102,7 @@ export default defineEventHandler(async (event): Promise<ReviewResponse> => {
   const prUrl = card.pr_url || ''
   const repo = readRepos().find(r => r.name === repoName)
   const base = repo?.branch || 'main'
+  const target = repoLocalPath(repoName)
 
   const shot = existsSync(join(CARDS_DIR, 'previews', id, 'preview.png'))
   const previewUrl = card.preview_url || ''
@@ -100,10 +112,10 @@ export default defineEventHandler(async (event): Promise<ReviewResponse> => {
 
   if (wt && existsSync(join(wt, '.git'))) {
     source = 'wip'
-    files = await changedFiles(wt, `origin/${base}..HEAD`, `origin/${base}...HEAD`)
+    files = await withoutIgnored(wt, await changedFiles(wt, `origin/${base}..HEAD`, `origin/${base}...HEAD`))
   } else if (prUrl) {
     source = 'pr'
-    files = await prChangedFiles(prUrl)
+    files = await withoutIgnored(target, await prChangedFiles(prUrl))
   }
 
   return {
