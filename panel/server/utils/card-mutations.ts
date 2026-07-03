@@ -74,6 +74,24 @@ export function transition(id: string, status: CardStatus, note?: string): CardR
   return { ...fm, file: f }
 }
 
+export function requestCorrection(id: string, file: string, instruction: string): CardRecord | null {
+  const f = findCardFile(id)
+  if (!f) return null
+  const p = join(CARDS_DIR, f)
+  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
+  const keys = order.length ? order : Object.keys(fm)
+  const from = fm.status || 'INBOX'
+  if (from !== 'PREVIEW' || !fm.worktree || !existsSync(fm.worktree)) return null
+  fm.correction = instruction
+  fm.correction_file = file
+  fm.status = 'CORRECTING'
+  for (const key of ['correction', 'correction_file']) if (!keys.includes(key)) keys.push(key)
+  fm.updated = isoNow()
+  const nb = appendLog(body, `${isoNow()} ${from}->CORRECTING correção: ${file || '(geral)'} — ${instruction.slice(0, 120)}`)
+  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
+  return { ...fm, file: f }
+}
+
 export interface EditCardFields {
   title?: string
   desc?: string

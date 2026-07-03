@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import type { CardActionResponse, CardRisk } from '#shared/types'
 
 const VALID_RESUME_STEPS = new Set(['Arquitetura', 'Testes', 'Seguranca', 'Review', 'Limpeza'])
@@ -8,6 +9,8 @@ interface CardActionBody {
   desc?: string
   risk?: CardRisk
   step?: string
+  file?: string
+  instruction?: string
 }
 
 export default defineEventHandler(async (event): Promise<CardActionResponse> => {
@@ -25,6 +28,16 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
     const step = b?.step
     if (!step || !VALID_RESUME_STEPS.has(step)) { setResponseStatus(event, 400); return { error: 'step invalido' } }
     card = resumeFrom(id, step)
+  } else if (action === 'correct') {
+    const instruction = (b?.instruction || '').trim()
+    if (!instruction) { setResponseStatus(event, 400); return { error: 'instrução vazia' } }
+    const cur = readCards().find(c => c.id === id)
+    if (!cur) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
+    if (cur.status !== 'PREVIEW' || !cur.worktree || !existsSync(cur.worktree)) {
+      setResponseStatus(event, 409)
+      return { error: 'correção só no preview com worktree ativo — aprove/rejeite este card ou use /codefox no PR' }
+    }
+    card = requestCorrection(id, (b?.file || '').trim(), instruction)
   } else { setResponseStatus(event, 400); return { error: 'acao invalida' } }
   if (!card) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
   return { ok: true, card }

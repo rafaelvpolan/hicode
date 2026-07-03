@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { toRef } from 'vue'
+import { ref, toRef } from 'vue'
 import { useDashboard } from './composables/useDashboard'
 import { useCardActions } from './composables/useCardActions'
 import { usePhases } from './composables/usePhases'
@@ -13,6 +13,16 @@ const {
 
 const cardsRef = toRef(state, 'cards')
 const { kpis } = usePhases(cardsRef, runs)
+
+const reviewingCardId = ref<string>('')
+
+function openReviewFor(id: string): void {
+  reviewingCardId.value = id
+}
+
+function closeReview(): void {
+  reviewingCardId.value = ''
+}
 </script>
 
 <template>
@@ -69,11 +79,15 @@ const { kpis } = usePhases(cardsRef, runs)
         @edit="openEdit"
         @remove="removeCard"
         @replay="(step) => replay(c.id, step)"
+        @review="openReviewFor"
       />
     </section>
   </main>
 
   <CardEditModal :editing="editing" @save="saveEdit" @close="closeEdit" />
+  <ClientOnly>
+    <CardReview v-if="reviewingCardId" :card-id="reviewingCardId" @close="closeReview" />
+  </ClientOnly>
 </template>
 
 <style>
