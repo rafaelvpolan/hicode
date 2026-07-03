@@ -22,7 +22,11 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
   if (action === 'start') card = transition(id, 'EXECUTING', 'iniciado pelo painel')
   else if (action === 'pause') card = transition(id, 'PAUSED', 'pausado pelo painel')
   else if (action === 'resume') card = transition(id, 'EXECUTING', 'retomado pelo painel')
-  else if (action === 'approve') card = transition(id, 'PREVIEW_OK', 'preview aprovado')
+  else if (action === 'approve') {
+    const cur = readCards().find(c => c.id === id)
+    if (cur && cur.status !== 'PREVIEW') { setResponseStatus(event, 409); return { error: 'só dá pra aprovar um card em PREVIEW' } }
+    card = transition(id, 'PREVIEW_OK', 'preview aprovado')
+  }
   else if (action === 'reject') {
     const reason = (b?.reason || '').trim()
     const cur = readCards().find(c => c.id === id)
