@@ -1,14 +1,24 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { isoNow } from '../card'
-import type { VerifyResult } from '../card'
+import type { Usage, VerifyResult } from '../card'
 import { CARDS_DIR } from './config'
 import { readCard, patchCard, repoPath } from './card-store'
 import { runGit } from './git'
 import { hasBuildScript, previewPort, httpOk, screenshot, startPreview, waitHttp } from './preview'
-import { runStep, verifyVisual } from './claude'
+import { implement, runStep, verifyVisual } from './claude'
 
-function buildInstruction(instruction: string, file: string): string {
+interface StepOutcome {
+  text: string
+  cost: number
+  tokens: number
+}
+
+function tokensOf(u: Usage | undefined): number {
+  return u ? (u.tokens_in || 0) + (u.tokens_out || 0) + (u.tokens_cache_create || 0) : 0
+}
+
+function scopedInstruction(instruction: string, file: string): string {
   const target = file ? ` Arquivo alvo: ${file}.` : ''
   return `Correção pedida pelo revisor humano.${target} Faça a MENOR mudança que atenda: "${instruction}". Não mude nada fora do necessário. Não rode git, não inicie servidores.`
 }
@@ -29,11 +39,21 @@ async function revalidate(id: string, card: NonNullable<ReturnType<typeof readCa
   return verifyVisual(card, shotPath)
 }
 
-async function commitCorrection(wt: string, id: string): Promise<void> {
+async function commit(wt: string, message: string): Promise<void> {
   await runGit(wt, ['add', '-A'])
   const staged = (await runGit(wt, ['diff', '--cached', '--name-only'])).stdout.trim()
   if (!staged) return
-  await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', `fix: correção humana (#${id})`])
+  await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', message])
+}
+
+async function redoPreview(card: NonNullable<ReturnType<typeof readCard>>, wt: string, instruction: string): Promise<StepOutcome> {
+  const r = await implement(card, wt, `O preview anterior foi REJEITADO pelo revisor. Refaça a tarefa atendendo exatamente: "${instruction}".`)
+  return { text: r.resultText ?? r.reason ?? '', cost: parseFloat(r.cost) || 0, tokens: tokensOf(r.usage) }
+}
+
+async function scopedFix(wt: string, instruction: string, file: string): Promise<StepOutcome> {
+  const r = await runStep(wt, 'limpio', scopedInstruction(instruction, file))
+  return { text: r.text, cost: r.cost, tokens: r.tokens }
 }
 
 export async function handleCorrect(id: string): Promise<void> {
@@ -47,15 +67,16 @@ export async function handleCorrect(id: string): Promise<void> {
     return
   }
   const target = repoPath(card.fm.repo ?? '')
-  process.stdout.write(`[runner] #${id}: aplicando correção humana em ${wt}\n`)
-  const r = await runStep(wt, 'limpio', buildInstruction(instruction, file))
+  const redo = !file
+  process.stdout.write(`[runner] #${id}: ${redo ? 'refazendo preview (rejeitado)' : 'aplicando correção'} em ${wt}\n`)
+  const r = redo ? await redoPreview(card, wt, instruction) : await scopedFix(wt, instruction, file)
   const reval = await revalidate(id, card, wt, target)
-  await commitCorrection(wt, id)
+  await commit(wt, redo ? `feat: refaz preview apos rejeicao (#${id})` : `fix: correção humana (#${id})`)
   patchCard(id, {
     status: 'PREVIEW',
     correction: '',
     correction_file: '',
     verify: reval.ok ? 'ok' : 'falhou',
-  }, `${isoNow()} CORRECTING->PREVIEW correção aplicada (limpio): ${r.text || 'ok'} — visual ${reval.ok ? 'OK' : 'revisar'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
-  process.stdout.write(`[runner] #${id}: PREVIEW apos correção (visual ${reval.ok ? 'OK' : 'revisar'})\n`)
+  }, `${isoNow()} CORRECTING->PREVIEW ${redo ? 'preview refeito' : 'correção aplicada'}: ${r.text || 'ok'} — visual ${reval.ok ? 'OK' : 'revisar'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
+  process.stdout.write(`[runner] #${id}: PREVIEW apos ${redo ? 'refação' : 'correção'} (visual ${reval.ok ? 'OK' : 'revisar'})\n`)
 }

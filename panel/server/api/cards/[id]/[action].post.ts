@@ -23,7 +23,15 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
   else if (action === 'pause') card = transition(id, 'PAUSED', 'pausado pelo painel')
   else if (action === 'resume') card = transition(id, 'EXECUTING', 'retomado pelo painel')
   else if (action === 'approve') card = transition(id, 'PREVIEW_OK', 'preview aprovado')
-  else if (action === 'reject') card = transition(id, 'EXECUTED', b?.reason ? `reject: ${b.reason}` : 'preview rejeitado')
+  else if (action === 'reject') {
+    const reason = (b?.reason || '').trim()
+    const cur = readCards().find(c => c.id === id)
+    if (reason && cur && cur.status === 'PREVIEW' && cur.worktree && existsSync(join(cur.worktree, '.git'))) {
+      card = requestCorrection(id, '', reason)
+    } else {
+      card = transition(id, 'EXECUTED', reason ? `reject: ${reason}` : 'preview rejeitado')
+    }
+  }
   else if (action === 'edit') card = editCard(id, { title: b?.title, desc: b?.desc, risk: b?.risk })
   else if (action === 'replay') {
     const step = b?.step
