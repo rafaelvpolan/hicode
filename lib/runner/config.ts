@@ -14,3 +14,5 @@ export const MAX_REAJUSTE = Number(process.env.HICODE_REAJUSTE_RETRIES || 2)
 export const MAX_CONFLICT = Number(process.env.HICODE_CONFLICT_RETRIES || 2)
 export const MERGE_POLL_MS = Number(process.env.HICODE_MERGE_POLL_MS || 30000)
 export const VERIFY_MODEL = process.env.HICODE_VERIFY_MODEL || 'sonnet'
+export const GATE_MODEL = process.env.HICODE_GATE_MODEL || 'sonnet'
+export const GATE_DIFF_LIMIT = Number(process.env.HICODE_GATE_DIFF_LIMIT || 60000)

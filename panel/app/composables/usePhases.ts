@@ -23,6 +23,7 @@ export const STEP_LIST: StepListItem[] = [
   { k: 'Preview', l: 'Preview' }, { k: 'Aprovado', l: 'Aprovado' }, { k: 'Arquitetura', l: 'Arquitetura' },
   { k: 'Testes', l: 'Testes' }, { k: 'Seguranca', l: 'Segurança' }, { k: 'Review', l: 'Review' }, { k: 'Limpeza', l: 'Limpeza' },
   { k: 'Reajuste', l: 'Reajuste' }, { k: 'Conflito', l: 'Conflito' }, { k: 'Revalidacao', l: 'Revalidação' },
+  { k: 'Codefox', l: 'Codefox' },
 ]
 
 export const RESUME_STEP_BY_STATUS: Record<string, string> = {
