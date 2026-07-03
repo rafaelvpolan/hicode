@@ -10,6 +10,7 @@ interface CardReviewProps {
 
 interface CardReviewEmits {
   close: []
+  preview: [id: string]
 }
 
 const props = defineProps<CardReviewProps>()
@@ -66,6 +67,7 @@ function handleClose(): void {
           <h3>{{ data?.title || `Review #${cardId}` }}</h3>
           <span v-if="data?.source" class="source-badge" :class="data.source">{{ data.source }}</span>
           <span class="verdict-badge" :class="verdictClass(data?.verdict)">{{ verdictLabel }}</span>
+          <button v-if="data && (data.preview.shot || data.preview.url)" type="button" class="preview-jump" @click="$emit('preview', cardId)">👁 ver preview</button>
           <span v-if="!loading" class="auto-refresh">↻ auto-atualizando</span>
           <button type="button" class="close-btn" @click="handleClose">✕</button>
         </div>
@@ -84,20 +86,6 @@ function handleClose(): void {
           </ul>
         </section>
 
-        <section class="preview-section">
-          <h4>Preview</h4>
-          <div v-if="data.preview.shot" class="preview-shot">
-            <img :src="`/api/preview/${cardId}`" alt="preview do card">
-          </div>
-          <div v-else class="preview-empty">sem screenshot ainda.</div>
-          <a
-            v-if="data.preview.running && data.preview.url"
-            class="open-preview-link"
-            :href="data.preview.url"
-            target="_blank"
-            rel="noopener"
-          >abrir preview ↗</a>
-        </section>
 
         <section class="files-section">
           <h4>Arquivos alterados</h4>
@@ -151,6 +139,11 @@ function handleClose(): void {
 .verdict-badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
 .verdict-badge.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
 .verdict-badge.neutral { color: var(--mut); }
+.preview-jump {
+  font: inherit; font-size: 11.5px; font-weight: 600; color: var(--acc);
+  background: transparent; border: 1px solid color-mix(in srgb, var(--acc) 45%, transparent);
+  border-radius: 7px; padding: 3px 9px; cursor: pointer;
+}
 .auto-refresh { font-size: 11px; color: var(--mut); margin-left: auto; }
 .close-btn {
   font: inherit; background: var(--panel2); color: var(--tx); border: 1px solid var(--bd);
@@ -159,15 +152,11 @@ function handleClose(): void {
 .loading, .error, .empty { color: var(--mut); font-size: 13px; padding: 12px 0; }
 .error { color: var(--bad); }
 .questions { margin-bottom: 18px; }
-.questions h4, .preview-section h4, .files-section h4 {
+.questions h4, .files-section h4 {
   font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--mut); margin: 0 0 8px;
 }
 .questions ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .questions label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.preview-section { margin-bottom: 20px; }
-.preview-shot img { max-width: 100%; border-radius: 8px; border: 1px solid var(--bd); display: block; }
-.preview-empty { color: var(--mut); font-size: 13px; }
-.open-preview-link { display: inline-block; margin-top: 8px; font-size: 12.5px; }
 .phase-group { margin-bottom: 16px; }
 .phase-label {
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;

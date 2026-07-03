@@ -98,7 +98,7 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
 
   <CardEditModal :editing="editing" @save="saveEdit" @close="closeEdit" />
   <ClientOnly>
-    <CardReview v-if="reviewingCardId" :card-id="reviewingCardId" @close="closeReview" />
+    <CardReview v-if="reviewingCardId" :card-id="reviewingCardId" @close="closeReview" @preview="openPreviewFor" />
     <CardPreview
       v-if="previewingCardId"
       :card-id="previewingCardId"
