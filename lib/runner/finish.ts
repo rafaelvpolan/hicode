@@ -4,7 +4,7 @@ import { extractObjetivo, isoNow } from '../card'
 import type { StepMap, StepMetric, Status, Card } from '../card'
 import { CARDS_DIR, MAX_REAJUSTE, MAX_CONFLICT } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { removeWorktree, run, runGit, worktreePath } from './git'
+import { removeWorktree, run, runGit, stageAll, worktreePath } from './git'
 import { hasBuildScript, previewPort, httpOk, screenshot, startPreview, stopPreview, waitHttp } from './preview'
 import { runStep, verifyVisual } from './claude'
 import { updateRunSteps } from './runs'
@@ -37,7 +37,7 @@ function addMetric(fsteps: StepMap, key: string, m: StepMetric): void {
 }
 
 async function commitAll(wt: string, message: string): Promise<void> {
-  await runGit(wt, ['add', '-A'])
+  await stageAll(wt)
   await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', message])
 }
 

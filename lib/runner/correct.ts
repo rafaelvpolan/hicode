@@ -4,7 +4,7 @@ import { isoNow } from '../card'
 import type { Usage, VerifyResult } from '../card'
 import { CARDS_DIR } from './config'
 import { readCard, patchCard, repoPath } from './card-store'
-import { runGit } from './git'
+import { runGit, stageAll } from './git'
 import { hasBuildScript, previewPort, httpOk, screenshot, startPreview, waitHttp } from './preview'
 import { implement, runStep, verifyVisual } from './claude'
 
@@ -44,7 +44,7 @@ async function revalidate(id: string, card: NonNullable<ReturnType<typeof readCa
 }
 
 async function commit(wt: string, message: string): Promise<void> {
-  await runGit(wt, ['add', '-A'])
+  await stageAll(wt)
   const staged = (await runGit(wt, ['diff', '--cached', '--name-only'])).stdout.trim()
   if (!staged) return
   await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', message])
