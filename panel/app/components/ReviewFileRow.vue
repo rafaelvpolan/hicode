@@ -139,7 +139,7 @@ function submit(): void {
 .file-status { font-family: monospace; font-weight: 700; width: 16px; text-align: center; border-radius: 4px; font-size: 11px; }
 .file-status.a { color: var(--ok); } .file-status.m { color: var(--warn); }
 .file-status.d { color: var(--bad); } .file-status.r { color: var(--acc); }
-.file-path { font-family: monospace; font-size: 12.5px; flex: 1; }
+.file-path { font-family: monospace; font-size: 14px; color: #fff; flex: 1; }
 .file-caret { color: var(--mut); font-size: 11px; }
 .file-body { padding: 10px 12px; background: var(--bg); }
 .file-loading, .file-error { color: var(--mut); font-size: 12.5px; padding: 10px 0; }
