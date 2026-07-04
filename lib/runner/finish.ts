@@ -4,10 +4,11 @@ import { extractObjetivo, isoNow } from '../card'
 import type { StepMap, StepMetric, Status, Card } from '../card'
 import { CARDS_DIR, MAX_REAJUSTE, MAX_CONFLICT } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { removeWorktree, run, runGit, worktreePath } from './git'
+import { removeWorktree, run, runGit, stageAll, worktreePath } from './git'
 import { hasBuildScript, previewPort, httpOk, screenshot, startPreview, stopPreview, waitHttp } from './preview'
 import { runStep, verifyVisual } from './claude'
 import { updateRunSteps } from './runs'
+import { runCodefoxGate, persistGate, buildPrBody } from './codefox-gate'
 
 const QUALITY: Array<[string, string, string]> = [
   ['Arquitetura', 'rufus', 'Melhore a arquitetura/refatore o codigo relacionado a: "%s" sem mudar o comportamento observavel. Se nao houver ganho claro, nao mude nada.'],
@@ -36,7 +37,7 @@ function addMetric(fsteps: StepMap, key: string, m: StepMetric): void {
 }
 
 async function commitAll(wt: string, message: string): Promise<void> {
-  await runGit(wt, ['add', '-A'])
+  await stageAll(wt)
   await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', message])
 }
 
@@ -166,13 +167,22 @@ export async function handleFinish(id: string): Promise<void> {
     process.stdout.write(`[runner] #${id}: HALTED revalidacao (pos-merge)\n`)
     return
   }
+  const gate = await runCodefoxGate(wt, base, desc ?? '')
+  addMetric(fsteps, 'Codefox', { time: 0, cost: gate.cost, tokens: gate.tokens })
+  persistGate(id, gate)
+  if (gate.verdict === 'BLOCKED') {
+    updateRunSteps(id, fsteps)
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} REVIEWED->HALTED codefox gate BLOCKED: ${gate.reason} (worktree mantido p/ inspecao)`)
+    process.stdout.write(`[runner] #${id}: HALTED codefox gate BLOCKED\n`)
+    return
+  }
   const totals = updateRunSteps(id, fsteps)
   const p = await runGit(wt, ['push', '-u', 'origin', branch])
   if (p.err) {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} CLEANED->HALTED push falhou: ${String(p.stderr || '').slice(0, 120)}`)
     return
   }
-  const body = `Gerado pelo motor hicode (agentes Nexus). Card #${id}.\n\n${(desc ?? '').slice(0, 500)}`
+  const body = buildPrBody(id, desc ?? '', gate)
   const pr = await run('gh', ['pr', 'create', '--repo', repoName, '--base', base, '--head', branch, '--title', msg, '--body', body], { cwd: wt, timeout: 60000 })
   const url = String(pr.stdout || '').trim().split('\n').filter(Boolean).pop() || ''
   if (pr.err && !url) {

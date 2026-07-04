@@ -93,7 +93,7 @@ export function useCardActions(options: CardActionsOptions) {
   }
 
   async function reject(id: string): Promise<void> {
-    const reason = window.prompt('motivo da rejeição?') || ''
+    const reason = window.prompt('Rejeitar preview — o que refazer? (o preview será REFEITO com esta instrução; vazio = só rejeitar)') || ''
     await $fetch<CardActionResponse>(`/api/cards/${id}/reject`, { method: 'POST', body: { reason } })
     await load()
   }

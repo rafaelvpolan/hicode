@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { toRef } from 'vue'
+import { computed, ref, toRef } from 'vue'
 import { useDashboard } from './composables/useDashboard'
 import { useCardActions } from './composables/useCardActions'
 import { usePhases } from './composables/usePhases'
@@ -13,6 +13,27 @@ const {
 
 const cardsRef = toRef(state, 'cards')
 const { kpis } = usePhases(cardsRef, runs)
+
+const reviewingCardId = ref<string>('')
+const previewingCardId = ref<string>('')
+
+function openReviewFor(id: string): void {
+  reviewingCardId.value = id
+}
+
+function closeReview(): void {
+  reviewingCardId.value = ''
+}
+
+function openPreviewFor(id: string): void {
+  previewingCardId.value = id
+}
+
+function closePreview(): void {
+  previewingCardId.value = ''
+}
+
+const previewingCard = computed(() => state.cards.find((c) => c.id === previewingCardId.value))
 </script>
 
 <template>
@@ -69,11 +90,23 @@ const { kpis } = usePhases(cardsRef, runs)
         @edit="openEdit"
         @remove="removeCard"
         @replay="(step) => replay(c.id, step)"
+        @review="openReviewFor"
+        @preview="openPreviewFor"
       />
     </section>
   </main>
 
   <CardEditModal :editing="editing" @save="saveEdit" @close="closeEdit" />
+  <ClientOnly>
+    <CardReview v-if="reviewingCardId" :card-id="reviewingCardId" @close="closeReview" @preview="openPreviewFor" />
+    <CardPreview
+      v-if="previewingCardId"
+      :card-id="previewingCardId"
+      :shot="previewingCard?.shot ?? false"
+      :preview-url="previewingCard?.preview_url ?? ''"
+      @close="closePreview"
+    />
+  </ClientOnly>
 </template>
 
 <style>

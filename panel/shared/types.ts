@@ -1,6 +1,6 @@
 export type CardStatus =
   | 'INBOX' | 'READY' | 'SPECCED' | 'PLAN_APPROVED' | 'EXECUTING' | 'PAUSED'
-  | 'EXECUTED' | 'PREVIEW' | 'PREVIEW_OK' | 'REFINED' | 'TESTS_GREEN'
+  | 'EXECUTED' | 'PREVIEW' | 'CORRECTING' | 'PREVIEW_OK' | 'REFINED' | 'TESTS_GREEN'
   | 'SEC_CLEARED' | 'REVIEWED' | 'CLEANED' | 'PR_OPEN' | 'MERGED' | 'DEPLOYED' | 'HALTED'
 
 export type CardRisk = 'low' | 'high'
@@ -134,4 +134,48 @@ export interface EditingForm {
 export interface ProjectPreviewState {
   url: string
   msg: string
+}
+
+export interface ReviewChangedFile {
+  path: string
+  status: string
+  phase: string
+}
+
+export interface ReviewPreview {
+  shot: boolean
+  url: string
+  running: boolean
+}
+
+export interface ReviewResponse {
+  id: string
+  status: CardStatus
+  title: string
+  desc: string
+  branch: string
+  pr_url: string
+  source: 'wip' | 'pr' | 'none'
+  preview: ReviewPreview
+  verdict: string
+  reason: string
+  questions: string[]
+  files: ReviewChangedFile[]
+  correcting: boolean
+  canCorrect: boolean
+  error?: string
+}
+
+export interface FileDiffResponse {
+  path: string
+  status: string
+  before: string
+  after: string
+  error?: string
+}
+
+export interface CorrectResponse {
+  ok?: true
+  error?: string
+  card?: CardRecord
 }

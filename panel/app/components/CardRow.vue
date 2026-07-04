@@ -17,12 +17,21 @@ interface CardRowEmits {
   edit: [card: CardView]
   remove: [card: CardView]
   replay: [step: string]
+  review: [id: string]
+  preview: [id: string]
 }
 
 const props = defineProps<CardRowProps>()
 defineEmits<CardRowEmits>()
 
+const REVIEWABLE_STATUSES: CardView['status'][] = [
+  'PREVIEW', 'CORRECTING', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN',
+  'SEC_CLEARED', 'REVIEWED', 'CLEANED', 'PR_OPEN', 'MERGED',
+]
+
 const cardRuns = computed(() => runsFor(props.runs, props.card.id))
+const isReviewable = computed(() => REVIEWABLE_STATUSES.includes(props.card.status))
+const isPreviewable = computed(() => props.card.shot || !!props.card.preview_url)
 
 function resumeStepFor(status: string): string | null {
   return RESUME_STEP_BY_STATUS[status] ?? null
@@ -63,6 +72,8 @@ function resumeStepFor(status: string): string | null {
       <template v-else-if="card.status === 'PREVIEW'"><button @click="$emit('approve', card.id)">✅ Aprovar</button><button class="ghost" @click="$emit('reject', card.id)">✋ Rejeitar</button></template>
       <a v-else-if="card.status === 'PR_OPEN' && card.pr_url" class="btnlink" :href="card.pr_url" target="_blank" rel="noopener">🔗 Abrir PR</a>
       <a v-if="['PREVIEW', 'PREVIEW_OK'].includes(card.status) && card.preview_url" class="prevlink" :href="card.preview_url" target="_blank" rel="noopener">abrir preview ↗</a>
+      <button v-if="isPreviewable" class="ghost" @click="$emit('preview', card.id)">👁 Preview</button>
+      <button v-if="isReviewable" class="ghost" @click="$emit('review', card.id)">🔍 Code-review</button>
     </div>
     <a v-if="card.status === 'PREVIEW' && card.shot" :href="card.preview_url || '#'" target="_blank" rel="noopener"><img class="shot" :src="`/api/preview/${card.id}`" alt="preview"></a>
     <div v-if="cardRuns.length" class="execs">

@@ -21,6 +21,10 @@ export function runGit(dir: string, args: string[]): Promise<RunResult> {
   return run('git', args, { cwd: dir, timeout: 120000 })
 }
 
+export function stageAll(wt: string): Promise<RunResult> {
+  return runGit(wt, ['add', '-A', '--', '.', ':!node_modules'])
+}
+
 export function worktreePath(target: string, id: string, slug: string): string {
   return join(WT_BASE, basename(target), `${id}-${slug}`)
 }

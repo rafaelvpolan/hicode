@@ -1,6 +1,6 @@
 export const STATUSES = [
   'INBOX', 'READY', 'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'PAUSED', 'EXECUTED',
-  'PREVIEW', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED',
+  'PREVIEW', 'CORRECTING', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED',
   'CLEANED', 'PR_OPEN', 'MERGED', 'DEPLOYED', 'HALTED',
 ] as const
 
@@ -72,7 +72,7 @@ export interface ImplementResult {
   usage?: Usage
 }
 
-export type JobKind = 'execute' | 'finish'
+export type JobKind = 'execute' | 'finish' | 'correct'
 
 export interface Job {
   kind: JobKind

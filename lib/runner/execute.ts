@@ -4,7 +4,7 @@ import { isoNow } from '../card'
 import type { StepMap, StepMetric, Usage } from '../card'
 import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { ensureWorktree, removeWorktree, runGit, worktreePath } from './git'
+import { ensureWorktree, removeWorktree, runGit, stageAll, worktreePath } from './git'
 import { hasBuildScript, previewPort, screenshot, startPreview, waitHttp } from './preview'
 import { implement, verifyVisual } from './claude'
 import { writeRun } from './runs'
@@ -119,7 +119,7 @@ export async function handleExecute(id: string): Promise<void> {
   }
   steps.Preview.time = toSeconds(Date.now() - tp)
   const tf = Date.now()
-  await runGit(wt, ['add', '-A'])
+  await stageAll(wt)
   await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', `feat: ${card.fm.title ?? ''} (#${id})`])
   steps.Feito.time = toSeconds(Date.now() - tf)
   const costSum = steps.Executando.cost + steps.Preview.cost

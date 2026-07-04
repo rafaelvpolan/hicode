@@ -1,0 +1,176 @@
+# =============================================================================
+# codefox — configuração do gate de code-review do hicode
+# -----------------------------------------------------------------------------
+# Consumida por: /pre-push (gate no push — usa só `tools`), /pre-review e
+# /codefox (revisão de PR — usam as seções BASE). Projeto tem prioridade sobre
+# o global ~/.claude/.codefox.yaml.
+#
+# ⚠️ Os comandos aqui EXECUTAM LOCALMENTE na máquina de quem dá o push.
+# =============================================================================
+
+project:
+  name: "hicode"
+  stack: "Bun + TypeScript strict (motor lib/runner); Nuxt 4 + Vue 3 Composition API + TypeScript strict (painel); Node 22; Playwright (screenshots)"
+  architecture: "Plano de controle autônomo. O card (cards/<NNN-slug>.md) é a única fonte de verdade; o motor (lib/runner, bun runner.ts) executa o pipeline em worktrees do repo-alvo; o painel Nuxt é derivado. Loop fixo: executar → preview → aprovar → qualidade → PR. Estado e custo são carimbados pelo harness lendo cards/runs/*.json em disco, nunca pela fala do modelo."
+  critical_domain: "Motor autônomo que abre PR no repo-alvo. Merge é SEMPRE humano — nada de gh pr merge no código. Erro no gate/estado corrompe o loop de todos os cards."
+  reference_docs:
+    - "CLAUDE.md"
+    - "METODOLOGIA.md"
+    - "plano/02-arquitetura.md"
+    - ".claude/skills/nexus/SKILL.md"
+
+language: "pt-BR"
+identifiers_language: "keep-original"
+
+tone_instructions: >-
+  Revisor sênior, direto e técnico. Sem elogios genéricos, sem rodeios.
+  Aponte o problema, o motivo e a correção sugerida. Trate o autor como par.
+
+review:
+  profile: "chill"
+  max_comments: 15
+  nitpick:
+    level: 1
+    scale:
+      0: "Apenas bugs, regressões e riscos reais. Zero estilo."
+      1: "Nível 0 + problemas de manutenibilidade com impacto claro."
+      2: "Nível 1 + nitpicks agrupados em seção separada, nunca inline."
+      3: "Tudo, incluindo estilo e preferências. Uso pontual, não default."
+
+precision:
+  min_confidence: "high"
+  rules:
+    - "Suposição sobre código não visível vira pergunta, nunca afirmação."
+    - "Não afirmar comportamento de biblioteca/framework sem certeza; marcar como 'verificar:'."
+    - "Prefixos obrigatórios em incerteza: 'pergunta:' ou 'verificar:'."
+    - "Proibido referenciar arquivos, símbolos ou linhas inexistentes no diff."
+
+priorities:
+  - "Bugs e riscos reais — lógica incorreta, null/undefined, race conditions, edge cases no motor"
+  - "Regressões comportamentais — mudança de contrato do pipeline/estado sem intenção declarada"
+  - "Impacto operacional — worktrees, push, PR, auto-cura, sync de conflito, deploy"
+  - "Segurança — segredos, escopo do cwd-guard, denylist, banco read-only"
+  - "Lacunas de teste — caminhos do motor sem cobertura (typecheck/lint contam como suíte)"
+  - "Manutenibilidade — conforme nitpick.level e as regras globais do hicode"
+
+severity:
+  levels:
+    blocker:  { marker: "🔴", blocks_merge: true,  meaning: "Bug, regressão, vulnerabilidade ou risco operacional real" }
+    major:    { marker: "🟠", blocks_merge: false, meaning: "Problema relevante; corrigir neste PR salvo justificativa" }
+    minor:    { marker: "🟡", blocks_merge: false, meaning: "Melhoria válida; pode ir em follow-up" }
+    nitpick:  { marker: "🔵", blocks_merge: false, meaning: "Estilo/preferência; agrupar em seção própria" }
+    question: { marker: "❓", blocks_merge: false, meaning: "Dúvida genuína sobre intenção ou contexto" }
+  comment_format: |
+    <marcador> <resumo em 1 linha>
+
+    Problema: <o que está errado e por quê>
+    Sugestão: <correção concreta; incluir diff/snippet quando couber>
+    [Risco: <se aplicável>]
+
+path_filters:
+  - "!**/node_modules/**"
+  - "!**/.output/**"
+  - "!**/.nuxt/**"
+  - "!**/dist/**"
+  - "!**/*.lock"
+  - "!bun.lockb"
+  - "!cards/previews/**"
+  - "!cards/runs/**"
+
+path_instructions:
+  - path: "lib/runner/**"
+    instructions: |
+      - Motor autônomo. Cada arquivo ≤ 350 linhas e nunca god-file (≥20 funções e <3 exports).
+      - Tudo tipado strict; proibido `any` e `unknown` (explícito ou implícito); toda função com tipo de retorno.
+      - Estado e custo são carimbados lendo disco (cards/runs/*.json), não pela fala do modelo.
+      - Merge é sempre humano: proibido `gh pr merge` no código. O fluxo termina em PR_OPEN.
+      - Toda branch parte do main atualizado (fetch origin main + ff-only, ou origin/main recém-buscado).
+  - path: "lib/card/**"
+    instructions: |
+      - Domínio card compartilhado (motor + painel). Helpers puros, tipos únicos.
+      - Sem IO de runtime acoplado aqui; resolução de ROOT/leitura de dir fica em cada lado.
+  - path: "panel/app/**"
+    instructions: |
+      - Vue 3 Composition API (`<script setup lang="ts">`) + composables. NUNCA React/JSX.
+      - Sem `any`/`unknown`; `$fetch<T>()` sempre tipado. Componente ≤ 350 linhas (conta o <script>).
+      - Extraia lógica para composables; quebre em componentes menores.
+  - path: "panel/server/**"
+    instructions: |
+      - Endpoints tipados; `readBody` validado (nada de `b?.x` solto). Usa tipos de lib/card.
+      - Dashboard e índice são derivados dos cards; nunca co-autore o card pela API sem passar pelo mutation certo.
+  - path: ".claude/hooks/**"
+    instructions: |
+      - Hooks são gates de Write e falham ABERTOS (exit 0 = permitido em erro interno).
+      - Shell/.mjs de hook é isento da regra de comentários; não bloqueie por prosa aqui.
+
+global_rules:
+  - "Proibido comentário/docstring que explique a lógica (Clean Code); extraia para nomes reveladores. Exceções: licença, diretivas de tooling, TODO/FIXME/HACK, ref de ticket."
+  - "Proibido `any` e `unknown` em tipagem (explícito ou implícito)."
+  - "Arquivo de código ≤ 350 linhas e nunca god-file (≥20 funções e <3 exports). Em .vue, conta só o <script>."
+  - "Tudo tipado strict; toda função com tipo de retorno; `$fetch<T>()` sempre tipado."
+  - "Frontend é Vue 3 Composition API; nunca React/JSX."
+  - "Merge é sempre humano: nunca `gh pr merge` no código; o motor para em PR_OPEN."
+  - "Erros: nunca capturar e silenciar; log com contexto ou HALT com motivo."
+
+never_comment:
+  - "Comentário de prosa: já é bloqueado pelo hook block-comments; não recomente."
+  - "Preferência pessoal sem regra escrita neste arquivo ou no CLAUDE.md."
+  - "Código não alterado no diff, exceto se a mudança introduzir risco direto nele."
+  - "Mesmo apontamento repetido: comentar 1 vez e listar as demais ocorrências."
+  - "Config/IaC/docs (.yaml/.tf/.sh/.md): isentos das regras de comentário e monolito."
+
+pre_merge_checks:
+  title:
+    mode: "warning"
+    requirements: "Conventional Commits: 'tipo(escopo): descrição', <= 72 chars, sem trailer de IA"
+  description:
+    mode: "warning"
+    requirements: "Contém contexto, mudança e como verificar; referencia o card #NNN"
+  size:
+    mode: "warning"
+    requirements: "> 600 linhas alteradas: sugerir split, revisar mesmo assim"
+  custom_checks:
+    - name: "no-ai-trailer"
+      mode: "error"
+      instructions: "Commit/PR não pode ter 'Co-Authored-By: Claude' nem '🤖 Generated with Claude Code'."
+
+output:
+  verdict_rules:
+    approve: "Nenhum blocker e no máximo 1 major"
+    approve_with_reservations: "Sem blocker; majors pontuais com caminho claro"
+    request_changes: "Ao menos 1 blocker OU 2+ majors"
+  constraints:
+    - "Sem poema, sem elogio de abertura, sem repetir o diff."
+    - "Apontamentos ordenados por severidade."
+    - "Nitpicks agrupados; apenas se nitpick.level >= 2."
+  template: |
+    ## Review — <título do PR>
+
+    **Veredicto:** ✅ aprovar | ⚠️ aprovar com ressalvas | ❌ solicitar mudanças
+    **Risco geral:** baixo | médio | alto — <1 linha de justificativa>
+
+    ### Resumo
+    <2–4 linhas: o que o PR faz e principal preocupação, se houver>
+
+    ### Apontamentos
+    <comentários por arquivo/linha, formato de severity.comment_format>
+
+learnings: []
+
+# -----------------------------------------------------------------------------
+# tools — verificações determinísticas do gate de push (só esta seção no /pre-push)
+# Comandos reais do hicode. Cada um só roda se o diff tocar seus `paths`.
+# -----------------------------------------------------------------------------
+tools:
+  typecheck:
+    command: "bun run typecheck"
+    paths: ["runner.ts", "lib/**/*.ts", "scripts/**", "tsconfig*.json"]
+    timeout_seconds: 300
+  lint_types:
+    command: "bun run lint:types"
+    paths: ["runner.ts", "lib/**", "panel/app/**", "panel/server/**", "panel/shared/**"]
+    timeout_seconds: 180
+  panel_typecheck:
+    command: "bun run typecheck:panel"
+    paths: ["panel/**/*.ts", "panel/**/*.vue", "panel/tsconfig*.json", "panel/nuxt.config.*"]
+    timeout_seconds: 420
