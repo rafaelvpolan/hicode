@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { StepMap, StepMetric, Card, VerifyResult } from '../card'
-import { CARDS_DIR, MAX_REAJUSTE, MAX_CONFLICT } from './config'
+import { CARDS_DIR, MAX_REAJUSTE, MAX_CONFLICT, VISUAL_AI } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
 import { hasBuildScript, hasTestScript, previewPort, httpOk, screenshot, startPreview, stopPreview, waitHttp } from './preview'
@@ -110,8 +110,10 @@ async function revalidate(id: string, card: Card, wt: string, target: string, sh
     }
     if (up) {
       await new Promise(r => setTimeout(r, 3000))
-      await screenshot(id, rurl)
-      reval = await verifyVisual(card, shotPath)
+      const shot = await screenshot(id, rurl)
+      reval = VISUAL_AI
+        ? await verifyVisual(card, shotPath)
+        : { ok: shot, conclusive: false, reason: shot ? 'preview renderizado (check de IA off) — verificacao humana' : 'screenshot falhou', cost: 0, tokens: 0 }
     }
   }
   addMetric(fsteps, 'Revalidacao', { time: Math.round((Date.now() - rt) / 1000), cost: reval.cost || 0, tokens: reval.tokens || 0 })

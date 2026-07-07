@@ -1,8 +1,8 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { isoNow } from '../card'
-import type { StepMap, StepMetric, Usage } from '../card'
-import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL } from './config'
+import type { StepMap, StepMetric, Usage, VerifyResult } from '../card'
+import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL, VISUAL_AI } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreePath } from './git'
 import { hasBuildScript, previewPort, screenshot, startPreview, waitHttp } from './preview'
@@ -98,15 +98,19 @@ export async function handleExecute(id: string): Promise<void> {
   const url = pid ? `http://localhost:${port}` : ''
   const up = pid ? await waitHttp(url, 30) : false
   const tp = Date.now()
-  let verify = pid
-    ? { ok: false, reason: 'dev server nao subiu — preview nao renderizou', cost: 0, tokens: 0 }
-    : { ok: true, reason: 'sem dev server (check visual pulado)', cost: 0, tokens: 0 }
+  let verify: VerifyResult = pid
+    ? { ok: false, conclusive: true, reason: 'dev server nao subiu — preview nao renderizou', cost: 0, tokens: 0 }
+    : { ok: true, conclusive: false, reason: 'sem dev server (check visual pulado)', cost: 0, tokens: 0 }
   let attempt = 0
   while (up) {
     await new Promise(r => setTimeout(r, 2500))
     const shot = await screenshot(id, url)
     if (!shot) {
-      verify = { ok: false, reason: 'falha ao capturar screenshot (playwright ausente ou pagina em erro)', cost: 0, tokens: 0 }
+      verify = { ok: false, conclusive: true, reason: 'falha ao capturar screenshot (playwright ausente ou pagina em erro)', cost: 0, tokens: 0 }
+      break
+    }
+    if (!VISUAL_AI) {
+      verify = { ok: true, conclusive: false, reason: 'preview renderizado (check de IA desligado) — verificacao humana', cost: 0, tokens: 0 }
       break
     }
     verify = await verifyVisual(card, shotPath)
@@ -131,12 +135,13 @@ export async function handleExecute(id: string): Promise<void> {
   const costSum = steps.Executando.cost + steps.Preview.cost
   const duration = toSeconds(Date.now() - t0)
   const rec = writeRun(id, { ...res, cost: costSum.toFixed(4) }, duration, asStepMap(steps))
-  const vlabel = verify.ok ? 'visual OK' : 'visual NAO confirmado'
+  const vstate = verify.ok ? 'ok' : (verify.conclusive === false ? 'inconclusivo' : 'falhou')
+  const vlabel = verify.ok ? 'visual OK' : (verify.conclusive === false ? 'visual inconclusivo (verificacao humana)' : 'visual NAO confirmado')
   patchCard(id, {
     status: 'PREVIEW',
     preview_url: url,
     preview_pid: String(pid || ''),
-    verify: verify.ok ? 'ok' : 'falhou',
+    verify: vstate,
     cost_usd: costSum.toFixed(4),
     tokens_total: String(rec.tokens_total),
   }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${vlabel}: ${verify.reason})`)
