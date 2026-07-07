@@ -7,10 +7,14 @@
     "panel": "cd panel && bun run dev",
     "panel:build": "cd panel && bun run build",
     "runner": "bun runner.ts",
+    "init": "bun runner.ts --init",
+    "status": "bun runner.ts --status",
+    "watch": "bun runner.ts --status --watch",
     "typecheck": "tsc --noEmit",
     "typecheck:panel": "cd panel && bun run typecheck",
     "lint:types": "bun scripts/check-no-any.mjs",
-    "test": "bun run typecheck && bun run lint:types && bun run typecheck:panel"
+    "test:unit": "bun test ./test",
+    "test": "bun run typecheck && bun run lint:types && bun run test:unit && bun run typecheck:panel"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

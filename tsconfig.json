@@ -16,5 +16,5 @@
     "verbatimModuleSyntax": true
   },
   "include": ["runner.ts", "lib/**/*.ts"],
-  "exclude": ["node_modules", "panel"]
+  "exclude": ["node_modules", "panel", "test"]
 }

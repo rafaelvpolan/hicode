@@ -38,9 +38,13 @@ export function patchCard(id: string, fields: Fields, logLine?: string): void {
 }
 
 export function cardsByStatus(status: string): Array<Fields & { file: string }> {
+  return allCards().filter(c => c.status === status)
+}
+
+export function allCards(): Array<Fields & { file: string }> {
   return cardFiles()
     .map((f): Fields & { file: string } => ({ ...splitFrontMatter(readFileSync(join(CARDS_DIR, f), 'utf8')).fm, file: f }))
-    .filter(c => c.id && c.status === status)
+    .filter(c => c.id)
 }
 
 function loadRepos(): RepoConfig[] {

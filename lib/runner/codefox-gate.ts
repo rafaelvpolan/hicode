@@ -1,7 +1,9 @@
 import { isoNow } from '../card'
-import { GATE_MODEL, GATE_DIFF_LIMIT, ROOT } from './config'
-import { run, runGit } from './git'
+import { GATE_DIFF_LIMIT, ROOT } from './config'
+import { runGit } from './git'
 import { patchCard } from './card-store'
+import { modelFor, providerFor } from '../ai/registry'
+import { sumTokens } from '../ai/usage'
 
 export type GateVerdict = 'APPROVED' | 'CONDITIONAL' | 'BLOCKED'
 
@@ -12,16 +14,6 @@ export interface GateResult {
   questions: string[]
   cost: number
   tokens: number
-}
-
-interface ClaudeJson {
-  total_cost_usd?: number
-  result?: string
-  usage?: {
-    input_tokens?: number
-    output_tokens?: number
-    cache_creation_input_tokens?: number
-  }
 }
 
 interface RawVerdict {
@@ -54,7 +46,7 @@ function normalizeVerdict(v: string): GateVerdict {
   return 'CONDITIONAL'
 }
 
-function extractVerdictJson(text: string): RawVerdict | null {
+export function extractVerdictJson(text: string): RawVerdict | null {
   const objs: string[] = []
   let depth = 0
   let start = -1
@@ -109,22 +101,14 @@ function buildPrompt(desc: string, diff: DiffParts): string {
   ].join('\n')
 }
 
-function parseGate(stdout: string): ParsedGate {
-  let cost = 0
-  let tokens = 0
-  try {
-    const j = JSON.parse(stdout) as ClaudeJson
-    cost = Number(j.total_cost_usd) || 0
-    const u = j.usage || {}
-    tokens = (u.input_tokens || 0) + (u.output_tokens || 0) + (u.cache_creation_input_tokens || 0)
-    const v = extractVerdictJson(String(j.result || ''))
-    if (v) {
-      const questions = Array.isArray(v.questions)
-        ? v.questions.map(q => oneLine(String(q)).slice(0, 240)).filter(Boolean).slice(0, 3)
-        : []
-      return { found: true, verdict: normalizeVerdict(String(v.verdict || 'CONDITIONAL')), reason: oneLine(String(v.reason || '')).slice(0, 240), questions, cost, tokens }
-    }
-  } catch { void 0 }
+function buildParsed(text: string, cost: number, tokens: number): ParsedGate {
+  const v = extractVerdictJson(text)
+  if (v) {
+    const questions = Array.isArray(v.questions)
+      ? v.questions.map(q => oneLine(String(q)).slice(0, 240)).filter(Boolean).slice(0, 3)
+      : []
+    return { found: true, verdict: normalizeVerdict(String(v.verdict || 'CONDITIONAL')), reason: oneLine(String(v.reason || '')).slice(0, 240), questions, cost, tokens }
+  }
   return { found: false, verdict: 'CONDITIONAL', reason: '', questions: [], cost, tokens }
 }
 
@@ -133,19 +117,25 @@ export async function runCodefoxGate(wt: string, base: string, desc: string): Pr
   if (!diff.names.trim()) {
     return { ok: true, verdict: 'APPROVED', reason: 'sem mudancas vs a base', questions: [], cost: 0, tokens: 0 }
   }
-  const { err, stdout } = await run('claude', [
-    '-p', buildPrompt(desc, diff),
-    '--output-format', 'json', '--model', GATE_MODEL,
-    '--add-dir', wt, '--allowedTools', 'Read,Glob,Grep',
-  ], { cwd: ROOT, timeout: 180000 })
-  const parsed = parseGate(stdout)
-  if (err) {
-    return { ok: false, verdict: 'CONDITIONAL', reason: `gate NAO executou (${err.killed ? 'timeout' : 'erro'}): ${oneLine(String(err.message || '')).slice(0, 120)}`, questions: [], cost: parsed.cost, tokens: parsed.tokens }
+  const provider = providerFor('gate')
+  const res = await provider.run({
+    prompt: buildPrompt(desc, diff),
+    cwd: ROOT,
+    dirs: [wt],
+    mode: 'readonly',
+    useAgents: false,
+    model: modelFor('gate'),
+    timeoutMs: 180000,
+  })
+  const tokens = sumTokens(res.usage)
+  if (res.failed) {
+    return { ok: false, verdict: 'CONDITIONAL', reason: `gate NAO executou (${res.timedOut ? 'timeout' : 'erro'}): ${oneLine(res.detail).slice(0, 120)}`, questions: [], cost: res.cost, tokens }
   }
+  const parsed = buildParsed(res.text, res.cost, tokens)
   if (!parsed.found) {
-    return { ok: false, verdict: 'CONDITIONAL', reason: 'gate sem veredito parseavel na saida (revisar manualmente)', questions: [], cost: parsed.cost, tokens: parsed.tokens }
+    return { ok: false, verdict: 'CONDITIONAL', reason: 'gate sem veredito parseavel na saida (revisar manualmente)', questions: [], cost: res.cost, tokens }
   }
-  return { ok: true, verdict: parsed.verdict, reason: parsed.reason, questions: parsed.questions, cost: parsed.cost, tokens: parsed.tokens }
+  return { ok: true, verdict: parsed.verdict, reason: parsed.reason, questions: parsed.questions, cost: res.cost, tokens }
 }
 
 export function persistGate(id: string, gate: GateResult): void {

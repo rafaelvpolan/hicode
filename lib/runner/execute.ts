@@ -6,7 +6,7 @@ import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreePath } from './git'
 import { hasBuildScript, previewPort, screenshot, startPreview, waitHttp } from './preview'
-import { implement, verifyVisual } from './claude'
+import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
 
 interface ExecuteSteps {
@@ -96,13 +96,19 @@ export async function handleExecute(id: string): Promise<void> {
   const port = previewPort(id)
   const pid = hasBuildScript(target) ? startPreview(wt, port) : 0
   const url = pid ? `http://localhost:${port}` : ''
-  if (pid) await waitHttp(url, 30)
+  const up = pid ? await waitHttp(url, 30) : false
   const tp = Date.now()
-  let verify = { ok: true, reason: 'sem dev server (check visual pulado)', cost: 0, tokens: 0 }
+  let verify = pid
+    ? { ok: false, reason: 'dev server nao subiu — preview nao renderizou', cost: 0, tokens: 0 }
+    : { ok: true, reason: 'sem dev server (check visual pulado)', cost: 0, tokens: 0 }
   let attempt = 0
-  while (pid) {
+  while (up) {
     await new Promise(r => setTimeout(r, 2500))
-    await screenshot(id, url)
+    const shot = await screenshot(id, url)
+    if (!shot) {
+      verify = { ok: false, reason: 'falha ao capturar screenshot (playwright ausente ou pagina em erro)', cost: 0, tokens: 0 }
+      break
+    }
     verify = await verifyVisual(card, shotPath)
     steps.Preview.cost += verify.cost || 0
     steps.Preview.tokens += verify.tokens || 0

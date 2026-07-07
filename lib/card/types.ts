@@ -62,6 +62,7 @@ export interface VerifyResult {
   reason: string
   cost: number
   tokens: number
+  conclusive?: boolean
 }
 
 export interface ImplementResult {
