@@ -189,6 +189,7 @@ lib/runner/            motor: queue · execute · finish · correct · merge · 
   pipeline/            steps configuráveis (types + config)
   progress.ts          board de progresso no terminal
   hicode-home.ts       resolve/provisiona o .hicode/ do alvo
+  hooks.ts             instala/remove o pre-push (hicode hooks install)
   codefox-gate.ts      gate adversarial Crivo (por-step e final)
 lib/spec/openspec.ts   wrapper do OpenSpec (init/validate como gate determinístico)
 lib/tasks/             plugin de sync de tarefas (interface + registry + adapters/github-issues)
@@ -197,6 +198,7 @@ config/pipeline.json   steps default (editável, 0 token)
 config/repos.json      repos-alvo geridos
 cards/                 cards (<NNN>.md) + runs/*.json + previews/  — dados
 scripts/               runner-daemon.sh (daemonização/PID) · check-no-any.mjs
+  hooks/pre-push       gate de pre-push determinístico e portátil (versionado)
 test/                  testes (bun test)
 .github/workflows/     ci.yml (typecheck + lint + testes)
 panel/                 painel Nuxt (secundário, teste) — plugin local de referência
