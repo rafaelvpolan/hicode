@@ -47,6 +47,25 @@ export function allCards(): Array<Fields & { file: string }> {
     .filter(c => c.id)
 }
 
+export function nextId(): string {
+  const max = allCards().reduce((a, c) => Math.max(a, Number(c.id) || 0), 0)
+  return String(max + 1).padStart(3, '0')
+}
+
+function slugify(s: string): string {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'tarefa'
+}
+
+export function createCard(fields: Fields, body: string): string {
+  const id = nextId()
+  const slug = fields.slug || slugify(fields.title || '')
+  const fm: Fields = { id, slug, status: 'READY', ...fields, updated: isoNow() }
+  const order = Object.keys(fm)
+  writeFileSync(join(CARDS_DIR, `${id}-${slug}.md`), serializeCard(fm, order, body) + '\n')
+  return id
+}
+
 function loadRepos(): RepoConfig[] {
   try {
     return JSON.parse(readFileSync(REPOS_FILE, 'utf8')) as RepoConfig[]

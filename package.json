@@ -10,6 +10,7 @@
     "init": "bun runner.ts --init",
     "status": "bun runner.ts --status",
     "watch": "bun runner.ts --status --watch",
+    "sync": "bun runner.ts --sync",
     "typecheck": "tsc --noEmit",
     "typecheck:panel": "cd panel && bun run typecheck",
     "lint:types": "bun scripts/check-no-any.mjs",
