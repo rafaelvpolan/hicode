@@ -62,6 +62,7 @@ export interface VerifyResult {
   reason: string
   cost: number
   tokens: number
+  conclusive?: boolean
 }
 
 export interface ImplementResult {
@@ -72,7 +73,7 @@ export interface ImplementResult {
   usage?: Usage
 }
 
-export type JobKind = 'execute' | 'finish' | 'correct'
+export type JobKind = 'execute' | 'finish' | 'correct' | 'spec'
 
 export interface Job {
   kind: JobKind

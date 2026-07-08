@@ -17,6 +17,15 @@ export function hasBuildScript(target: string): boolean {
   }
 }
 
+export function hasTestScript(target: string): boolean {
+  try {
+    const pkg = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as { scripts?: Record<string, string> }
+    return !!(pkg.scripts && pkg.scripts.test)
+  } catch {
+    return false
+  }
+}
+
 export function startPreview(wt: string, port: number): number {
   const child = spawn('npm', ['run', 'dev', '--', '--port', String(port), '--host'], { cwd: wt, detached: true, stdio: 'ignore' })
   child.unref()

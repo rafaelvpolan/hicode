@@ -33,8 +33,12 @@ Nunca rodar testes/refactor/segurança antes do preview aprovado: valida-se a **
   harness/hook lendo `cards/runs/*.json` — **não** a fala do modelo.
 - O **heartbeat** (cron local; GitHub Actions depois) roda `/hicode-triage` stateless: descobre
   trabalho, escreve cards, regenera o dashboard.
-- Por card, o **harness** (`workflows/card-pipeline.mjs`, via Workflow tool) executa o pipeline com
-  o `gated()` + retry(2) + HALT do Nexus, e fecha o **loop verde lendo exit code real em disco**.
+- Por card, o **motor** (`runner.ts` + `lib/runner/`: fila de jobs em `tick()`/`queue`) executa o
+  pipeline fase a fase chamando a IA por subprocesso (camada de provedor em `lib/ai/`: claude/codex/
+  opencode/ollama, escolhida por papel via env), com **reajuste/retry + HALT** e o **gate codefox
+  (crivo) vinculante**, e fecha o **loop verde lendo exit code real em disco** (build/test/gate). Os
+  steps de polimento são **configuráveis** em `config/pipeline.json` (ativar/desativar/reordenar;
+  override por projeto em `<alvo>/.hicode/pipeline.json`).
 - **CONFIRM substituído:** no modo autônomo, a fase `CONFIRM` interativa do `/nexus` é trocada pelo
   **gate Crivo sobre o plano** (`PLAN_APPROVED`) + a **aprovação do preview** + a **porta do PR**.
   O `/nexus` interativo continua disponível para trabalho manual.

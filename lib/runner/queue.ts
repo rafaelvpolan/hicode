@@ -5,17 +5,25 @@ import { cardsByStatus, patchCard } from './card-store'
 import { handleExecute } from './execute'
 import { handleFinish } from './finish'
 import { handleCorrect } from './correct'
+import { handleSpec } from './spec-phase'
 import { checkMerged } from './merge'
 
 const active = new Set<string>()
 
 const FINISH_STATES = ['REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED']
+const RERUN_STATES = ['EXECUTING', 'CORRECTING', 'SPECCED']
 
 export function reconcileStranded(): void {
   for (const s of FINISH_STATES) {
     for (const c of cardsByStatus(s)) {
       patchCard(c.id ?? '', { status: 'PREVIEW_OK' }, `${isoNow()} ${s}->PREVIEW_OK recuperado apos reinicio do daemon (finish reiniciado)`)
       process.stdout.write(`[runner] #${c.id}: recuperado ${s}->PREVIEW_OK\n`)
+    }
+  }
+  for (const s of RERUN_STATES) {
+    for (const c of cardsByStatus(s)) {
+      patchCard(c.id ?? '', {}, `${isoNow()} ${s} interrompido por reinicio do daemon — sera reexecutado`)
+      process.stdout.write(`[runner] #${c.id}: ${s} interrompido, reexecutando apos reinicio\n`)
     }
   }
 }
@@ -25,6 +33,7 @@ export async function runJob(job: Job): Promise<void> {
   try {
     if (job.kind === 'execute') await handleExecute(job.id)
     else if (job.kind === 'finish') await handleFinish(job.id)
+    else if (job.kind === 'spec') await handleSpec(job.id)
     else await handleCorrect(job.id)
   } catch (e) {
     patchCard(job.id, { status: 'HALTED' }, `${isoNow()} HALTED erro: ${String((e as Error)?.message ?? e)}`)
@@ -37,7 +46,8 @@ export function pending(): Job[] {
   const ex: Job[] = cardsByStatus('EXECUTING').map(c => ({ kind: 'execute', id: c.id ?? '' }))
   const fi: Job[] = cardsByStatus('PREVIEW_OK').map(c => ({ kind: 'finish', id: c.id ?? '' }))
   const co: Job[] = cardsByStatus('CORRECTING').map(c => ({ kind: 'correct', id: c.id ?? '' }))
-  return [...ex, ...fi, ...co].filter(j => !active.has(j.id))
+  const sp: Job[] = cardsByStatus('SPECCED').map(c => ({ kind: 'spec', id: c.id ?? '' }))
+  return [...sp, ...ex, ...fi, ...co].filter(j => !active.has(j.id))
 }
 
 export function tick(): void {

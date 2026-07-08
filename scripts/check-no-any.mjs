@@ -3,7 +3,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, extname } from 'node:path'
 import { ALLOW, TS_EXT, findViolations } from './no-any-detect.mjs'
 
-const ROOTS = ['runner.ts', 'lib', 'panel/app', 'panel/server', 'panel/shared']
+const ROOTS = ['runner.ts', 'bin', 'lib', 'panel/app', 'panel/server', 'panel/shared']
 const SKIP_DIR = new Set(['node_modules', '.nuxt', '.output', 'dist', '.git'])
 
 function walk(entry, acc) {

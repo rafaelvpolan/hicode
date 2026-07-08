@@ -52,6 +52,12 @@ export async function ensureWorktree(target: string, wt: string, branch: string,
   })
 }
 
+export async function worktreeOnBranch(wt: string, branch: string): Promise<boolean> {
+  if (!existsSync(wt)) return false
+  const r = await runGit(wt, ['rev-parse', '--abbrev-ref', 'HEAD'])
+  return r.stdout.trim() === branch
+}
+
 export async function removeWorktree(target: string, wt: string): Promise<void> {
   if (wt && existsSync(wt)) await withGitLock(() => runGit(target, ['worktree', 'remove', '--force', wt]))
 }

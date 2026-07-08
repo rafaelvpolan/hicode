@@ -1,12 +1,12 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { isoNow } from '../card'
-import type { StepMap, StepMetric, Usage } from '../card'
-import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL } from './config'
+import type { StepMap, StepMetric, Usage, VerifyResult } from '../card'
+import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL, VISUAL_AI } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { ensureWorktree, removeWorktree, runGit, stageAll, worktreePath } from './git'
+import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
 import { hasBuildScript, previewPort, screenshot, startPreview, waitHttp } from './preview'
-import { implement, verifyVisual } from './claude'
+import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
 
 interface ExecuteSteps {
@@ -67,12 +67,26 @@ export async function handleExecute(id: string): Promise<void> {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED repo nao encontrado: ${target}`)
     return
   }
+  if (card.fm.spec === 'required' && card.fm.spec_done !== 'true') {
+    patchCard(id, { status: 'SPECCED' }, `${isoNow()} EXECUTING->SPECCED roteado para a fase de spec (spec: required)`)
+    return
+  }
   const base = repoBase(repoName)
-  const branch = `hicode/${id}-${slug}`
-  const wt = worktreePath(target, id, slug)
-  patchCard(id, { branch, worktree: wt }, `${isoNow()} EXECUTING: criando worktree ${branch}`)
+  const branch = card.fm.branch || `hicode/${id}-${slug}`
+  const wt = card.fm.worktree || worktreePath(target, id, slug)
+  patchCard(id, { branch, worktree: wt }, `${isoNow()} EXECUTING: preparando worktree ${branch}`)
   try {
-    await ensureWorktree(target, wt, branch, base)
+    const reuse = card.fm.spec_done === 'true' && await worktreeOnBranch(wt, branch)
+    if (card.fm.spec_done === 'true' && !reuse) {
+      patchCard(id, { status: 'SPECCED', spec_done: '' }, `${isoNow()} EXECUTING->SPECCED worktree do spec ausente — regerando spec`)
+      return
+    }
+    if (reuse) {
+      await runGit(wt, ['reset', '--hard', 'HEAD'])
+      await runGit(wt, ['clean', '-fd', '-e', 'node_modules'])
+    } else {
+      await ensureWorktree(target, wt, branch, base)
+    }
   } catch (e) {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED ${String((e as Error)?.message ?? e).slice(0, 140)}`)
     return
@@ -96,13 +110,23 @@ export async function handleExecute(id: string): Promise<void> {
   const port = previewPort(id)
   const pid = hasBuildScript(target) ? startPreview(wt, port) : 0
   const url = pid ? `http://localhost:${port}` : ''
-  if (pid) await waitHttp(url, 30)
+  const up = pid ? await waitHttp(url, 30) : false
   const tp = Date.now()
-  let verify = { ok: true, reason: 'sem dev server (check visual pulado)', cost: 0, tokens: 0 }
+  let verify: VerifyResult = pid
+    ? { ok: false, conclusive: true, reason: 'dev server nao subiu — preview nao renderizou', cost: 0, tokens: 0 }
+    : { ok: true, conclusive: false, reason: 'sem dev server (check visual pulado)', cost: 0, tokens: 0 }
   let attempt = 0
-  while (pid) {
+  while (up) {
     await new Promise(r => setTimeout(r, 2500))
-    await screenshot(id, url)
+    const shot = await screenshot(id, url)
+    if (!shot) {
+      verify = { ok: false, conclusive: true, reason: 'falha ao capturar screenshot (playwright ausente ou pagina em erro)', cost: 0, tokens: 0 }
+      break
+    }
+    if (!VISUAL_AI) {
+      verify = { ok: true, conclusive: false, reason: 'preview renderizado (check de IA desligado) — verificacao humana', cost: 0, tokens: 0 }
+      break
+    }
     verify = await verifyVisual(card, shotPath)
     steps.Preview.cost += verify.cost || 0
     steps.Preview.tokens += verify.tokens || 0
@@ -125,12 +149,13 @@ export async function handleExecute(id: string): Promise<void> {
   const costSum = steps.Executando.cost + steps.Preview.cost
   const duration = toSeconds(Date.now() - t0)
   const rec = writeRun(id, { ...res, cost: costSum.toFixed(4) }, duration, asStepMap(steps))
-  const vlabel = verify.ok ? 'visual OK' : 'visual NAO confirmado'
+  const vstate = verify.ok ? 'ok' : (verify.conclusive === false ? 'inconclusivo' : 'falhou')
+  const vlabel = verify.ok ? 'visual OK' : (verify.conclusive === false ? 'visual inconclusivo (verificacao humana)' : 'visual NAO confirmado')
   patchCard(id, {
     status: 'PREVIEW',
     preview_url: url,
     preview_pid: String(pid || ''),
-    verify: verify.ok ? 'ok' : 'falhou',
+    verify: vstate,
     cost_usd: costSum.toFixed(4),
     tokens_total: String(rec.tokens_total),
   }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${vlabel}: ${verify.reason})`)

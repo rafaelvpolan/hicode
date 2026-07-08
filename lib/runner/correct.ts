@@ -6,7 +6,7 @@ import { CARDS_DIR } from './config'
 import { readCard, patchCard, repoPath } from './card-store'
 import { runGit, stageAll } from './git'
 import { hasBuildScript, previewPort, httpOk, screenshot, startPreview, waitHttp } from './preview'
-import { implement, runStep, verifyVisual } from './claude'
+import { implement, runStep, verifyVisual } from './agent'
 
 interface StepOutcome {
   text: string
