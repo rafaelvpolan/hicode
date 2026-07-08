@@ -5,12 +5,13 @@ import { cardsByStatus, patchCard } from './card-store'
 import { handleExecute } from './execute'
 import { handleFinish } from './finish'
 import { handleCorrect } from './correct'
+import { handleSpec } from './spec-phase'
 import { checkMerged } from './merge'
 
 const active = new Set<string>()
 
 const FINISH_STATES = ['REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED']
-const RERUN_STATES = ['EXECUTING', 'CORRECTING']
+const RERUN_STATES = ['EXECUTING', 'CORRECTING', 'SPECCED']
 
 export function reconcileStranded(): void {
   for (const s of FINISH_STATES) {
@@ -32,6 +33,7 @@ export async function runJob(job: Job): Promise<void> {
   try {
     if (job.kind === 'execute') await handleExecute(job.id)
     else if (job.kind === 'finish') await handleFinish(job.id)
+    else if (job.kind === 'spec') await handleSpec(job.id)
     else await handleCorrect(job.id)
   } catch (e) {
     patchCard(job.id, { status: 'HALTED' }, `${isoNow()} HALTED erro: ${String((e as Error)?.message ?? e)}`)
@@ -44,7 +46,8 @@ export function pending(): Job[] {
   const ex: Job[] = cardsByStatus('EXECUTING').map(c => ({ kind: 'execute', id: c.id ?? '' }))
   const fi: Job[] = cardsByStatus('PREVIEW_OK').map(c => ({ kind: 'finish', id: c.id ?? '' }))
   const co: Job[] = cardsByStatus('CORRECTING').map(c => ({ kind: 'correct', id: c.id ?? '' }))
-  return [...ex, ...fi, ...co].filter(j => !active.has(j.id))
+  const sp: Job[] = cardsByStatus('SPECCED').map(c => ({ kind: 'spec', id: c.id ?? '' }))
+  return [...sp, ...ex, ...fi, ...co].filter(j => !active.has(j.id))
 }
 
 export function tick(): void {

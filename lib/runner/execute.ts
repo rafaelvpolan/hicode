@@ -4,7 +4,7 @@ import { isoNow } from '../card'
 import type { StepMap, StepMetric, Usage, VerifyResult } from '../card'
 import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL, VISUAL_AI } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { ensureWorktree, removeWorktree, runGit, stageAll, worktreePath } from './git'
+import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
 import { hasBuildScript, previewPort, screenshot, startPreview, waitHttp } from './preview'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
@@ -67,12 +67,26 @@ export async function handleExecute(id: string): Promise<void> {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED repo nao encontrado: ${target}`)
     return
   }
+  if (card.fm.spec === 'required' && card.fm.spec_done !== 'true') {
+    patchCard(id, { status: 'SPECCED' }, `${isoNow()} EXECUTING->SPECCED roteado para a fase de spec (spec: required)`)
+    return
+  }
   const base = repoBase(repoName)
-  const branch = `hicode/${id}-${slug}`
-  const wt = worktreePath(target, id, slug)
-  patchCard(id, { branch, worktree: wt }, `${isoNow()} EXECUTING: criando worktree ${branch}`)
+  const branch = card.fm.branch || `hicode/${id}-${slug}`
+  const wt = card.fm.worktree || worktreePath(target, id, slug)
+  patchCard(id, { branch, worktree: wt }, `${isoNow()} EXECUTING: preparando worktree ${branch}`)
   try {
-    await ensureWorktree(target, wt, branch, base)
+    const reuse = card.fm.spec_done === 'true' && await worktreeOnBranch(wt, branch)
+    if (card.fm.spec_done === 'true' && !reuse) {
+      patchCard(id, { status: 'SPECCED', spec_done: '' }, `${isoNow()} EXECUTING->SPECCED worktree do spec ausente — regerando spec`)
+      return
+    }
+    if (reuse) {
+      await runGit(wt, ['reset', '--hard', 'HEAD'])
+      await runGit(wt, ['clean', '-fd', '-e', 'node_modules'])
+    } else {
+      await ensureWorktree(target, wt, branch, base)
+    }
   } catch (e) {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED ${String((e as Error)?.message ?? e).slice(0, 140)}`)
     return
