@@ -31,6 +31,8 @@ hicode run           # motor em foreground (não daemoniza)
 hicode once          # processa a fila uma vez e sai
 hicode sync          # sincroniza tarefas externas (ver Pluggabilidade)
 hicode init [caminho] # provisiona .hicode/ num repo-alvo (default: cwd)
+hicode hooks install [caminho]   # instala o gate de pre-push num repo (default: cwd)
+hicode hooks uninstall [caminho] # remove o pre-push
 ```
 
 O painel (opcional, para testar/visualizar):
@@ -213,6 +215,11 @@ plano/                 o plano do projeto (00..05)
 - **Merge sempre humano**: proibido `gh pr merge` no código; o fluxo para em `PR_OPEN`.
 - **Testes**: `bun test ./test` (unidades puras); **CI** em `.github/workflows/ci.yml` roda
   typecheck + lint + testes em PRs para `main`.
+- **Gate de pre-push**: hook **determinístico e portátil** (`scripts/hooks/pre-push` — detecta o
+  package manager e roda `test`/`typecheck`/`lint`), instalável em qualquer repo com
+  `hicode hooks install`. A **revisão adversarial (codefox)** fica no **PR** via `/pre-review`. O
+  motor pusha com `--no-verify` (ele já se auto-gateia). Pular o hook: `git push --no-verify` ou
+  `SKIP_HOOK=1 git push`.
 
 ## Plano
 

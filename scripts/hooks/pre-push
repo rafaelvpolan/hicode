@@ -1,0 +1,31 @@
+#!/bin/sh
+# hicode pre-push — gate DETERMINISTICO portatil (detecta o package manager e roda test/typecheck/lint).
+# A revisao adversarial (codefox) fica no PR: rode /pre-review ao abrir o PR.
+# Instalar noutro repo:  hicode hooks install [caminho]
+# Pular uma vez:         SKIP_HOOK=1 git push   (ou git push --no-verify)
+[ "$SKIP_HOOK" = "1" ] && exit 0
+
+cat >/dev/null 2>&1 || true
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+{ [ -n "$ROOT" ] && cd "$ROOT"; } || exit 0
+[ -f package.json ] || exit 0
+
+if   [ -f bun.lock ] || [ -f bun.lockb ]; then PM=bun
+elif [ -f pnpm-lock.yaml ]; then PM=pnpm
+elif [ -f yarn.lock ]; then PM=yarn
+else PM=npm; fi
+command -v "$PM"  >/dev/null 2>&1 || { printf '[hicode] %s nao encontrado — pre-push pulado (fail-open).\n' "$PM" >&2; exit 0; }
+command -v node   >/dev/null 2>&1 || { printf '[hicode] node nao encontrado — pre-push pulado (fail-open).\n' >&2; exit 0; }
+
+has_script() { node -e "var s=(require('./package.json').scripts)||{};process.exit(s['$1']?0:1)" 2>/dev/null; }
+run_gate()   { has_script "$1" || return 0; printf '[hicode] pre-push: %s run %s...\n' "$PM" "$1" >&2; "$PM" run "$1" >&2; }
+gate_fail()  { printf '%s\n' "[hicode] pre-push REPROVADO — corrija ou 'git push --no-verify'." >&2; exit 1; }
+
+if has_script test; then
+  run_gate test || gate_fail
+else
+  run_gate typecheck || gate_fail
+  run_gate lint || gate_fail
+fi
+printf '[hicode] pre-push OK.\n' >&2
+exit 0

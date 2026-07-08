@@ -4,12 +4,14 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { renderProgress } from '../lib/runner/progress'
 import { initHicodeHome } from '../lib/runner/hicode-home'
+import { installPrePush, uninstallPrePush } from '../lib/runner/hooks'
 import { runSync } from '../lib/tasks/sync'
 import { taskSyncName } from '../lib/tasks/registry'
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const DAEMON = join(ROOT, 'scripts', 'runner-daemon.sh')
-const [cmd, arg] = process.argv.slice(2)
+const args = process.argv.slice(2)
+const cmd = args[0]
 
 function daemon(sub: string): number {
   return spawnSync(DAEMON, [sub], { stdio: 'inherit' }).status ?? 1
@@ -32,8 +34,28 @@ function usage(): void {
     '  once                     processa a fila uma vez e sai',
     '  sync                     sincroniza tarefas externas (HICODE_TASK_SYNC)',
     '  init [caminho]           provisiona .hicode/ num repo-alvo (default: cwd)',
+    '  hooks install [caminho]  instala o pre-push deterministico num repo (default: cwd)',
+    '  hooks uninstall [caminho] remove o pre-push',
     '',
   ].join('\n'))
+}
+
+function hooks(): number {
+  const sub = args[1]
+  const repo = args[2] || process.cwd()
+  const source = join(ROOT, 'scripts', 'hooks', 'pre-push')
+  if (sub === 'install') {
+    const dest = installPrePush(repo, source)
+    process.stdout.write(dest ? `pre-push instalado: ${dest}\n` : `falha ao instalar (repo git valido? hook fonte existe?)\n`)
+    return dest ? 0 : 1
+  }
+  if (sub === 'uninstall') {
+    const ok = uninstallPrePush(repo)
+    process.stdout.write(ok ? `pre-push removido de ${repo}\n` : `nenhum pre-push encontrado em ${repo}\n`)
+    return 0
+  }
+  process.stdout.write('uso: hicode hooks <install|uninstall> [caminho]\n')
+  return 1
 }
 
 async function main(): Promise<number> {
@@ -62,11 +84,13 @@ async function main(): Promise<number> {
       return 0
     }
     case 'init': {
-      const target = arg || process.cwd()
+      const target = args[1] || process.cwd()
       const created = initHicodeHome(target)
       process.stdout.write(created.length ? `.hicode/ provisionado em ${target}:\n${created.map(c => `  + ${c}`).join('\n')}\n` : `.hicode/ ja existe em ${target}\n`)
       return 0
     }
+    case 'hooks':
+      return hooks()
     default:
       usage()
       return cmd ? 1 : 0
