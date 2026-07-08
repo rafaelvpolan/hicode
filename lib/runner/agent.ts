@@ -13,6 +13,7 @@ export interface StepResult {
   cost: number
   tokens: number
   text: string
+  ok: boolean
 }
 
 function firstLine(s: string, max: number): string {
@@ -113,7 +114,7 @@ function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction
 export async function runStep(wt: string, agent: string, instruction: string): Promise<StepResult> {
   const t = Date.now()
   const provider = providerFor('step')
-  if (!provider.agentic) return { time: 0, cost: 0, tokens: 0, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use codex/opencode para steps que editam)` }
+  if (!provider.agentic) return { time: 0, cost: 0, tokens: 0, ok: false, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use codex/opencode para steps que editam)` }
   const res = await provider.run({
     prompt: stepPrompt(provider, wt, agent, instruction, readProjectRules(wt)),
     cwd: ROOT,
@@ -123,5 +124,5 @@ export async function runStep(wt: string, agent: string, instruction: string): P
     model: modelFor('step'),
     timeoutMs: RUN_TIMEOUT_MS,
   })
-  return { time: Math.round((Date.now() - t) / 1000), cost: res.cost, tokens: sumTokens(res.usage), text: firstLine(res.text, 120) }
+  return { time: Math.round((Date.now() - t) / 1000), cost: res.cost, tokens: sumTokens(res.usage), text: firstLine(res.text, 120), ok: res.ok }
 }

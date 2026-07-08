@@ -8,6 +8,7 @@ import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from
 import { hasBuildScript, hasTestScript, previewPort, httpOk, screenshot, startPreview, stopPreview, waitHttp } from './preview'
 import { runStep, verifyVisual } from './agent'
 import { activeSteps } from './pipeline/config'
+import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
 import { runCodefoxGate, persistGate, buildPrBody } from './codefox-gate'
 
@@ -147,14 +148,33 @@ export async function handleFinish(id: string): Promise<void> {
   const fsteps: StepMap = {}
   for (const step of steps.slice(startIdx)) {
     const instruction = step.instruction.replace('%s', desc ?? '')
-    const r = await runStep(wt, step.agent, instruction)
+    let r: { time: number; cost: number; tokens: number; text: string }
+    if (step.gated) {
+      const g = await runGatedStep(id, wt, base, step.agent, instruction, desc ?? '', step.label)
+      r = { ...g.metric, text: g.text }
+      if (!g.ok) {
+        fsteps[step.label] = g.metric
+        updateRunSteps(id, fsteps)
+        patchCard(id, { status: 'HALTED' }, `${isoNow()} ${step.label}->HALTED gate crivo reprovou apos ${MAX_REAJUSTE} reajuste(s): ${g.reason}`)
+        return
+      }
+    } else {
+      const sr = await runStep(wt, step.agent, instruction)
+      if (!sr.ok) {
+        fsteps[step.label] = { time: sr.time, cost: sr.cost, tokens: sr.tokens }
+        updateRunSteps(id, fsteps)
+        patchCard(id, { status: 'HALTED' }, `${isoNow()} ${step.label}->HALTED agente ${step.agent} falhou/timeout: ${sr.text}`)
+        return
+      }
+      r = { time: sr.time, cost: sr.cost, tokens: sr.tokens, text: sr.text }
+    }
     fsteps[step.label] = { time: r.time, cost: r.cost, tokens: r.tokens }
     if (step.gate === 'test' && !(await testGate(id, wt, target, fsteps, step.label))) {
       updateRunSteps(id, fsteps)
       patchCard(id, { status: 'HALTED' }, `${isoNow()} ${step.label}->HALTED testes falharam apos reajuste(s)`)
       return
     }
-    patchCard(id, { status: step.state }, `${isoNow()} ${step.label} (${step.agent}): ${r.text || 'ok'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
+    patchCard(id, { status: step.state }, `${isoNow()} ${step.label} (${step.agent})${step.gated ? ' [crivo ok]' : ''}: ${r.text || 'ok'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
     process.stdout.write(`[runner] #${id}: ${step.label} (${step.agent}) $${r.cost.toFixed(4)}\n`)
   }
   if (hasBuildScript(target) && !(await buildWithReajuste(id, wt, fsteps, 'Testes', 'Reajuste'))) {

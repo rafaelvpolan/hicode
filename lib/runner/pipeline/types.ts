@@ -12,6 +12,7 @@ export interface PipelineStep {
   state: Status
   gate: GateKind
   enabled: boolean
+  gated?: boolean
   instruction: string
 }
 

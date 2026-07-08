@@ -5,9 +5,9 @@ import { ROOT } from '../config'
 import type { PipelineConfig, PipelineStep } from './types'
 
 export const DEFAULT_STEPS: PipelineStep[] = [
-  { id: 'arquitetura', label: 'Arquitetura', kind: 'quality', agent: 'rufus', state: 'REFINED', gate: 'none', enabled: true, instruction: 'Melhore a arquitetura/refatore o codigo relacionado a: "%s" sem mudar o comportamento observavel. Se nao houver ganho claro, nao mude nada.' },
-  { id: 'testes', label: 'Testes', kind: 'quality', agent: 'testudo', state: 'TESTS_GREEN', gate: 'test', enabled: true, instruction: 'Garanta cobertura de testes para: "%s". Escreva/ajuste testes se aplicavel ao projeto.' },
-  { id: 'seguranca', label: 'Seguranca', kind: 'security', agent: 'escudo', state: 'SEC_CLEARED', gate: 'none', enabled: true, instruction: 'Revise seguranca (OWASP, secrets, XSS, deps) do que foi alterado para: "%s". Corrija problemas criticos.' },
+  { id: 'arquitetura', label: 'Arquitetura', kind: 'quality', agent: 'rufus', state: 'REFINED', gate: 'none', enabled: true, gated: true, instruction: 'Melhore a arquitetura/refatore o codigo relacionado a: "%s" sem mudar o comportamento observavel. Se nao houver ganho claro, nao mude nada.' },
+  { id: 'testes', label: 'Testes', kind: 'quality', agent: 'testudo', state: 'TESTS_GREEN', gate: 'test', enabled: true, gated: true, instruction: 'Garanta cobertura de testes para: "%s". Escreva/ajuste testes se aplicavel ao projeto.' },
+  { id: 'seguranca', label: 'Seguranca', kind: 'security', agent: 'escudo', state: 'SEC_CLEARED', gate: 'none', enabled: true, gated: true, instruction: 'Revise seguranca (OWASP, secrets, XSS, deps) do que foi alterado para: "%s". Corrija problemas criticos.' },
   { id: 'review', label: 'Review', kind: 'review', agent: 'crivo', state: 'REVIEWED', gate: 'none', enabled: true, instruction: 'Revise adversarialmente (read-only) o diff atual vs a tarefa "%s". Aponte problemas; nao edite arquivos.' },
   { id: 'limpeza', label: 'Limpeza', kind: 'cleanup', agent: 'pura', state: 'CLEANED', gate: 'none', enabled: true, instruction: 'Remova comentarios de prosa do codigo alterado (preserve licenca, diretivas de tooling, TODO/ticket).' },
 ]
