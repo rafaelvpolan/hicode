@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "hicode": "bin/hicode.ts"
+  },
   "scripts": {
     "panel": "cd panel && bun run dev",
     "panel:build": "cd panel && bun run build",
