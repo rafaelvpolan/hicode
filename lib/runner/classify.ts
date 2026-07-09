@@ -32,6 +32,10 @@ const VISUAL = [
   'titulo\\w*', 'subtitulo\\w*',
 ]
 
+export function isNonVisual(surface: string | undefined): boolean {
+  return (surface ?? '') === 'none'
+}
+
 function buildRe(stems: string[]): RegExp {
   return new RegExp('\\b(?:' + stems.join('|') + ')\\b')
 }

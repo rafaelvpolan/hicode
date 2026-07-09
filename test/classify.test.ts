@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { classifySurface } from '../lib/runner/classify'
+import { classifySurface, isNonVisual } from '../lib/runner/classify'
 
 test('conflito de PR -> nao-visual', () => {
   expect(classifySurface('Essa PR esta com conflitos, corrija', '', true).surface).toBe('none')
@@ -36,4 +36,23 @@ test('objetivo tambem e considerado', () => {
 
 test('acentos sao normalizados (pagina)', () => {
   expect(classifySurface('nova página de contato', '', true).surface).toBe('visual')
+})
+
+test('isNonVisual: surface "none" pula revalidacao visual (regressao #012)', () => {
+  expect(isNonVisual('none')).toBe(true)
+})
+
+test('isNonVisual: surface "visual" revalida normalmente', () => {
+  expect(isNonVisual('visual')).toBe(false)
+})
+
+test('isNonVisual: sem surface definido nao pula (default revalida)', () => {
+  expect(isNonVisual(undefined)).toBe(false)
+  expect(isNonVisual('')).toBe(false)
+})
+
+test('verificacao de pacotes (#012): classifica nao-visual e pula a revalidacao visual', () => {
+  const v = classifySurface('verifique se a resolucao de conflito afetou a versao correta dos pacotes', '', true)
+  expect(v.surface).toBe('none')
+  expect(isNonVisual(v.surface)).toBe(true)
 })
