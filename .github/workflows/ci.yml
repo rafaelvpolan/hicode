@@ -16,3 +16,5 @@ jobs:
       - run: bun run typecheck
       - run: bun run lint:types
       - run: bun run test:unit
+      - run: cd panel && bun install --frozen-lockfile || bun install
+      - run: bun run typecheck:panel

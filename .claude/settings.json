@@ -1,6 +1,5 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
     "deny": [
       "Bash(rm -rf /*)",
       "Bash(git push --force *)",
@@ -11,8 +10,11 @@
       "Bash(terraform apply *)",
       "Bash(terraform destroy *)",
       "Bash(DROP TABLE *)",
-      "Bash(DROP DATABASE *)"
-    ]
+      "Bash(DROP DATABASE *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr merge:*)"
+    ],
+    "defaultMode": "acceptEdits"
   },
   "hooks": {
     "PreToolUse": [
@@ -30,9 +32,16 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-any-unknown.mjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-derived-state.mjs\""
           }
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "claude-code-setup@claude-plugins-official": true
   }
 }
