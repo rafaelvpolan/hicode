@@ -50,10 +50,102 @@ bun run test:unit    # só os testes unitários
 
 ---
 
+## Primeiros passos — do zero à primeira tarefa
+
+> **`hicode init` é só o passo 0.** Ele provisiona a pasta `.hicode/` no repo-alvo e **para por
+> aí** — **não** cria tarefas, **não** sobe o motor e **não** registra o repo. "Iniciar as
+> tarefas" são os passos abaixo.
+
+### Passo 1 — Provisionar o repo-alvo
+
+```bash
+hicode init /caminho/do/repo-alvo   # cria .hicode/ (aditivo, nunca toca no repo)
+```
+
+Cria `.hicode/{config.json, rules.md, pipeline.json?, memory/, skills/, state/}`. Edite
+`.hicode/rules.md` (curto: stack, convenções, o que nunca mexer) — ele é injetado no prompt de
+cada card.
+
+### Passo 2 — Registrar o repo-alvo no motor
+
+O motor precisa achar o clone local do alvo. Adicione uma entrada em **`config/repos.json`**:
+
+```json
+[
+  {
+    "name": "owner/repo-alvo",
+    "path": "/caminho/do/repo-alvo",
+    "branch": "main"
+  }
+]
+```
+
+- `name` — precisa **bater** com o campo `repo:` dos cards.
+- `path` — clone local. **Se omitir**, o motor procura um diretório **irmão** deste repo com o
+  basename de `name` (ex.: `../repo-alvo`).
+- `branch` — base branch do alvo (default `main`).
+
+> Sem um `path` válido (nem irmão), o card vai para `HALTED` com `repo nao encontrado`.
+
+### Passo 3 — Subir o motor
+
+```bash
+hicode start        # daemon em background
+hicode status       # daemon on? + board dos cards
+# alternativas: hicode run (foreground) · hicode once (processa a fila 1x e sai)
+```
+
+### Passo 4 — Criar os cards (as tarefas)
+
+O **card** (`cards/<NNN-slug>.md`) é a tarefa. Ele nasce por um destes caminhos:
+
+| Caminho | Comando / ação | Status inicial |
+|---|---|---|
+| **Painel** | `bun run panel` → criar card na UI | `READY` |
+| **Sync externo** | `HICODE_TASK_SYNC=github-issues HICODE_GH_REPO=owner/repo hicode sync` | `READY` |
+| **Manual** | escrever `cards/<NNN-slug>.md` à mão | você define |
+
+Todo card precisa do campo `repo:` batendo com o `name` do Passo 2.
+
+### Passo 5 — Iniciar o card (`READY → EXECUTING`)
+
+> ⚠️ **Ponto de atenção:** o motor só consome cards em `SPECCED`, `EXECUTING`, `PREVIEW_OK` e
+> `CORRECTING`. Ele **não** puxa `READY`/`INBOX` sozinho — um card recém-criado **fica parado**
+> até ser promovido.
+
+Duas formas de promover:
+
+- **Painel** — botão **iniciar** no card (faz `READY → EXECUTING`).
+- **Manual** — trocar o `status:` do card para `EXECUTING`.
+
+A partir daí o motor roda o pipeline (executar → preview → aprovar → polir) e **para em
+`PR_OPEN`** — o merge é sempre humano.
+
+### Passo 6 — Acompanhar
+
+```bash
+hicode watch        # board dos cards ao vivo no terminal
+bun run panel       # painel em http://localhost:4318 (preview, diffs, aprovar/recusar)
+```
+
+### Receita rápida (copiar e colar)
+
+```bash
+hicode init /caminho/do/repo-alvo     # 1. provisiona .hicode/
+#            ↳ registre o alvo em config/repos.json           # 2. name/path/branch
+hicode start                          # 3. sobe o motor
+bun run panel                         # 4. criar o card na UI (http://localhost:4318)
+#            ↳ clicar "iniciar" no card  (READY → EXECUTING)  # 5. promove pro pipeline
+hicode watch                          # 6. acompanhar
+```
+
+---
+
 ## Pipeline — executar primeiro, polir depois
 
 ```
 Fase 1 (EXECUTAR):  [spec opcional] → executar → PREVIEW (você vê) → aprovar/recusar
+                    (tarefa não-visual pula o PREVIEW e segue direto — ver classificação prévia)
 Fase 2 (POLIR):     arquitetura → testes → segurança → review → limpeza
                     → PR (humano) → merge (humano)
 ```
@@ -63,16 +155,63 @@ A porta humana obrigatória é o **merge do PR**. A **aprovação do preview** �
 código** (Playwright abre o `dev` e captura a tela); a análise por IA é **opcional**
 (`HICODE_VISUAL_AI=off` desliga — screenshot + aceite humano, sem token de IA).
 
+### Classificação prévia — visual vs. não-visual
+
+Antes do preview, o motor faz uma **análise prévia do tipo de tarefa** (heurística
+determinística, **0 token**) e grava `surface: visual|none` no frontmatter do card:
+
+- **Visual** (página, hero, botão, cor, layout, menu, css…) → fluxo normal: sobe o `dev`,
+  captura o screenshot, e **para em `PREVIEW`** aguardando o aceite humano.
+- **Não-visual** (corrigir conflitos, refactor, dependências, config, CI, testes, backend/api,
+  migration, docs…) → **pula dev server + screenshot + preview** e vai direto de `EXECUTED` para
+  `PREVIEW_OK` (auto). Não há página pra mostrar — o humano ainda revisa no **PR**.
+- **Ambíguo** (nenhum sinal) → assume **visual** (mostra o preview; default seguro, sem regressão).
+- Repo **sem dev server** → sempre não-visual (nada a renderizar).
+
+```
+tarefa "Essa PR está com conflitos, corrija"  → surface: none    → pula o preview
+tarefa "muda a cor do hero"                    → surface: visual  → screenshot + aprovar
+tarefa "ajusta o fluxo de checkout" (ambíguo)  → surface: visual  → screenshot + aprovar
+```
+
+> **Override manual:** defina `surface: visual` (ou `none`) no frontmatter do card e a
+> classificação automática é ignorada — o valor do card sempre vence. No painel, um card
+> não-visual mostra o badge **`↷ não-visual`**.
+
 **Máquina de estados** (frontmatter `status` do card):
 
 ```
 INBOX → READY → [SPECCED → PLAN_APPROVED] → EXECUTING → EXECUTED → PREVIEW
       → (CORRECTING) → PREVIEW_OK → REFINED → TESTS_GREEN → SEC_CLEARED
       → REVIEWED → CLEANED → PR_OPEN → MERGED → DEPLOYED     (HALTED / PAUSED)
+
+      EXECUTED → PREVIEW_OK direto quando surface: none (tarefa não-visual)
 ```
 
 Cada transição é carimbada pelo motor lendo **exit code real em disco** (build/test/gate), nunca
 pela fala do modelo.
+
+### Recuperação & resiliência
+
+O motor é um daemon reiniciável e os cards vivem em disco — nenhum estado se perde num restart.
+
+**Reconcile no boot** (`reconcileStranded`) — ao subir, o daemon recupera cards presos por um
+restart no meio do caminho:
+
+| Estado ao reiniciar | Recuperação | Por quê |
+|---|---|---|
+| `REFINED` `TESTS_GREEN` `SEC_CLEARED` `REVIEWED` `CLEANED` | → `PREVIEW_OK` | o job de polimento reinicia do começo da fase |
+| `EXECUTING` `CORRECTING` `SPECCED` | reexecutado | o job foi interrompido; a fila reprocessa |
+| `EXECUTED` | → `EXECUTING` | estado transitório sem consumidor — um card só fica aqui se o preview não concluiu ou foi **rejeitado sem worktree**; reexecuta em vez de ficar órfão |
+
+**Worktree idempotente** — `ensureWorktree` sempre parte de `origin/<base>` limpo e **nunca trava
+por sobra de estado**: roda `git worktree prune`, remove o path-alvo (e apaga diretório-fantasma
+não-registrado), **remove qualquer outro worktree que segure a mesma branch** e só então recria.
+
+**Timeout & HALT** — cada chamada de IA é morta em `HICODE_RUN_TIMEOUT_MS` (default **15 min**)
+com `SIGTERM`→`SIGKILL`; **no timeout o worktree é preservado** p/ inspeção/retomada. Um card em
+`HALTED` precisa de resolução humana — no painel, **`↻ Resolver e retomar`** o devolve para
+`EXECUTING`.
 
 ### Steps configuráveis
 
@@ -172,7 +311,7 @@ HICODE_TASK_SYNC=github-issues HICODE_GH_REPO=owner/repo hicode sync
 | `HICODE_GH_REPO` | — | repo do adapter GitHub Issues |
 | `HICODE_CONCURRENCY` | `3` | cards em paralelo |
 | `HICODE_POLL_MS` | `5000` | intervalo do tick |
-| `HICODE_RUN_TIMEOUT_MS` | `300000` | timeout por chamada de IA |
+| `HICODE_RUN_TIMEOUT_MS` | `900000` | timeout por chamada de IA (SIGTERM→SIGKILL; worktree preservado no timeout) |
 | `HICODE_PREVIEW_BASE` | `5200` | porta base dos previews |
 | `HICODE_{VERIFY,REAJUSTE,CONFLICT}_RETRIES` | `1`/`2`/`2` | retries |
 | `HICODE_GATE_DIFF_LIMIT` | `60000` | corte do diff enviado ao gate |

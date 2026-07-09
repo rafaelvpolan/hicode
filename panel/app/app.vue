@@ -14,6 +14,8 @@ const {
 const cardsRef = toRef(state, 'cards')
 const { kpis } = usePhases(cardsRef, runs)
 
+const sortedCards = computed(() => [...state.cards].sort((a, b) => Number(b.id) - Number(a.id)))
+
 const reviewingCardId = ref<string>('')
 const previewingCardId = ref<string>('')
 
@@ -78,13 +80,14 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
       <h2>Execução — fases de cada card</h2>
       <div v-if="!state.cards.length" class="empty">nenhum card — crie features na sprint acima.</div>
       <CardRow
-        v-for="c in state.cards"
+        v-for="c in sortedCards"
         :key="c.id"
         :card="c"
         :runs="runs"
         @start="start"
         @pause="pause"
         @resume="resume"
+        @resolve="(id) => act(id, 'resolve')"
         @approve="(id) => act(id, 'approve')"
         @reject="reject"
         @edit="openEdit"

@@ -15,7 +15,8 @@ find_daemon() {
   for pid in $(pgrep -x bun 2>/dev/null || true); do
     cmd="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
     case "$cmd" in
-      "bun runner.ts "*|"bun runner.ts") echo "$pid"; return 0 ;;
+      *" --"*) continue ;;
+      "bun runner.ts "|"bun runner.ts") echo "$pid"; return 0 ;;
     esac
   done
   return 1

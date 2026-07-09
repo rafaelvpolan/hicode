@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CardView, RunView } from '#shared/types'
+import type { CardView, LogResponse, RunView } from '#shared/types'
 import { PHASES, RESUME_STEP_BY_STATUS, STEP_LIST, phaseIdx, stClass } from '../composables/usePhases'
 import { fmtDt, fmtTime, runsFor } from '../composables/useFormat'
 
@@ -12,6 +12,7 @@ interface CardRowEmits {
   start: [id: string]
   pause: [id: string]
   resume: [id: string]
+  resolve: [id: string]
   approve: [id: string]
   reject: [id: string]
   edit: [card: CardView]
@@ -30,11 +31,24 @@ const REVIEWABLE_STATUSES: CardView['status'][] = [
 ]
 
 const cardRuns = computed(() => runsFor(props.runs, props.card.id))
+const latestRun = computed(() => cardRuns.value[cardRuns.value.length - 1] ?? null)
+const showAllRuns = ref(false)
 const isReviewable = computed(() => REVIEWABLE_STATUSES.includes(props.card.status))
 const isPreviewable = computed(() => props.card.shot || !!props.card.preview_url)
 
 function resumeStepFor(status: string): string | null {
   return RESUME_STEP_BY_STATUS[status] ?? null
+}
+
+const showLog = ref(false)
+const logText = ref('')
+
+async function toggleLog(): Promise<void> {
+  showLog.value = !showLog.value
+  if (showLog.value && !logText.value) {
+    const r = await $fetch<LogResponse>(`/api/cards/${props.card.id}/log`).catch(() => null)
+    logText.value = r?.log || 'sem log disponível'
+  }
 }
 </script>
 
@@ -43,14 +57,23 @@ function resumeStepFor(status: string): string | null {
     <div class="ehead">
       <span class="eid">#{{ card.id }}</span>
       <span class="etitle">{{ card.title }}</span>
-      <span v-if="card.verify" class="vbadge" :class="card.verify" :title="'Check visual da IA'">{{ card.verify === 'ok' ? '✓ visual' : '⚠ visual' }}</span>
+      <span v-if="card.surface === 'none'" class="vbadge nonvis" title="Classificação prévia: tarefa não-visual — preview/screenshot pulado">↷ não-visual</span>
+      <span v-if="card.verify && card.verify !== 'n/a'" class="vbadge" :class="card.verify" :title="'Check visual da IA'">{{ card.verify === 'ok' ? '✓ visual' : '⚠ visual' }}</span>
       <span v-if="card.revalidacao" class="vbadge" :class="card.revalidacao" :title="'Revalidação do projeto vs objetivo da tarefa'">{{ card.revalidacao === 'ok' ? '✓ reval' : '⚠ reval' }}</span>
       <span class="erepo">{{ card.repo || '—' }} · {{ card.risk }}<template v-if="card.cost_usd"> · ${{ card.cost_usd }}</template><template v-if="card.tokens_total"> · {{ Number(card.tokens_total).toLocaleString('pt-BR') }} tok</template></span>
       <span class="etools"><button class="icon" title="Editar tarefa" @click="$emit('edit', card)">✏️</button><button class="icon del" title="Remover" @click="$emit('remove', card)">🗑</button></span>
     </div>
     <div v-if="card.desc && card.desc !== card.title" class="edesc">{{ card.desc }}</div>
 
-    <div v-if="card.status === 'HALTED'" class="halt">⛔ HALTED — precisa de você</div>
+    <div v-if="card.status === 'HALTED'" class="halt">
+      <div class="halt-head">⛔ HALTED — parou e precisa de você</div>
+      <div v-if="card.halt_reason" class="halt-reason"><b>Motivo:</b> {{ card.halt_reason }}</div>
+      <div class="halt-actions">
+        <button class="resolve" @click="$emit('resolve', card.id)">↻ Resolver e retomar</button>
+        <button class="ghost" @click="toggleLog">📋 {{ showLog ? 'ocultar log' : 'ver log' }}</button>
+      </div>
+      <pre v-if="showLog" class="halt-log">{{ logText || 'carregando…' }}</pre>
+    </div>
     <div v-else-if="card.status === 'PAUSED'" class="paused">⏸ pausado — clique Retomar</div>
     <div v-else class="stepper">
       <span v-for="(p, i) in PHASES" :key="p[0]" class="st" :class="stClass(i, phaseIdx(card.status))">
@@ -77,8 +100,21 @@ function resumeStepFor(status: string): string | null {
     </div>
     <a v-if="card.status === 'PREVIEW' && card.shot" :href="card.preview_url || '#'" target="_blank" rel="noopener"><img class="shot" :src="`/api/preview/${card.id}`" alt="preview"></a>
     <div v-if="cardRuns.length" class="execs">
-      <div class="execlbl">execuções ({{ cardRuns.length }})</div>
-      <div v-for="(r, i) in cardRuns" :key="i" class="exec">
+      <button class="exectoggle" type="button" @click="showAllRuns = !showAllRuns">
+        <span class="chev">{{ showAllRuns ? '▾' : '▸' }}</span>
+        gasto de tokens · {{ cardRuns.length }} execuç{{ cardRuns.length === 1 ? 'ão' : 'ões' }}
+      </button>
+
+      <div v-if="!showAllRuns && latestRun" class="exec">
+        <div class="exectop">execução atual · {{ fmtDt(latestRun.ts) }}</div>
+        <div class="stats">
+          <div class="stat t"><b>{{ fmtTime(latestRun.duration_s) }}</b><span>tempo</span></div>
+          <div class="stat c"><b>${{ Number(latestRun.cost_usd || 0).toFixed(4) }}</b><span>valor</span></div>
+          <div class="stat k"><b>{{ Number(latestRun.tokens_total || 0).toLocaleString('pt-BR') }}</b><span>tokens</span></div>
+        </div>
+      </div>
+
+      <div v-for="(r, i) in (showAllRuns ? cardRuns : [])" :key="i" class="exec">
         <div class="exectop">#{{ i + 1 }} · {{ fmtDt(r.ts) }}</div>
         <table v-if="r.steps" class="steptab">
           <thead><tr><th>step</th><th>tempo</th><th>valor</th><th>tokens</th></tr></thead>
@@ -115,6 +151,7 @@ button.icon:hover{ border-color:var(--acc); color:var(--tx) } button.icon.del:ho
 .vbadge{ font-size:11px; padding:1px 7px; border-radius:6px; border:1px solid var(--bd); font-weight:600 }
 .vbadge.ok{ color:var(--ok); border-color:color-mix(in srgb,var(--ok) 45%,transparent) }
 .vbadge.falhou{ color:var(--warn); border-color:color-mix(in srgb,var(--warn) 45%,transparent) }
+.vbadge.nonvis{ color:var(--mut) }
 .edesc{ white-space:pre-wrap; color:var(--mut); font-size:13px; margin:8px 0 2px; border-left:2px solid var(--bd); padding-left:10px }
 .stepper{ display:flex; gap:10px; flex-wrap:wrap; margin:11px 0 4px }
 .st{ display:flex; align-items:center; gap:5px; font-size:11px }
@@ -131,9 +168,21 @@ button.icon:hover{ border-color:var(--acc); color:var(--tx) } button.icon.del:ho
 .run{ color:var(--acc); font-size:13px; font-weight:600 }
 .btnlink{ background:var(--acc); border:1px solid var(--acc); color:#fff; padding:6px 12px; border-radius:8px; font-weight:600; font-size:13px }
 .btnlink:hover{ text-decoration:none }
-.prevlink{ font-size:12px } .halt{ color:var(--bad); font-weight:600; margin:8px 0 } .paused{ color:var(--gold); font-weight:600; margin:8px 0 }
+.prevlink{ font-size:12px } .paused{ color:var(--gold); font-weight:600; margin:8px 0 }
+.halt{ margin:8px 0; padding:10px 12px; border:1px solid color-mix(in srgb,var(--bad) 45%,transparent); border-radius:8px; background:color-mix(in srgb,var(--bad) 8%,transparent) }
+.halt-head{ color:var(--bad); font-weight:700 }
+.halt-reason{ color:var(--tx); font-size:13px; margin-top:6px; word-break:break-word }
+.halt-reason b{ color:var(--mut); font-weight:600 }
+.halt-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap }
+.halt-actions button{ padding:6px 12px; font-size:13px }
+.halt-actions .resolve{ background:var(--bad); border-color:var(--bad); color:#fff }
+.halt-actions .resolve:hover{ filter:brightness(1.08) }
+.halt-log{ margin:10px 0 0; padding:8px 10px; background:var(--bg); border:1px solid var(--bd); border-radius:7px; font-size:11px; color:var(--mut); white-space:pre-wrap; word-break:break-word; max-height:220px; overflow:auto }
 .shot{ max-width:440px; width:100%; border-radius:6px; border:1px solid var(--bd); margin-top:8px; display:block }
 .execs{ margin-top:10px; padding-top:8px; border-top:1px solid var(--bd); display:flex; flex-direction:column; gap:8px }
+.exectoggle{ align-self:flex-start; background:transparent; border:none; padding:0; font-size:10px; color:var(--mut); text-transform:uppercase; letter-spacing:.03em; font-weight:600; cursor:pointer; display:flex; gap:6px; align-items:center }
+.exectoggle:hover{ color:var(--tx) }
+.exectoggle .chev{ font-size:9px }
 .execlbl{ font-size:10px; color:var(--mut); text-transform:uppercase; letter-spacing:.03em }
 .exec{ background:var(--bg); border:1px solid var(--bd); border-radius:8px; padding:8px 10px }
 .exectop{ font-size:11px; color:var(--mut); margin-bottom:6px }

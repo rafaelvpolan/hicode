@@ -62,7 +62,7 @@ export async function implement(card: Card, workdir: string, feedback = ''): Pro
     const reason = res.isError
       ? `${provider.name} is_error: ${firstLine(res.text, 140)}`
       : `${provider.name} ${res.timedOut ? 'timeout' : 'falhou: ' + res.detail}`
-    return { ok: false, reason, cost, usage: res.usage }
+    return { ok: false, reason, cost, usage: res.usage, timedOut: res.timedOut }
   }
   return { ok: true, resultText: firstLine(res.text, 140), cost, usage: res.usage }
 }

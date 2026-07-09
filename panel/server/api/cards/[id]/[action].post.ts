@@ -35,8 +35,14 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
     if (reason && cur && cur.status === 'PREVIEW' && cur.worktree && existsSync(join(cur.worktree, '.git'))) {
       card = requestCorrection(id, '', reason)
     } else {
-      card = transition(id, 'EXECUTED', reason ? `reject: ${reason}` : 'preview rejeitado')
+      card = transition(id, 'EXECUTING', reason ? `reject: ${reason} — reexecutando` : 'preview rejeitado — reexecutando')
     }
+  }
+  else if (action === 'resolve') {
+    const cur = readCards().find(c => c.id === id)
+    if (!cur) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
+    if (cur.status !== 'HALTED') { setResponseStatus(event, 409); return { error: 'só dá pra retomar um card em HALTED' } }
+    card = transition(id, 'EXECUTING', 'resolvido pelo humano — retomando execução')
   }
   else if (action === 'edit') card = editCard(id, { title: b?.title, desc: b?.desc, risk: b?.risk })
   else if (action === 'replay') {
