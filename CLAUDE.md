@@ -68,7 +68,7 @@ Delegue **trabalho de domínio substancial** ao agente certo; faça você mesmo 
 - Segurança (auth, secrets, CVE, IaC) → **escudo**
 - Banco/dados (schema, migrations, índices, queries) → **radix**
 - Performance (profiling, otimização) → **celer**
-- Frontend (React/RN/Solid) → **vitro**
+- Frontend (Vue 3/Nuxt, React/RN/Solid) → **vitro**
 - CI/CD, IaC, deploy → **continuum** (gera, **nunca aplica**)
 - Observabilidade (logs, métricas, tracing, RCA) → **corvinus**
 - Documentação (.md, ADR, OpenAPI, diagramas) → **glossia**

@@ -26,6 +26,10 @@ export function reconcileStranded(): void {
       process.stdout.write(`[runner] #${c.id}: ${s} interrompido, reexecutando apos reinicio\n`)
     }
   }
+  for (const c of cardsByStatus('EXECUTED')) {
+    patchCard(c.id ?? '', { status: 'EXECUTING' }, `${isoNow()} EXECUTED->EXECUTING recuperado (preview nao concluido ou rejeitado sem worktree — nao havia consumidor de EXECUTED)`)
+    process.stdout.write(`[runner] #${c.id}: recuperado EXECUTED->EXECUTING\n`)
+  }
 }
 
 export async function runJob(job: Job): Promise<void> {

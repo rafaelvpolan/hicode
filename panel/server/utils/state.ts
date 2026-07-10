@@ -21,6 +21,8 @@ export function getState(): StateResponse {
     preview_url: c.preview_url || '',
     pr_url: c.pr_url || '',
     shot: existsSync(join(CARDS_DIR, 'previews', String(c.id), 'preview.png')),
+    halt_reason: c.halt_reason || '',
+    surface: c.surface || '',
   }))
   return { repos: readRepos(), cards, statuses: STATUSES }
 }

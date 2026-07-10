@@ -1,11 +1,12 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { isoNow } from '../card'
-import type { StepMap, StepMetric, Usage, VerifyResult } from '../card'
+import { extractObjetivo, isoNow } from '../card'
+import type { Card, ImplementResult, StepMap, StepMetric, Usage, VerifyResult } from '../card'
 import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL, VISUAL_AI } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
 import { hasBuildScript, previewPort, screenshot, startPreview, waitHttp } from './preview'
+import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
 
@@ -57,6 +58,22 @@ function asStepMap(steps: ExecuteSteps): StepMap {
   return { ...steps }
 }
 
+function resolveSurface(card: Card, target: string): SurfaceVerdict {
+  const explicit = card.fm.surface
+  if (explicit === 'visual' || explicit === 'none') return { surface: explicit, reason: 'definido no card' }
+  return classifySurface(card.fm.title ?? '', extractObjetivo(card.body), hasBuildScript(target))
+}
+
+async function commitAndRecord(id: string, wt: string, card: Card, steps: ExecuteSteps, res: ImplementResult, t0: number): Promise<{ costSum: number; tokensTotal: number }> {
+  const tf = Date.now()
+  await stageAll(wt)
+  await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', `feat: ${card.fm.title ?? ''} (#${id})`])
+  steps.Feito.time = toSeconds(Date.now() - tf)
+  const costSum = steps.Executando.cost + steps.Preview.cost
+  const rec = writeRun(id, { ...res, cost: costSum.toFixed(4) }, toSeconds(Date.now() - t0), asStepMap(steps))
+  return { costSum, tokensTotal: rec.tokens_total }
+}
+
 export async function handleExecute(id: string): Promise<void> {
   const card = readCard(id)
   if (!card) return
@@ -66,6 +83,10 @@ export async function handleExecute(id: string): Promise<void> {
   if (!existsSync(target)) {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED repo nao encontrado: ${target}`)
     return
+  }
+  const surface = resolveSurface(card, target)
+  if (card.fm.surface !== surface.surface) {
+    patchCard(id, { surface: surface.surface }, `${isoNow()} classificacao previa: tarefa ${surface.surface === 'visual' ? 'VISUAL' : 'NAO-VISUAL'} (${surface.reason})`)
   }
   if (card.fm.spec === 'required' && card.fm.spec_done !== 'true') {
     patchCard(id, { status: 'SPECCED' }, `${isoNow()} EXECUTING->SPECCED roteado para a fase de spec (spec: required)`)
@@ -101,12 +122,27 @@ export async function handleExecute(id: string): Promise<void> {
   steps.Executando.cost += parseFloat(res.cost) || 0
   steps.Executando.tokens += tokensOf(res.usage)
   if (!res.ok) {
-    const rec = writeRun(id, res, toSeconds(Date.now() - t0), asStepMap(steps))
-    patchCard(id, { status: 'HALTED', cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->HALTED ${res.reason}`)
-    await removeWorktree(target, wt)
+    const elapsed = toSeconds(Date.now() - t0)
+    const rec = writeRun(id, res, elapsed, asStepMap(steps))
+    const reason = res.timedOut
+      ? `${res.reason} apos ${elapsed}s (worktree mantido p/ inspecao/retomada)`
+      : res.reason
+    patchCard(id, { status: 'HALTED', cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->HALTED ${reason}`)
+    if (!res.timedOut) await removeWorktree(target, wt)
     return
   }
   patchCard(id, {}, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'}`)
+  if (surface.surface === 'none') {
+    const { costSum, tokensTotal } = await commitAndRecord(id, wt, card, steps, res, t0)
+    patchCard(id, {
+      status: 'PREVIEW_OK',
+      verify: 'n/a',
+      cost_usd: costSum.toFixed(4),
+      tokens_total: String(tokensTotal),
+    }, `${isoNow()} EXECUTED->PREVIEW_OK auto — tarefa nao-visual (${surface.reason}); preview pulado`)
+    process.stdout.write(`[runner] #${id}: PREVIEW_OK auto (nao-visual) — preview pulado\n`)
+    return
+  }
   const port = previewPort(id)
   const pid = hasBuildScript(target) ? startPreview(wt, port) : 0
   const url = pid ? `http://localhost:${port}` : ''
@@ -142,13 +178,7 @@ export async function handleExecute(id: string): Promise<void> {
     if (r2.ok) res = r2
   }
   steps.Preview.time = toSeconds(Date.now() - tp)
-  const tf = Date.now()
-  await stageAll(wt)
-  await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', `feat: ${card.fm.title ?? ''} (#${id})`])
-  steps.Feito.time = toSeconds(Date.now() - tf)
-  const costSum = steps.Executando.cost + steps.Preview.cost
-  const duration = toSeconds(Date.now() - t0)
-  const rec = writeRun(id, { ...res, cost: costSum.toFixed(4) }, duration, asStepMap(steps))
+  const { costSum, tokensTotal } = await commitAndRecord(id, wt, card, steps, res, t0)
   const vstate = verify.ok ? 'ok' : (verify.conclusive === false ? 'inconclusivo' : 'falhou')
   const vlabel = verify.ok ? 'visual OK' : (verify.conclusive === false ? 'visual inconclusivo (verificacao humana)' : 'visual NAO confirmado')
   patchCard(id, {
@@ -157,7 +187,7 @@ export async function handleExecute(id: string): Promise<void> {
     preview_pid: String(pid || ''),
     verify: vstate,
     cost_usd: costSum.toFixed(4),
-    tokens_total: String(rec.tokens_total),
+    tokens_total: String(tokensTotal),
   }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${vlabel}: ${verify.reason})`)
   process.stdout.write(`[runner] #${id}: PREVIEW ${url} (${vlabel})\n`)
 }

@@ -21,6 +21,8 @@ export interface CardView {
   preview_url: string
   pr_url: string
   shot: boolean
+  halt_reason: string
+  surface: string
 }
 
 export interface RepoView {
@@ -171,6 +173,12 @@ export interface FileDiffResponse {
   status: string
   before: string
   after: string
+  error?: string
+}
+
+export interface LogResponse {
+  id: string
+  log: string
   error?: string
 }
 

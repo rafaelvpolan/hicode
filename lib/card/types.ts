@@ -71,6 +71,7 @@ export interface ImplementResult {
   reason?: string
   cost: string
   usage?: Usage
+  timedOut?: boolean
 }
 
 export type JobKind = 'execute' | 'finish' | 'correct' | 'spec'

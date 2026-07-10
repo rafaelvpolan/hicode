@@ -76,6 +76,19 @@ export function appendLog(body: string, line: string): string {
   return `${body.trimEnd()}\n${line}`
 }
 
+export function extractLog(body: string, tail = 40): string {
+  const marker = '## Log de Estado'
+  const i = body.indexOf(marker)
+  const raw = (i >= 0 ? body.slice(i + marker.length) : body).trim()
+  return raw.split('\n').filter((l) => l.trim()).slice(-tail).join('\n')
+}
+
+export function haltReason(body: string): string {
+  const lines = extractLog(body, 400).split('\n')
+  const halt = [...lines].reverse().find((l) => l.includes('HALTED'))
+  return halt ? halt.replace(/^\S+Z\s+/, '').trim() : ''
+}
+
 export function setObjetivo(body: string, desc: string): string {
   if (body.includes('## Objetivo')) {
     return body.replace(/(##\s*Objetivo\s*\n)([\s\S]*?)(\n##\s|$)/, (_m, h: string, _old: string, tail: string) => `${h}${desc}${tail}`)
@@ -86,12 +99,13 @@ export function setObjetivo(body: string, desc: string): string {
 export interface RawCard extends Record<string, string> {
   desc: string
   file: string
+  halt_reason: string
 }
 
 export function readCards(): RawCard[] {
   return cardFiles().map((f) => {
     const { fm, body } = splitFrontMatter(readFileSync(join(CARDS_DIR, f), 'utf8'))
-    return { ...fm, desc: extractObjetivo(body), file: f }
+    return { ...fm, desc: extractObjetivo(body), halt_reason: haltReason(body), file: f }
   }).filter((c) => c.id)
 }
 

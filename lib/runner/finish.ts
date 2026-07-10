@@ -8,6 +8,7 @@ import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from
 import { hasBuildScript, hasTestScript, previewPort, httpOk, screenshot, startPreview, stopPreview, waitHttp } from './preview'
 import { runStep, verifyVisual } from './agent'
 import { activeSteps } from './pipeline/config'
+import { isNonVisual } from './classify'
 import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
 import { runCodefoxGate, persistGate, buildPrBody } from './codefox-gate'
@@ -99,6 +100,10 @@ async function syncWithBase(id: string, wt: string, base: string, desc: string, 
 }
 
 async function revalidate(id: string, card: Card, wt: string, target: string, shotPath: string, fsteps: StepMap): Promise<boolean> {
+  if (isNonVisual(card.fm.surface)) {
+    patchCard(id, { revalidacao: 'n/a' }, `${isoNow()} revalidacao pulada — tarefa nao-visual (build/testes ja validaram)`)
+    return true
+  }
   let reval: VerifyResult = { ok: true, reason: 'sem dev server (revalidacao pulada)', cost: 0, tokens: 0 }
   const rt = Date.now()
   if (hasBuildScript(target)) {
