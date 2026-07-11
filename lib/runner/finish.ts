@@ -9,6 +9,7 @@ import { hasBuildScript, hasTestScript, previewPort, httpOk, screenshot, startPr
 import { runStep, verifyVisual } from './agent'
 import { activeSteps } from './pipeline/config'
 import { isNonVisual } from './classify'
+import { planSteps } from './analyze'
 import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
 import { runCodefoxGate, persistGate, buildPrBody } from './codefox-gate'
@@ -146,10 +147,12 @@ export async function handleFinish(id: string): Promise<void> {
   }
   const resumeFrom = card.fm.resume_from ?? ''
   if (resumeFrom) patchCard(id, { resume_from: '' }, `${isoNow()} retomando finish a partir de ${resumeFrom}`)
-  const steps = activeSteps(wt)
-  const startIdx = resumeFrom ? Math.max(0, steps.findIndex(s => s.label === resumeFrom)) : 0
-  process.stdout.write(`[runner] #${id}: finalizando (qualidade Nexus + PR)${resumeFrom ? ` a partir de ${resumeFrom}` : ''}\n`)
   const desc = extractObjetivo(card.body) || card.fm.title
+  const plan = planSteps({ title: card.fm.title, objetivo: desc, risk: card.fm.risk, surface: card.fm.surface, override: card.fm.steps }, activeSteps(wt))
+  const steps = plan.steps
+  patchCard(id, { steps_profile: plan.profile }, `${isoNow()} analise de passos: perfil "${plan.profile}" — roda [${steps.map(s => s.label).join(', ') || 'nenhum'}]${plan.skipped.length ? ` · pula [${plan.skipped.join(', ')}]` : ''} (${plan.reason})`)
+  const startIdx = resumeFrom ? Math.max(0, steps.findIndex(s => s.label === resumeFrom)) : 0
+  process.stdout.write(`[runner] #${id}: finalizando (perfil ${plan.profile}: ${steps.length} passo(s)${plan.skipped.length ? `, pulou ${plan.skipped.length}` : ''})${resumeFrom ? ` a partir de ${resumeFrom}` : ''}\n`)
   const fsteps: StepMap = {}
   for (const step of steps.slice(startIdx)) {
     const instruction = step.instruction.replace('%s', desc ?? '')

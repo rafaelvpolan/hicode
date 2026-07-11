@@ -38,7 +38,12 @@ Nunca rodar testes/refactor/segurança antes do preview aprovado: valida-se a **
   opencode/ollama, escolhida por papel via env), com **reajuste/retry + HALT** e o **gate codefox
   (crivo) vinculante**, e fecha o **loop verde lendo exit code real em disco** (build/test/gate). Os
   steps de polimento são **configuráveis** em `config/pipeline.json` (ativar/desativar/reordenar;
-  override por projeto em `<alvo>/.hicode/pipeline.json`).
+  override por projeto em `<alvo>/.hicode/pipeline.json`). Por card, um **analisador de tarefa**
+  (`lib/runner/analyze.ts`, determinístico) seleciona **quais** desses steps rodam pela natureza da
+  tarefa: mudança cosmética/texto/visual pula Arquitetura/Testes/Segurança (perfil `enxuto`);
+  backend/dados/deps/`risk: high`/ambíguo mantêm tudo; **Segurança só é pulada em mudança sem risco**
+  (build + gate codefox no fim continuam sempre valendo). Override manual no card: `steps: all` força
+  tudo, `steps: <ids>` roda só esses, `steps: auto` (default) usa o analisador.
 - **CONFIRM substituído:** no modo autônomo, a fase `CONFIRM` interativa do `/nexus` é trocada pelo
   **gate Crivo sobre o plano** (`PLAN_APPROVED`) + a **aprovação do preview** + a **porta do PR**.
   O `/nexus` interativo continua disponível para trabalho manual.
