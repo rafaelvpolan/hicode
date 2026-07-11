@@ -65,7 +65,7 @@ export function useCardActions(options: CardActionsOptions) {
       const r = await $fetch<ProjectPreviewResponse>('/api/project-preview', { method: 'POST' })
       if (r.error) { projectPreview.msg = r.error; return }
       projectPreview.url = r.url
-      const alvo = r.source === 'wip' ? `branch ${r.branch} (task #${r.cardId})` : `main (${r.branch ?? 'main'})`
+      const alvo = `repo na branch ${r.branch ?? 'main'}`
       const estado = r.running ? 'já rodando' : 'iniciado (aguarde alguns segundos)'
       projectPreview.msg = `${estado} · ${alvo}`
       window.open(r.url, '_blank')

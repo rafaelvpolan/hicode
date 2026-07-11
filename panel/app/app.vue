@@ -44,7 +44,7 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
       <span class="brand"><span class="logo">⟳</span> hicode</span>
       <span class="tag">painel · Nuxt 4 + Bun · executar → preview → aprovar → PR</span>
       <span class="navbtns">
-        <button @click="runProjectPreview" title="Sobe o dev server do projeto e abre para ver as alterações em tempo real">▶ preview do projeto</button>
+        <button @click="runProjectPreview" title="Faz checkout da branch configurada do repo e sobe o dev server do projeto">▶ preview do projeto</button>
         <button class="ghost" @click="load">↻ atualizar</button>
       </span>
     </div>
