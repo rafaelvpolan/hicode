@@ -8,6 +8,7 @@ import { sumTokens } from '../ai/usage'
 import type { AiProvider } from '../ai/types'
 import { readProjectRules } from './hicode-home'
 import { FRONTEND_DESIGN_BRIEF } from './design'
+import { clarifyAnswersPrompt } from './clarify'
 
 export interface StepResult {
   time: number
@@ -21,7 +22,7 @@ function firstLine(s: string, max: number): string {
   return String(s || '').split('\n')[0]?.slice(0, max) ?? ''
 }
 
-function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean): string {
+function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean, clarifications: string): string {
   const head = provider.supportsAgents
     ? [
         'Use os AGENTES NEXUS deste projeto para implementar a tarefa abaixo (auto-construcao do hicode).',
@@ -34,6 +35,7 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
       ]
   return [
     rules ? `CONTEXTO DO PROJETO (.hii/rules.md — respeite):\n${rules}\n` : '',
+    clarifications ? clarifications : '',
     visual ? `${FRONTEND_DESIGN_BRIEF}\n` : '',
     ...head,
     'Faca a MENOR mudanca que cumpra a tarefa. NAO rode git, NAO faca commit, NAO inicie servidores. Sem comentarios de prosa.',
@@ -52,7 +54,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
   if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '' }
   const id = card.fm.id ?? ''
   const res = await provider.run({
-    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual),
+    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id)),
     cwd: ROOT,
     dirs: [workdir],
     mode: 'edit',

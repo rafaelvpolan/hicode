@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { StepMap, StepMetric, Card } from '../card'
-import { MAX_REAJUSTE, MAX_CONFLICT } from './config'
+import { MAX_REAJUSTE, MAX_CONFLICT, CARD_BUDGET_USD } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
 import { freePort, hasBuildScript, hasTestScript, previewPort, httpOk, inspectPreview, startPreview, stopPreview, waitHttp } from './preview'
@@ -136,6 +136,10 @@ async function revalidate(id: string, card: Card, wt: string, target: string, fs
 export async function handleFinish(id: string): Promise<void> {
   const card = readCard(id)
   if (!card) return
+  if (CARD_BUDGET_USD > 0 && (parseFloat(card.fm.cost_usd || '0') || 0) > CARD_BUDGET_USD) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED orcamento excedido (US$${card.fm.cost_usd} > US$${CARD_BUDGET_USD}) antes do polimento — decida se continua`)
+    return
+  }
   const repoName = card.fm.repo ?? ''
   const slug = card.fm.slug ?? ''
   const target = repoPath(repoName)

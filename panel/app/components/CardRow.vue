@@ -26,6 +26,7 @@ interface CardRowEmits {
   review: [id: string]
   preview: [id: string]
   reset: [id: string]
+  clarify: [id: string, answers: { q: string; answer: string }[]]
 }
 
 const props = defineProps<CardRowProps>()
@@ -87,6 +88,11 @@ function attemptKindLabel(kind: string): string {
       </div>
     </div>
     <div v-else-if="card.status === 'PAUSED'" class="paused">⏸ pausado — clique Retomar</div>
+    <CardClarify
+      v-else-if="card.status === 'CLARIFY'"
+      :card="card"
+      @answered="(answers) => $emit('clarify', card.id, answers)"
+    />
     <template v-else>
       <div v-if="card.status === 'CORRECTING'" class="correcting" role="status" aria-live="polite">
         <i class="iadot"></i>✋ corrigindo — a IA está refazendo o preview…

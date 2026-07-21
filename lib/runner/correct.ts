@@ -2,11 +2,12 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { isoNow } from '../card'
 import type { Usage, VerifyResult } from '../card'
+import { CARD_BUDGET_USD } from './config'
 import { readCard, patchCard, repoPath } from './card-store'
 import { runGit, stageAll } from './git'
 import { freePort, hasBuildScript, previewPort, httpOk, inspectPreview, startPreview, waitHttp } from './preview'
 import { implement, runStep } from './agent'
-import { appendAttempt } from './attempts'
+import { appendAttempt, readAttempts } from './attempts'
 
 interface StepOutcome {
   text: string
@@ -53,8 +54,15 @@ async function commit(wt: string, message: string): Promise<void> {
   await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', message])
 }
 
+function attemptHistory(id: string): string {
+  const prior = readAttempts(id)
+  if (!prior.length) return ''
+  const lines = prior.map(a => `- [${a.kind}] pedido: ${a.reason} | resultado: ${a.response.replace(/\s+/g, ' ').slice(0, 200)}`).join('\n')
+  return `Historico de tentativas anteriores neste card (NAO repita os mesmos erros; leve o feedback em conta):\n${lines}\n\n`
+}
+
 async function redoPreview(card: NonNullable<ReturnType<typeof readCard>>, wt: string, instruction: string): Promise<StepOutcome> {
-  const r = await implement(card, wt, `O preview anterior foi REJEITADO pelo revisor. Refaça a tarefa atendendo exatamente: "${instruction}".`, card.fm.surface === 'visual')
+  const r = await implement(card, wt, `${attemptHistory(card.fm.id ?? '')}O preview anterior foi REJEITADO pelo revisor. Refaça a tarefa atendendo exatamente: "${instruction}".`, card.fm.surface === 'visual')
   return { text: r.resultText ?? r.reason ?? '', fullText: r.fullText ?? r.resultText ?? r.reason ?? '', cost: parseFloat(r.cost) || 0, tokens: tokensOf(r.usage) }
 }
 
@@ -66,6 +74,10 @@ async function scopedFix(wt: string, instruction: string, file: string, line: st
 export async function handleCorrect(id: string): Promise<void> {
   const card = readCard(id)
   if (!card) return
+  if (CARD_BUDGET_USD > 0 && (parseFloat(card.fm.cost_usd || '0') || 0) > CARD_BUDGET_USD) {
+    patchCard(id, { status: 'HALTED', correction: '', correction_file: '', correction_line: '', correction_line_text: '' }, `${isoNow()} CORRECTING->HALTED orcamento excedido (US$${card.fm.cost_usd} > US$${CARD_BUDGET_USD}) antes de refazer — decida se continua`)
+    return
+  }
   const instruction = card.fm.correction ?? ''
   const file = card.fm.correction_file ?? ''
   const line = card.fm.correction_line ?? ''

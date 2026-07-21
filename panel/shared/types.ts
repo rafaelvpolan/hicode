@@ -1,5 +1,5 @@
 export type CardStatus =
-  | 'INBOX' | 'READY' | 'SPECCED' | 'PLAN_APPROVED' | 'EXECUTING' | 'PAUSED'
+  | 'INBOX' | 'READY' | 'CLARIFY' | 'SPECCED' | 'PLAN_APPROVED' | 'EXECUTING' | 'PAUSED'
   | 'EXECUTED' | 'PREVIEW' | 'CORRECTING' | 'PREVIEW_OK' | 'REFINED' | 'TESTS_GREEN'
   | 'SEC_CLEARED' | 'REVIEWED' | 'CLEANED' | 'PR_OPEN' | 'MERGED' | 'DEPLOYED' | 'HALTED'
 
@@ -208,4 +208,16 @@ export interface ResetPreviewResponse {
   url: string
   running: boolean
   hard: boolean
+}
+
+export interface ClarifyQuestion {
+  q: string
+  options: string[]
+  recommended: string
+  answer?: string
+}
+
+export interface ClarifyResponse {
+  id: string
+  questions: ClarifyQuestion[]
 }

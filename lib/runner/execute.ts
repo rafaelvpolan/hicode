@@ -2,7 +2,8 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { Card, ImplementResult, StepMap, StepMetric, Usage } from '../card'
-import { CARDS_DIR, VERIFY_MODEL, VISUAL_AI } from './config'
+import { CARDS_DIR, CLARIFY, VERIFY_MODEL, VISUAL_AI } from './config'
+import { clarify, writeClarify } from './clarify'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
 import { freePort, hasBuildScript, inspectPreview, previewPort, startPreview, waitHttp } from './preview'
@@ -87,6 +88,16 @@ export async function handleExecute(id: string): Promise<void> {
   const surface = resolveSurface(card, target)
   if (card.fm.surface !== surface.surface) {
     patchCard(id, { surface: surface.surface }, `${isoNow()} classificacao previa: tarefa ${surface.surface === 'visual' ? 'VISUAL' : 'NAO-VISUAL'} (${surface.reason})`)
+  }
+  if (CLARIFY && card.fm.clarified !== 'true') {
+    const c = await clarify(card)
+    if (c.questions.length) {
+      writeClarify(id, c.questions)
+      patchCard(id, { status: 'CLARIFY' }, `${isoNow()} EXECUTING->CLARIFY ${c.questions.length} pergunta(s) — aguardando decisao humana`)
+      process.stdout.write(`[runner] #${id}: CLARIFY (${c.questions.length} pergunta(s))\n`)
+      return
+    }
+    patchCard(id, { clarified: 'true' }, `${isoNow()} clarify: tarefa clara — seguindo sem perguntas`)
   }
   if (card.fm.spec === 'required' && card.fm.spec_done !== 'true') {
     patchCard(id, { status: 'SPECCED' }, `${isoNow()} EXECUTING->SPECCED roteado para a fase de spec (spec: required)`)

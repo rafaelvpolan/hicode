@@ -1,5 +1,5 @@
 export const STATUSES = [
-  'INBOX', 'READY', 'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'PAUSED', 'EXECUTED',
+  'INBOX', 'READY', 'CLARIFY', 'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'PAUSED', 'EXECUTED',
   'PREVIEW', 'CORRECTING', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED',
   'CLEANED', 'PR_OPEN', 'MERGED', 'DEPLOYED', 'HALTED',
 ] as const
@@ -73,6 +73,13 @@ export interface ImplementResult {
   cost: string
   usage?: Usage
   timedOut?: boolean
+}
+
+export interface ClarifyQuestion {
+  q: string
+  options: string[]
+  recommended: string
+  answer?: string
 }
 
 export type JobKind = 'execute' | 'finish' | 'correct' | 'spec'

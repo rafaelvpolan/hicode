@@ -104,6 +104,11 @@ export function useCardActions(options: CardActionsOptions) {
     await load()
   }
 
+  async function answerClarify(id: string, answers: { q: string; answer: string }[]): Promise<void> {
+    await $fetch<CardActionResponse>(`/api/cards/${id}/clarify`, { method: 'POST', body: { answers } })
+    await load()
+  }
+
   async function resetPreview(id: string, hard: boolean): Promise<void> {
     await $fetch<ResetPreviewResponse | ApiError>(`/api/cards/${id}/reset-preview`, { method: 'POST', body: { hard } })
       .catch(() => null)
@@ -146,6 +151,6 @@ export function useCardActions(options: CardActionsOptions) {
   return {
     newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
     addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
-    start, pause, resume, act, reject, replay, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
+    start, pause, resume, act, reject, replay, answerClarify, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
   }
 }

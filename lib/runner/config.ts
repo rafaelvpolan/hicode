@@ -16,3 +16,5 @@ export const VERIFY_MODEL = process.env.HICODE_VERIFY_MODEL || 'sonnet'
 export const GATE_MODEL = process.env.HICODE_GATE_MODEL || 'sonnet'
 export const GATE_DIFF_LIMIT = Number(process.env.HICODE_GATE_DIFF_LIMIT || 60000)
 export const VISUAL_AI = (process.env.HICODE_VISUAL_AI || 'off') === 'on'
+export const CLARIFY = (process.env.HICODE_CLARIFY || 'on') !== 'off'
+export const CARD_BUDGET_USD = Number(process.env.HICODE_CARD_BUDGET_USD || 0)
