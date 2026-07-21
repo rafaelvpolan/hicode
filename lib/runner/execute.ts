@@ -7,7 +7,7 @@ import { clarify, writeClarify } from './clarify'
 import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
-import { freePort, hasBuildScript, inspectPreview, previewPort, startPreview, waitHttp } from './preview'
+import { freePort, hasBuildScript, inspectPreview, previewPort, startPreview, stopPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
@@ -125,6 +125,14 @@ export async function handleExecute(id: string): Promise<void> {
     return
   }
   process.stdout.write(`[runner] #${id}: implementando em worktree ${wt}\n`)
+  const port = previewPort(id)
+  let previewPid = 0
+  if (surface.surface === 'visual' && hasBuildScript(target)) {
+    await freePort(port)
+    previewPid = startPreview(wt, port)
+    patchCard(id, { preview_url: `http://localhost:${port}`, preview_pid: String(previewPid) }, `${isoNow()} preview subindo em http://localhost:${port} — acompanhe pelo link enquanto a IA trabalha`)
+    process.stdout.write(`[runner] #${id}: preview ao vivo em http://localhost:${port} (durante a execucao)\n`)
+  }
   const t0 = Date.now()
   const shotPath = join(CARDS_DIR, 'previews', String(id), 'preview.png')
   const steps = initialSteps()
@@ -140,7 +148,10 @@ export async function handleExecute(id: string): Promise<void> {
       ? `${res.reason} apos ${elapsed}s (worktree mantido p/ inspecao/retomada)`
       : res.reason
     patchCard(id, { status: 'HALTED', cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->HALTED ${reason}`)
-    if (!res.timedOut) await removeWorktree(target, wt)
+    if (!res.timedOut) {
+      if (previewPid) stopPreview(String(previewPid))
+      await removeWorktree(target, wt)
+    }
     return
   }
   patchCard(id, {}, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'}`)
@@ -155,10 +166,8 @@ export async function handleExecute(id: string): Promise<void> {
     process.stdout.write(`[runner] #${id}: PREVIEW_OK auto (nao-visual) — preview pulado\n`)
     return
   }
-  const port = previewPort(id)
   const tpv = Date.now()
-  if (hasBuildScript(target)) await freePort(port)
-  const pid = hasBuildScript(target) ? startPreview(wt, port) : 0
+  const pid = previewPid || (hasBuildScript(target) ? startPreview(wt, port) : 0)
   const url = pid ? `http://localhost:${port}` : ''
   const up = pid ? await waitHttp(url, 30) : false
   steps.Preview.time = toSeconds(Date.now() - tpv)

@@ -125,7 +125,7 @@ function evalBadgeClass(score: string): 'ok' | 'warn' | 'bad' {
     </template>
 
     <div class="erow-actions">
-      <a v-if="['PREVIEW', 'PREVIEW_OK'].includes(card.status) && card.preview_url" class="prevlink" :href="card.preview_url" target="_blank" rel="noopener">▶ abrir preview ao vivo ↗</a>
+      <a v-if="['EXECUTING', 'CORRECTING', 'PREVIEW', 'PREVIEW_OK'].includes(card.status) && card.preview_url" class="prevlink" :href="card.preview_url" target="_blank" rel="noopener">▶ abrir preview ao vivo ↗</a>
       <button v-if="['INBOX', 'READY'].includes(card.status)" @click="$emit('start', card.id)">▶ Começar</button>
       <template v-else-if="card.status === 'EXECUTING'"><span class="run">⏳ executando…</span><button class="ghost" @click="$emit('pause', card.id)">⏸ Pausar</button></template>
       <template v-else-if="card.status === 'PAUSED'"><span class="run">⏸ pausado</span><button @click="$emit('resume', card.id)">▶ Retomar</button></template>
