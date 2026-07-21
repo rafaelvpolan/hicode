@@ -63,6 +63,7 @@ export interface StateResponse {
 
 export interface RunsResponse {
   runs: RunView[]
+  estimates: Record<string, number>
 }
 
 export interface GhRepoItem {
@@ -180,6 +181,20 @@ export interface LogResponse {
   id: string
   log: string
   error?: string
+}
+
+export type AttemptKind = 'reprovacao' | 'correcao'
+
+export interface Attempt {
+  ts: string
+  kind: AttemptKind
+  reason: string
+  response: string
+}
+
+export interface AttemptsResponse {
+  id: string
+  attempts: Attempt[]
 }
 
 export interface CorrectResponse {

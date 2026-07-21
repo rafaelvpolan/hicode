@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { ApiError, ResetPreviewResponse } from '#shared/types'
@@ -39,8 +39,12 @@ function hardClean(worktree: string): void {
   }
 }
 
+function freePort(port: number): void {
+  try { spawnSync('bash', ['-c', `fuser -k ${port}/tcp 2>/dev/null; exit 0`], { timeout: 8000 }) } catch { void 0 }
+}
+
 function startDevServer(worktree: string, port: number): number {
-  const child = spawn('npm', ['run', 'dev', '--', '--port', String(port), '--host'], { cwd: worktree, detached: true, stdio: 'ignore' })
+  const child = spawn('npm', ['run', 'dev', '--', '--port', String(port), '--strictPort', '--host'], { cwd: worktree, detached: true, stdio: 'ignore' })
   child.unref()
   return child.pid || 0
 }
@@ -83,6 +87,7 @@ export default defineEventHandler(async (event): Promise<ResetPreviewResponse | 
   const oldPid = Number(card.preview_pid || 0)
   if (oldPid > 0) killOldServer(oldPid)
   await waitForDown(url, 16)
+  freePort(port)
   if (hard) hardClean(card.worktree)
 
   const pid = startDevServer(card.worktree, port)

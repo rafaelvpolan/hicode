@@ -32,8 +32,13 @@ export function hasTestScript(target: string): boolean {
   }
 }
 
+export async function freePort(port: number): Promise<void> {
+  await run('bash', ['-c', `fuser -k ${port}/tcp 2>/dev/null; exit 0`], { timeout: 8000 })
+  await new Promise(r => setTimeout(r, 400))
+}
+
 export function startPreview(wt: string, port: number): number {
-  const child = spawn('npm', ['run', 'dev', '--', '--port', String(port), '--host'], { cwd: wt, detached: true, stdio: 'ignore' })
+  const child = spawn('npm', ['run', 'dev', '--', '--port', String(port), '--strictPort', '--host'], { cwd: wt, detached: true, stdio: 'ignore' })
   child.unref()
   return child.pid || 0
 }

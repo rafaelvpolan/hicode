@@ -1,8 +1,8 @@
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo } from '../card'
 import type { Card, ImplementResult, VerifyResult } from '../card'
-import { ROOT, RUN_TIMEOUT_MS } from './config'
+import { CARDS_DIR, ROOT, RUN_TIMEOUT_MS } from './config'
 import { modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 import type { AiProvider } from '../ai/types'
@@ -50,6 +50,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
   const desc = extractObjetivo(card.body) || card.fm.title || ''
   const provider = providerFor('implement')
   if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '' }
+  const id = card.fm.id ?? ''
   const res = await provider.run({
     prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual),
     cwd: ROOT,
@@ -58,6 +59,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
     useAgents: provider.supportsAgents,
     model: modelFor('implement'),
     timeoutMs: RUN_TIMEOUT_MS,
+    liveLog: id ? join(CARDS_DIR, 'runs', `${id}.live.log`) : undefined,
   })
   const cost = res.cost ? res.cost.toFixed(4) : ''
   if (!res.ok) {
@@ -66,7 +68,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
       : `${provider.name} ${res.timedOut ? 'timeout' : 'falhou: ' + res.detail}`
     return { ok: false, reason, cost, usage: res.usage, timedOut: res.timedOut }
   }
-  return { ok: true, resultText: firstLine(res.text, 140), cost, usage: res.usage }
+  return { ok: true, resultText: firstLine(res.text, 140), fullText: String(res.text || '').slice(0, 8000), cost, usage: res.usage }
 }
 
 export async function verifyVisual(card: Card, shotPath: string): Promise<VerifyResult> {

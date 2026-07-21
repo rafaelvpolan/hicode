@@ -4,11 +4,13 @@ import { isoNow } from '../card'
 import type { Usage, VerifyResult } from '../card'
 import { readCard, patchCard, repoPath } from './card-store'
 import { runGit, stageAll } from './git'
-import { hasBuildScript, previewPort, httpOk, inspectPreview, startPreview, waitHttp } from './preview'
+import { freePort, hasBuildScript, previewPort, httpOk, inspectPreview, startPreview, waitHttp } from './preview'
 import { implement, runStep } from './agent'
+import { appendAttempt } from './attempts'
 
 interface StepOutcome {
   text: string
+  fullText: string
   cost: number
   tokens: number
 }
@@ -32,6 +34,7 @@ async function revalidate(id: string, wt: string, target: string): Promise<Verif
   const url = `http://localhost:${port}`
   let up = await httpOk(url)
   if (!up) {
+    await freePort(port)
     startPreview(wt, port)
     up = await waitHttp(url, 25)
   }
@@ -52,12 +55,12 @@ async function commit(wt: string, message: string): Promise<void> {
 
 async function redoPreview(card: NonNullable<ReturnType<typeof readCard>>, wt: string, instruction: string): Promise<StepOutcome> {
   const r = await implement(card, wt, `O preview anterior foi REJEITADO pelo revisor. Refaça a tarefa atendendo exatamente: "${instruction}".`, card.fm.surface === 'visual')
-  return { text: r.resultText ?? r.reason ?? '', cost: parseFloat(r.cost) || 0, tokens: tokensOf(r.usage) }
+  return { text: r.resultText ?? r.reason ?? '', fullText: r.fullText ?? r.resultText ?? r.reason ?? '', cost: parseFloat(r.cost) || 0, tokens: tokensOf(r.usage) }
 }
 
 async function scopedFix(wt: string, instruction: string, file: string, line: string, lineText: string): Promise<StepOutcome> {
   const r = await runStep(wt, 'limpio', scopedInstruction(instruction, file, line, lineText))
-  return { text: r.text, cost: r.cost, tokens: r.tokens }
+  return { text: r.text, fullText: r.text, cost: r.cost, tokens: r.tokens }
 }
 
 export async function handleCorrect(id: string): Promise<void> {
@@ -76,7 +79,7 @@ export async function handleCorrect(id: string): Promise<void> {
   const redo = !file
   process.stdout.write(`[runner] #${id}: ${redo ? 'refazendo preview (rejeitado)' : 'aplicando correção'} em ${wt}\n`)
   const r = redo ? await redoPreview(card, wt, instruction) : await scopedFix(wt, instruction, file, line, lineText)
-  const reval = await revalidate(id, wt, target)
+  appendAttempt(id, redo ? 'reprovacao' : 'correcao', instruction, r.fullText)
   await commit(wt, redo ? `feat: refaz preview apos rejeicao (#${id})` : `fix: correção humana (#${id})`)
   patchCard(id, {
     status: 'PREVIEW',
@@ -84,7 +87,9 @@ export async function handleCorrect(id: string): Promise<void> {
     correction_file: '',
     correction_line: '',
     correction_line_text: '',
-    verify: reval.ok ? 'ok' : 'falhou',
-  }, `${isoNow()} CORRECTING->PREVIEW ${redo ? 'preview refeito' : 'correção aplicada'}: ${r.text || 'ok'} — visual ${reval.ok ? 'OK' : 'revisar'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
-  process.stdout.write(`[runner] #${id}: PREVIEW apos ${redo ? 'refação' : 'correção'} (visual ${reval.ok ? 'OK' : 'revisar'})\n`)
+    verify: 'inconclusivo',
+  }, `${isoNow()} CORRECTING->PREVIEW ${redo ? 'preview refeito' : 'correção aplicada'}: ${r.text || 'ok'} (verificando…) (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
+  process.stdout.write(`[runner] #${id}: PREVIEW apos ${redo ? 'refação' : 'correção'} (verificando)\n`)
+  const reval = await revalidate(id, wt, target)
+  patchCard(id, { verify: reval.ok ? 'ok' : 'falhou' }, `${isoNow()} inspecao pos-${redo ? 'refação' : 'correção'}: ${reval.ok ? 'ok' : 'revisar'} — ${reval.reason}`)
 }

@@ -1,5 +1,5 @@
 import { onBeforeUnmount, onMounted, reactive, ref, type Ref } from 'vue'
-import type { GhRepoItem, RunView, StateResponse } from '#shared/types'
+import type { GhRepoItem, RunView, RunsResponse, StateResponse } from '#shared/types'
 
 const POLL_INTERVAL_MS = 4000
 
@@ -12,12 +12,14 @@ export interface DashboardState {
 export function useDashboard(): {
   state: DashboardState
   runs: Ref<RunView[]>
+  estimates: Ref<Record<string, number>>
   gh: Ref<GhRepoItem[]>
   sprintRepo: Ref<string>
   load: () => Promise<void>
 } {
   const state = reactive<DashboardState>({ repos: [], cards: [], statuses: [] })
   const runs = ref<RunView[]>([])
+  const estimates = ref<Record<string, number>>({})
   const gh = ref<GhRepoItem[]>([])
   const sprintRepo = ref('')
 
@@ -25,8 +27,9 @@ export function useDashboard(): {
     const s = await $fetch<StateResponse>('/api/state')
     Object.assign(state, s)
     if (!sprintRepo.value && state.repos[0]) sprintRepo.value = state.repos[0].name
-    const r = await $fetch<{ runs: RunView[] }>('/api/runs')
+    const r = await $fetch<RunsResponse>('/api/runs')
     runs.value = r.runs || []
+    estimates.value = r.estimates || {}
   }
 
   let timer: ReturnType<typeof setInterval> | null = null
@@ -40,5 +43,5 @@ export function useDashboard(): {
     if (timer) clearInterval(timer)
   })
 
-  return { state, runs, gh, sprintRepo, load }
+  return { state, runs, estimates, gh, sprintRepo, load }
 }

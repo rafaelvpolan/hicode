@@ -13,6 +13,11 @@ export const IN_PROGRESS: CardStatus[] = [
   'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED',
 ]
 
+export const ACTIVE_STATUSES: CardStatus[] = [
+  'EXECUTING', 'CORRECTING', 'SPECCED', 'REFINED', 'TESTS_GREEN',
+  'SEC_CLEARED', 'REVIEWED', 'CLEANED',
+]
+
 export interface StepListItem {
   k: string
   l: string
@@ -34,12 +39,23 @@ export const RESUME_STEP_BY_STATUS: Record<string, string> = {
   CLEANED: 'Limpeza',
 }
 
+const PHASE_STATUS_ALIAS: Partial<Record<CardStatus, CardStatus>> = {
+  SPECCED: 'EXECUTING',
+  PLAN_APPROVED: 'EXECUTING',
+  CORRECTING: 'EXECUTING',
+}
+
 export function phaseIdx(status: CardStatus): number {
-  return PHASES.findIndex((p) => p[0] === status)
+  const aliased = PHASE_STATUS_ALIAS[status] ?? status
+  return PHASES.findIndex((p) => p[0] === aliased)
 }
 
 export function stClass(i: number, idx: number): 'done' | 'now' | 'todo' {
   return i < idx ? 'done' : i === idx ? 'now' : 'todo'
+}
+
+export function stepKeyForLabel(label: string): string | null {
+  return STEP_LIST.find((s) => s.l === label)?.k ?? null
 }
 
 export function usePhases(cards: Ref<CardView[]>, runs: Ref<RunView[]>): {

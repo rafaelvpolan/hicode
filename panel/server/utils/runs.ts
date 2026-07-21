@@ -17,3 +17,19 @@ export function getRuns(): RunView[] {
   out.sort((a, b) => String(a.ts).localeCompare(String(b.ts)))
   return out
 }
+
+export function getStepEstimates(): Record<string, number> {
+  const sums: Record<string, number> = {}
+  const counts: Record<string, number> = {}
+  for (const r of getRuns()) {
+    if (!r.steps) continue
+    for (const [key, metric] of Object.entries(r.steps)) {
+      if (!metric || !(metric.time > 0)) continue
+      sums[key] = (sums[key] || 0) + metric.time
+      counts[key] = (counts[key] || 0) + 1
+    }
+  }
+  const estimates: Record<string, number> = {}
+  for (const key of Object.keys(sums)) estimates[key] = Math.round((sums[key] ?? 0) / (counts[key] || 1))
+  return estimates
+}

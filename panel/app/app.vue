@@ -4,7 +4,7 @@ import { useDashboard } from './composables/useDashboard'
 import { useCardActions } from './composables/useCardActions'
 import { usePhases } from './composables/usePhases'
 
-const { state, runs, gh, sprintRepo, load } = useDashboard()
+const { state, runs, estimates, gh, sprintRepo, load } = useDashboard()
 const {
   newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
   addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
@@ -84,6 +84,7 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
         :key="c.id"
         :card="c"
         :runs="runs"
+        :estimates="estimates"
         @start="start"
         @pause="pause"
         @resume="resume"

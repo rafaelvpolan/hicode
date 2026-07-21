@@ -68,6 +68,7 @@ export interface VerifyResult {
 export interface ImplementResult {
   ok: boolean
   resultText?: string
+  fullText?: string
   reason?: string
   cost: string
   usage?: Usage

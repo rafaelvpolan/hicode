@@ -1,11 +1,11 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
-import type { Card, ImplementResult, StepMap, StepMetric, Usage, VerifyResult } from '../card'
+import type { Card, ImplementResult, StepMap, StepMetric, Usage } from '../card'
 import { CARDS_DIR, VERIFY_MODEL, VISUAL_AI } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
-import { hasBuildScript, inspectPreview, previewPort, startPreview, waitHttp } from './preview'
+import { freePort, hasBuildScript, inspectPreview, previewPort, startPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
@@ -144,43 +144,39 @@ export async function handleExecute(id: string): Promise<void> {
     return
   }
   const port = previewPort(id)
+  const tpv = Date.now()
+  if (hasBuildScript(target)) await freePort(port)
   const pid = hasBuildScript(target) ? startPreview(wt, port) : 0
   const url = pid ? `http://localhost:${port}` : ''
   const up = pid ? await waitHttp(url, 30) : false
-  const tp = Date.now()
-  let verify: VerifyResult
-  if (!pid) {
-    verify = { ok: true, conclusive: false, reason: 'repo sem dev server — verificacao humana pelo link', cost: 0, tokens: 0 }
-  } else if (!up) {
-    verify = { ok: false, conclusive: true, reason: 'dev server nao subiu — preview nao respondeu', cost: 0, tokens: 0 }
-  } else {
-    const health = await inspectPreview(id, url, true)
-    if (VISUAL_AI && health.ok) {
-      verify = await verifyVisual(card, shotPath)
-      steps.Preview.cost += verify.cost || 0
-      steps.Preview.tokens += verify.tokens || 0
-      patchCard(id, {}, `${isoNow()} check visual (IA, ${VERIFY_MODEL}): ${verify.ok ? 'OK' : 'FALHOU'} — ${verify.reason}`)
-    } else if (!health.conclusive) {
-      verify = { ok: true, conclusive: false, reason: `preview no ar — confira pelo link (inspecao automatica indisponivel${health.detail ? ': ' + health.detail : ''})`, cost: 0, tokens: 0 }
-    } else if (health.ok) {
-      verify = { ok: true, conclusive: false, reason: 'preview no ar — abra o link para conferir', cost: 0, tokens: 0 }
-    } else {
-      verify = { ok: false, conclusive: true, reason: `preview subiu com erro: ${health.detail}`, cost: 0, tokens: 0 }
-    }
-  }
-  steps.Preview.time = toSeconds(Date.now() - tp)
+  steps.Preview.time = toSeconds(Date.now() - tpv)
   const { costSum, tokensTotal } = await commitAndRecord(id, wt, card, steps, res, t0)
-  const vstate = verify.ok ? 'ok' : (verify.conclusive === false ? 'inconclusivo' : 'falhou')
-  const vlabel = verify.ok
-    ? (verify.conclusive === false ? 'preview no ar (verificacao humana pelo link)' : 'visual OK')
-    : (verify.conclusive === false ? 'inconclusivo (verificacao humana)' : 'preview com erro')
+  const initState = !pid ? 'inconclusivo' : (up ? 'inconclusivo' : 'falhou')
+  const initReason = !pid
+    ? 'repo sem dev server — verificacao humana pelo link'
+    : (up ? 'preview no ar — abra o link (verificando…)' : 'dev server nao subiu — preview nao respondeu')
   patchCard(id, {
     status: 'PREVIEW',
     preview_url: url,
     preview_pid: String(pid || ''),
-    verify: vstate,
+    verify: initState,
     cost_usd: costSum.toFixed(4),
     tokens_total: String(tokensTotal),
-  }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${vlabel}: ${verify.reason})`)
-  process.stdout.write(`[runner] #${id}: PREVIEW ${url} (${vlabel})\n`)
+  }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${initReason})`)
+  process.stdout.write(`[runner] #${id}: PREVIEW ${url} (${initReason})\n`)
+  if (up) {
+    const health = await inspectPreview(id, url, true)
+    let vstate = 'inconclusivo'
+    let vreason = `preview no ar — confira pelo link (inspecao automatica indisponivel${health.detail ? ': ' + health.detail : ''})`
+    if (VISUAL_AI && health.ok) {
+      const v = await verifyVisual(card, shotPath)
+      vstate = v.ok ? 'ok' : 'falhou'
+      vreason = `check visual (IA, ${VERIFY_MODEL}): ${v.reason}`
+    } else if (health.conclusive) {
+      vstate = health.ok ? 'ok' : 'falhou'
+      vreason = health.ok ? 'preview no ar — abra o link para conferir' : `preview subiu com erro: ${health.detail}`
+    }
+    patchCard(id, { verify: vstate }, `${isoNow()} inspecao do preview: ${vstate} — ${vreason}`)
+    process.stdout.write(`[runner] #${id}: inspecao ${vstate}\n`)
+  }
 }
