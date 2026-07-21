@@ -2,11 +2,11 @@
 id: 018
 slug: utilizando-o-frontend-design-do-claude-m
 title: utilizando o frontend-design do claude melhore o layout da pagina, pode colocar
-status: PREVIEW
+status: CORRECTING
 risk: low
 repo: rafaelvpolan/hicode-site
 created: 2026-07-21T23:05:21Z
-updated: 2026-07-21T23:21:17Z
+updated: 2026-07-21T23:43:48Z
 surface: visual
 clarified: true
 branch: hicode/018-utilizando-o-frontend-design-do-claude-m
@@ -18,6 +18,10 @@ cost_usd: 2.9428
 tokens_total: 52328
 eval_score: 4
 eval_notes: Diff adiciona várias seções novas (agentes, lifecycle, FAQ, loop-vs-prompt, CTA final) com bom acabamento visual e organização em módulos, cumprindo bem o pedido, mas não fica claro se a skill frontend-design foi de fato consultada para a d
+correction: Segue as referencias para criar o design. utilize a cor de fogo ignicção
+correction_file: 
+correction_line: 
+correction_line_text: 
 ---
 
 ## Objetivo
@@ -36,3 +40,4 @@ utilizando o frontend-design do claude melhore o layout da pagina, pode colocar 
 2026-07-21T23:21:03Z EXECUTED->PREVIEW http://localhost:5218 (preview no ar — abra o link (verificando…))
 2026-07-21T23:21:09Z inspecao do preview: ok — preview no ar — abra o link para conferir
 2026-07-21T23:21:17Z eval (qualidade vs objetivo): 4/5 (cumpre) — Diff adiciona várias seções novas (agentes, lifecycle, FAQ, loop-vs-prompt, CTA final) com bom acabamento visual e organização em módulos, cumprindo bem o pedido, mas não fica claro se a skill frontend-design foi de fato consultada para a d
+2026-07-21T23:43:48Z PREVIEW->CORRECTING correção: (geral) — Segue as referencias para criar o design. utilize a cor de fogo ignicção

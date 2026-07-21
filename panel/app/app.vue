@@ -8,7 +8,9 @@ import { usePhases } from './composables/usePhases'
 const { state, runs, estimates, gh, sprintRepo, load } = useDashboard()
 const {
   newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
+  stagedLinks, stagedFiles,
   addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
+  addStagedLink, removeStagedLink, addStagedFiles, removeStagedFile,
   start, pause, resume, act, replay, answerClarify, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
 } = useCardActions({ load, gh, sprintRepo })
 const { rejecting, openReject, closeReject, confirmReject } = useCardReject({ load })
@@ -72,9 +74,15 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
         :sprint-repo="sprintRepo"
         :sprint-text="sprintText"
         :sprint-msg="sprintMsg"
+        :staged-links="stagedLinks"
+        :staged-files="stagedFiles"
         @update:sprint-repo="sprintRepo = $event"
         @update:sprint-text="sprintText = $event"
         @create-sprint="createSprint"
+        @add-staged-link="addStagedLink"
+        @remove-staged-link="removeStagedLink"
+        @add-staged-files="addStagedFiles"
+        @remove-staged-file="removeStagedFile"
       />
     </div>
 

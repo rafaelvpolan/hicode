@@ -2,8 +2,9 @@ import { reactive, ref, type Ref } from 'vue'
 import type {
   AddRepoResponse, ApiError, CardActionResponse, CardView, CreateSprintResponse,
   EditingForm, GhReposResponse, NewRepoForm, ProjectPreviewResponse, ProjectPreviewState,
-  ResetPreviewResponse,
+  RefsResponse, ResetPreviewResponse,
 } from '#shared/types'
+import { useSprintRefs } from './useSprintRefs'
 
 export interface CardActionsOptions {
   load: () => Promise<void>
@@ -20,6 +21,9 @@ export function useCardActions(options: CardActionsOptions) {
   const sprintText = ref('')
   const projectPreview = reactive<ProjectPreviewState>({ url: '', msg: '' })
   const editing = reactive<EditingForm>({ open: false, id: '', title: '', desc: '', risk: 'low', note: '' })
+  const {
+    stagedLinks, stagedFiles, addStagedLink, removeStagedLink, addStagedFiles, removeStagedFile, clearStaged,
+  } = useSprintRefs()
 
   async function addRepo(): Promise<void> {
     const name = newRepo.name.trim()
@@ -45,6 +49,19 @@ export function useCardActions(options: CardActionsOptions) {
     await load()
   }
 
+  async function flushStagedRefs(id: string): Promise<void> {
+    const links = stagedLinks.value
+    const files = stagedFiles.value
+    if (links.length) {
+      await $fetch<RefsResponse>(`/api/cards/${id}/refs`, { method: 'POST', body: { links } }).catch(() => null)
+    }
+    if (files.length) {
+      const formData = new FormData()
+      for (const file of files) formData.append('file', file, file.name)
+      await $fetch<RefsResponse>(`/api/cards/${id}/refs`, { method: 'POST', body: formData }).catch(() => null)
+    }
+  }
+
   async function createSprint(): Promise<void> {
     let text = sprintText.value.trim()
     if (!text) { sprintMsg.value = 'escreva a feature'; return }
@@ -55,8 +72,11 @@ export function useCardActions(options: CardActionsOptions) {
       method: 'POST',
       body: { repo: sprintRepo.value, features: [{ title, risk: high ? 'high' : 'low', desc: text }] },
     })
+    const firstId = r.cards[0]?.id
+    if (firstId && (stagedLinks.value.length || stagedFiles.value.length)) await flushStagedRefs(firstId)
     sprintMsg.value = (r.created || 0) + ' card criado (texto inteiro = 1 task)'
     sprintText.value = ''
+    clearStaged()
     await load()
   }
 
@@ -144,7 +164,9 @@ export function useCardActions(options: CardActionsOptions) {
 
   return {
     newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
+    stagedLinks, stagedFiles,
     addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
+    addStagedLink, removeStagedLink, addStagedFiles, removeStagedFile,
     start, pause, resume, act, replay, answerClarify, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
   }
 }
