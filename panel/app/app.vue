@@ -2,14 +2,16 @@
 import { computed, ref, toRef } from 'vue'
 import { useDashboard } from './composables/useDashboard'
 import { useCardActions } from './composables/useCardActions'
+import { useCardReject } from './composables/useCardReject'
 import { usePhases } from './composables/usePhases'
 
 const { state, runs, estimates, gh, sprintRepo, load } = useDashboard()
 const {
   newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
   addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
-  start, pause, resume, act, reject, replay, answerClarify, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
+  start, pause, resume, act, replay, answerClarify, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
 } = useCardActions({ load, gh, sprintRepo })
+const { rejecting, openReject, closeReject, confirmReject } = useCardReject({ load })
 
 const cardsRef = toRef(state, 'cards')
 const { kpis } = usePhases(cardsRef, runs)
@@ -90,7 +92,7 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
         @resume="resume"
         @resolve="(id) => act(id, 'resolve')"
         @approve="(id) => act(id, 'approve')"
-        @reject="reject"
+        @reject="openReject"
         @edit="openEdit"
         @remove="removeCard"
         @replay="(step) => replay(c.id, step)"
@@ -103,6 +105,7 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
   </main>
 
   <CardEditModal :editing="editing" @save="saveEdit" @close="closeEdit" />
+  <CardRejectModal :rejecting="rejecting" @confirm="confirmReject" @close="closeReject" />
   <ClientOnly>
     <CardReview v-if="reviewingCardId" :card-id="reviewingCardId" @close="closeReview" @preview="openPreviewFor" />
     <CardPreview

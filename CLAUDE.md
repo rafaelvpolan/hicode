@@ -75,7 +75,7 @@ Delegue **trabalho de domínio substancial** ao agente certo; faça você mesmo 
 - Performance (profiling, otimização) → **celer**
 - Frontend (Vue 3/Nuxt, React/RN/Solid) → **vitro**
 - Estrutura/design-system de frontend (gated, roda **antes** do crivo) → **frontiteto** (pareia com **vitro**)
-- Direção estética de UI (paleta/tipografia/layout/assinatura, anti-template) → skill **`frontend-design`** (use **antes** de implementar UI nova; o motor injeta o resumo dela no prompt de cards visuais)
+- Design system de UI (tokens, primitivos, reuso) → o **motor injeta um brief de design system** + as **imagens de referência** do card (links/uploads baixados, via visão) no prompt de cards visuais; **`frontiteto`** impõe a consistência (gated). Direção estética manual/pontual → skill **`frontend-design`**
 - CI/CD, IaC, deploy → **continuum** (gera, **nunca aplica**)
 - Observabilidade (logs, métricas, tracing, RCA) → **corvinus**
 - Documentação (.md, ADR, OpenAPI, diagramas) → **glossia**

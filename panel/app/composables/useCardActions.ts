@@ -93,12 +93,6 @@ export function useCardActions(options: CardActionsOptions) {
     await load()
   }
 
-  async function reject(id: string): Promise<void> {
-    const reason = window.prompt('Rejeitar preview — o que refazer? (o preview será REFEITO com esta instrução; vazio = só rejeitar)') || ''
-    await $fetch<CardActionResponse>(`/api/cards/${id}/reject`, { method: 'POST', body: { reason } })
-    await load()
-  }
-
   async function replay(id: string, step: string): Promise<void> {
     await $fetch<CardActionResponse>(`/api/cards/${id}/replay`, { method: 'POST', body: { step } })
     await load()
@@ -151,6 +145,6 @@ export function useCardActions(options: CardActionsOptions) {
   return {
     newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
     addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
-    start, pause, resume, act, reject, replay, answerClarify, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
+    start, pause, resume, act, replay, answerClarify, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
   }
 }

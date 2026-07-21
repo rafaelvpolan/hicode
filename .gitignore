@@ -21,3 +21,4 @@ panel/.data/
 node_modules/
 .env
 .env.*
+cards/refs/

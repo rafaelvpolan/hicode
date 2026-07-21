@@ -7,8 +7,9 @@ import { modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 import type { AiProvider } from '../ai/types'
 import { readProjectRules } from './hicode-home'
-import { FRONTEND_DESIGN_BRIEF } from './design'
+import { DESIGN_SYSTEM_BRIEF } from './design'
 import { clarifyAnswersPrompt } from './clarify'
+import { resolveRefImages } from './refs'
 
 export interface StepResult {
   time: number
@@ -22,7 +23,10 @@ function firstLine(s: string, max: number): string {
   return String(s || '').split('\n')[0]?.slice(0, max) ?? ''
 }
 
-function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean, clarifications: string): string {
+function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean, clarifications: string, refImages: string[]): string {
+  const refs = refImages.length
+    ? `REFERENCIAS DE DESIGN (${refImages.length}): abra CADA imagem abaixo com a tool Read e replique o design o mais FIEL possivel (layout, cores, tipografia, espacamento, componentes); extraia os tokens a partir delas. Imagens:\n${refImages.map(p => `- ${p}`).join('\n')}\n`
+    : ''
   const head = provider.supportsAgents
     ? [
         'Use os AGENTES NEXUS deste projeto para implementar a tarefa abaixo (auto-construcao do hicode).',
@@ -36,7 +40,8 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
   return [
     rules ? `CONTEXTO DO PROJETO (.hii/rules.md — respeite):\n${rules}\n` : '',
     clarifications ? clarifications : '',
-    visual ? `${FRONTEND_DESIGN_BRIEF}\n` : '',
+    refs,
+    visual ? `${DESIGN_SYSTEM_BRIEF}\n` : '',
     ...head,
     'Faca a MENOR mudanca que cumpra a tarefa. NAO rode git, NAO faca commit, NAO inicie servidores. Sem comentarios de prosa.',
     feedback ? `\nATENCAO (reexecucao): ${feedback}` : '',
@@ -53,10 +58,12 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
   const provider = providerFor('implement')
   if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '' }
   const id = card.fm.id ?? ''
+  const refImages = provider.supportsVision ? await resolveRefImages(id) : []
+  const dirs = refImages.length ? [workdir, join(CARDS_DIR, 'refs', id)] : [workdir]
   const res = await provider.run({
-    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id)),
+    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages),
     cwd: ROOT,
-    dirs: [workdir],
+    dirs,
     mode: 'edit',
     useAgents: provider.supportsAgents,
     model: modelFor('implement'),

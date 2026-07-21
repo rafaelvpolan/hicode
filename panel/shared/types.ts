@@ -136,6 +136,12 @@ export interface EditingForm {
   note: string
 }
 
+export interface RejectingForm {
+  open: boolean
+  id: string
+  reason: string
+}
+
 export interface ProjectPreviewState {
   url: string
   msg: string
@@ -222,4 +228,10 @@ export interface ClarifyQuestion {
 export interface ClarifyResponse {
   id: string
   questions: ClarifyQuestion[]
+}
+
+export interface RefsResponse {
+  id: string
+  refs: string[]
+  error?: string
 }
