@@ -64,6 +64,13 @@ watch(logText, async () => {
 function attemptKindLabel(kind: string): string {
   return kind === 'reprovacao' ? 'reprovação' : 'correção'
 }
+
+function evalBadgeClass(score: string): 'ok' | 'warn' | 'bad' {
+  const n = Number(score)
+  if (n >= 4) return 'ok'
+  if (n === 3) return 'warn'
+  return 'bad'
+}
 </script>
 
 <template>
@@ -74,6 +81,7 @@ function attemptKindLabel(kind: string): string {
       <span v-if="card.surface === 'none'" class="vbadge nonvis" title="Classificação prévia: tarefa não-visual — preview/screenshot pulado">↷ não-visual</span>
       <span v-if="card.verify && card.verify !== 'n/a'" class="vbadge" :class="card.verify" :title="'Estado do preview — você confere abrindo o link'">{{ card.verify === 'ok' ? '✓ preview' : (card.verify === 'inconclusivo' ? '◔ preview' : '⚠ preview') }}</span>
       <span v-if="card.revalidacao" class="vbadge" :class="card.revalidacao" :title="'Revalidação do projeto vs objetivo da tarefa'">{{ card.revalidacao === 'ok' ? '✓ reval' : '⚠ reval' }}</span>
+      <span v-if="card.eval_score" class="vbadge" :class="evalBadgeClass(card.eval_score)" :title="card.eval_notes">★ {{ card.eval_score }}/5</span>
       <span v-if="isCardWorking" class="iaworking" role="status" aria-live="polite"><i class="iadot"></i>IA trabalhando…</span>
       <span class="erepo">{{ card.repo || '—' }} · {{ card.risk }}<template v-if="card.cost_usd"> · ${{ card.cost_usd }}</template><template v-if="card.tokens_total"> · {{ Number(card.tokens_total).toLocaleString('pt-BR') }} tok</template></span>
       <span class="etools"><button class="icon" title="Editar tarefa" @click="$emit('edit', card)">✏️</button><button class="icon del" title="Remover" @click="$emit('remove', card)">🗑</button></span>
@@ -223,6 +231,8 @@ button.icon:hover{ border-color:var(--acc); color:var(--tx) } button.icon.del:ho
 .vbadge.falhou{ color:var(--warn); border-color:color-mix(in srgb,var(--warn) 45%,transparent) }
 .vbadge.inconclusivo{ color:var(--mut); border-color:color-mix(in srgb,var(--mut) 45%,transparent) }
 .vbadge.nonvis{ color:var(--mut) }
+.vbadge.warn{ color:var(--warn); border-color:color-mix(in srgb,var(--warn) 45%,transparent) }
+.vbadge.bad{ color:var(--bad); border-color:color-mix(in srgb,var(--bad) 45%,transparent) }
 .iaworking{ display:inline-flex; align-items:center; gap:6px; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; font-weight:700; color:var(--acc); letter-spacing:.02em }
 .iadot{ width:8px; height:8px; border-radius:50%; background:var(--acc); display:inline-block; flex:0 0 auto }
 @media (prefers-reduced-motion: no-preference){

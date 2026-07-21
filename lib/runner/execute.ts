@@ -2,8 +2,9 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { Card, ImplementResult, StepMap, StepMetric, Usage } from '../card'
-import { CARDS_DIR, CLARIFY, VERIFY_MODEL, VISUAL_AI } from './config'
+import { CARDS_DIR, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
 import { clarify, writeClarify } from './clarify'
+import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
 import { freePort, hasBuildScript, inspectPreview, previewPort, startPreview, waitHttp } from './preview'
@@ -189,5 +190,10 @@ export async function handleExecute(id: string): Promise<void> {
     }
     patchCard(id, { verify: vstate }, `${isoNow()} inspecao do preview: ${vstate} — ${vreason}`)
     process.stdout.write(`[runner] #${id}: inspecao ${vstate}\n`)
+  }
+  if (EVAL) {
+    const e = await evaluate(card, wt, base)
+    patchCard(id, { eval_score: String(e.score), eval_notes: e.notes }, `${isoNow()} eval (qualidade vs objetivo): ${e.score}/5 ${e.meets ? '(cumpre)' : '(revisar)'} — ${e.notes}`)
+    process.stdout.write(`[runner] #${id}: eval ${e.score}/5\n`)
   }
 }

@@ -23,6 +23,8 @@ export function getState(): StateResponse {
     shot: existsSync(join(CARDS_DIR, 'previews', String(c.id), 'preview.png')),
     halt_reason: c.halt_reason || '',
     surface: c.surface || '',
+    eval_score: c.eval_score || '',
+    eval_notes: c.eval_notes || '',
   }))
   return { repos: readRepos(), cards, statuses: STATUSES }
 }

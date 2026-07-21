@@ -18,3 +18,4 @@ export const GATE_DIFF_LIMIT = Number(process.env.HICODE_GATE_DIFF_LIMIT || 6000
 export const VISUAL_AI = (process.env.HICODE_VISUAL_AI || 'off') === 'on'
 export const CLARIFY = (process.env.HICODE_CLARIFY || 'on') !== 'off'
 export const CARD_BUDGET_USD = Number(process.env.HICODE_CARD_BUDGET_USD || 0)
+export const EVAL = (process.env.HICODE_EVAL || 'on') !== 'off'

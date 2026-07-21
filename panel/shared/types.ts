@@ -23,6 +23,8 @@ export interface CardView {
   shot: boolean
   halt_reason: string
   surface: string
+  eval_score: string
+  eval_notes: string
 }
 
 export interface RepoView {
