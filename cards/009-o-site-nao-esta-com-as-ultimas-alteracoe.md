@@ -6,7 +6,7 @@ status: PREVIEW
 risk: low
 repo: rafaelvpolan/hicode-site
 created: 2026-07-01T00:41:31Z
-updated: 2026-07-09T00:17:34Z
+updated: 2026-07-11T13:22:26Z
 branch: hicode/009-o-site-nao-esta-com-as-ultimas-alteracoe
 worktree: /home/rpolan/projects/.hicode-worktrees/hicode-site/009-o-site-nao-esta-com-as-ultimas-alteracoe
 preview_url: http://localhost:5209
@@ -15,6 +15,10 @@ verify: falhou
 cost_usd: 2.0663
 tokens_total: 131280
 surface: visual
+correction: 
+correction_file: 
+correction_line: 
+correction_line_text: 
 ---
 
 ## Objetivo
@@ -38,3 +42,5 @@ o site não esta com as ultimas alterações
 2026-07-09T00:15:49Z check visual (IA, sonnet): FALHOU — Página mostra erro de build do Vite (App.vue:30 syntax error), site nem renderiza, muito menos exibe as alterações
 2026-07-09T00:17:34Z check visual (IA, sonnet): FALHOU — Página mostra erro de build do Vite (App.vue com sintaxe JS inválida na linha 30) — não renderiza nenhuma alteração, apenas a tela de erro d
 2026-07-09T00:17:34Z EXECUTED->PREVIEW http://localhost:5209 (visual NAO confirmado: Página mostra erro de build do Vite (App.vue com sintaxe JS inválida na linha 30) — não renderiza nenhuma alteração, apenas a tela de erro d)
+2026-07-11T13:14:36Z PREVIEW->CORRECTING correção: (geral) — esta com erro
+2026-07-11T13:22:26Z CORRECTING->PREVIEW preview refeito: Crivo: **CONDITIONAL → clears to APPROVED** — its only hard condition was a green build gate, which I verified (`vue-tsc --noEmit` exit 0, ` — visual revisar (custo $2.1835 · 80140 tokens)
