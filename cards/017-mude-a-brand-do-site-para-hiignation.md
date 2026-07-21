@@ -2,11 +2,11 @@
 id: 017
 slug: mude-a-brand-do-site-para-hiignation
 title: mude a brand do site para hiignation
-status: PR_OPEN
+status: MERGED
 risk: low
 repo: rafaelvpolan/hicode-site
 created: 2026-07-21T10:37:07Z
-updated: 2026-07-21T11:08:51Z
+updated: 2026-07-21T11:13:55Z
 surface: visual
 branch: hicode/017-mude-a-brand-do-site-para-hiignation
 worktree: /home/rpolan/projects/.hicode-worktrees/hicode-site/017-mude-a-brand-do-site-para-hiignation
@@ -25,6 +25,7 @@ review_verdict: CONDITIONAL
 review_reason: Rebrand aplicado consistentemente em index.html e App.vue, mas há inconsistências residuais: URLs do repositório GitHub e og:image continuam apontando para rafaelvpolan/hicode, e o comentário/label 'hii' e a mudança de cor do .brand (var(--
 review_questions: ["As URLs canonical, og:url e og:image em index.html continuam 'github.com/rafaelvpolan/hicode' — isso é intencional (repo real não mudou de nome) ou deveria ter sido atualizado também?","Por que a classe .brand mudou de cor (var(--tx) → var(--acc)) nesta troca de marca — foi uma escolha visual deliberada ou um efeito colateral não revisado?","O aria-label mudou de 'hii - high ignation' para 'hiignation' — há outras referências a 'hii' no restante do App.vue (fora do diff mostrado) que ficaram sem atualizar?"]
 pr_url: https://github.com/rafaelvpolan/hicode-site/pull/15
+merged_at: 2026-07-21T11:13:31Z
 ---
 
 ## Objetivo
@@ -57,3 +58,4 @@ mude a brand do site para hiignation
 2026-07-21T11:08:33Z revalidacao do projeto (vs objetivo, pos-merge): OK — preview no ar apos merge — confira pelo link
 2026-07-21T11:08:46Z codefox gate: CONDITIONAL — Rebrand aplicado consistentemente em index.html e App.vue, mas há inconsistências residuais: URLs do repositório GitHub e og:image continuam apontando para rafaelvpolan/hicode, e o comentário/label 'hii' e a mudança de cor do .brand (var(-- (custo $0.1461 · 21954 tokens)
 2026-07-21T11:08:51Z REVIEWED->PR_OPEN https://github.com/rafaelvpolan/hicode-site/pull/15 (merge e do humano)
+2026-07-21T11:13:55Z PR_OPEN->MERGED PR mergeada no GitHub (merge humano) https://github.com/rafaelvpolan/hicode-site/pull/15
