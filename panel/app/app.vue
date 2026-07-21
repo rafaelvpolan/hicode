@@ -8,7 +8,7 @@ const { state, runs, gh, sprintRepo, load } = useDashboard()
 const {
   newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
   addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
-  start, pause, resume, act, reject, replay, removeCard, openEdit, saveEdit, closeEdit,
+  start, pause, resume, act, reject, replay, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
 } = useCardActions({ load, gh, sprintRepo })
 
 const cardsRef = toRef(state, 'cards')
@@ -95,6 +95,7 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
         @replay="(step) => replay(c.id, step)"
         @review="openReviewFor"
         @preview="openPreviewFor"
+        @reset="(id) => resetPreview(id, false)"
       />
     </section>
   </main>
@@ -108,6 +109,7 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
       :shot="previewingCard?.shot ?? false"
       :preview-url="previewingCard?.preview_url ?? ''"
       @close="closePreview"
+      @reset="(hard) => resetPreview(previewingCardId, hard)"
     />
   </ClientOnly>
 </template>

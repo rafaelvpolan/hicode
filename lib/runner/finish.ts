@@ -1,12 +1,11 @@
-import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
-import type { StepMap, StepMetric, Card, VerifyResult } from '../card'
-import { CARDS_DIR, MAX_REAJUSTE, MAX_CONFLICT, VISUAL_AI } from './config'
+import type { StepMap, StepMetric, Card } from '../card'
+import { MAX_REAJUSTE, MAX_CONFLICT } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
-import { hasBuildScript, hasTestScript, previewPort, httpOk, screenshot, startPreview, stopPreview, waitHttp } from './preview'
-import { runStep, verifyVisual } from './agent'
+import { hasBuildScript, hasTestScript, previewPort, httpOk, inspectPreview, startPreview, stopPreview, waitHttp } from './preview'
+import { runStep } from './agent'
 import { activeSteps } from './pipeline/config'
 import { isNonVisual } from './classify'
 import { planSteps } from './analyze'
@@ -100,12 +99,13 @@ async function syncWithBase(id: string, wt: string, base: string, desc: string, 
   return { ok: false, changed: true }
 }
 
-async function revalidate(id: string, card: Card, wt: string, target: string, shotPath: string, fsteps: StepMap): Promise<boolean> {
+async function revalidate(id: string, card: Card, wt: string, target: string, fsteps: StepMap): Promise<boolean> {
   if (isNonVisual(card.fm.surface)) {
     patchCard(id, { revalidacao: 'n/a' }, `${isoNow()} revalidacao pulada — tarefa nao-visual (build/testes ja validaram)`)
     return true
   }
-  let reval: VerifyResult = { ok: true, reason: 'sem dev server (revalidacao pulada)', cost: 0, tokens: 0 }
+  let ok = true
+  let reason = 'sem dev server (revalidacao pulada)'
   const rt = Date.now()
   if (hasBuildScript(target)) {
     const rport = previewPort(id)
@@ -116,18 +116,20 @@ async function revalidate(id: string, card: Card, wt: string, target: string, sh
       up = await waitHttp(rurl, 25)
     }
     if (up) {
-      await new Promise(r => setTimeout(r, 3000))
-      const shot = await screenshot(id, rurl)
-      reval = VISUAL_AI
-        ? await verifyVisual(card, shotPath)
-        : { ok: shot, conclusive: false, reason: shot ? 'preview renderizado (check de IA off) — verificacao humana' : 'screenshot falhou', cost: 0, tokens: 0 }
+      const h = await inspectPreview(id, rurl, true)
+      if (!h.conclusive) {
+        reason = `preview no ar apos merge — verificacao humana (inspecao automatica indisponivel${h.detail ? ': ' + h.detail : ''})`
+      } else {
+        ok = h.ok
+        reason = h.ok ? 'preview no ar apos merge — confira pelo link' : `preview com erro: ${h.detail}`
+      }
+    } else {
+      reason = 'dev server nao respondeu (revalidacao pulada)'
     }
   }
-  addMetric(fsteps, 'Revalidacao', { time: Math.round((Date.now() - rt) / 1000), cost: reval.cost || 0, tokens: reval.tokens || 0 })
-  const pass = reval.ok || reval.conclusive === false
-  const veredito = reval.ok ? 'OK' : (reval.conclusive === false ? 'INCONCLUSIVO (nao bloqueante)' : 'FALHOU')
-  patchCard(id, { revalidacao: reval.ok ? 'ok' : (reval.conclusive === false ? 'inconclusivo' : 'falhou') }, `${isoNow()} revalidacao do projeto (vs objetivo, pos-merge): ${veredito} — ${reval.reason}`)
-  return pass
+  addMetric(fsteps, 'Revalidacao', { time: Math.round((Date.now() - rt) / 1000), cost: 0, tokens: 0 })
+  patchCard(id, { revalidacao: ok ? 'ok' : 'falhou' }, `${isoNow()} revalidacao do projeto (vs objetivo, pos-merge): ${ok ? 'OK' : 'FALHOU'} — ${reason}`)
+  return ok
 }
 
 export async function handleFinish(id: string): Promise<void> {
@@ -140,7 +142,6 @@ export async function handleFinish(id: string): Promise<void> {
   const branch = card.fm.branch || `hicode/${id}-${slug}`
   const wt = card.fm.worktree || worktreePath(target, id, slug)
   const msg = `feat: ${card.fm.title ?? ''} (#${id})`
-  const shotPath = join(CARDS_DIR, 'previews', String(id), 'preview.png')
   if (!existsSync(wt)) {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED worktree ausente: ${wt}`)
     return
@@ -206,7 +207,7 @@ export async function handleFinish(id: string): Promise<void> {
     }
     await commitAll(wt, `chore: integra ${base} (#${id})`)
   }
-  if (!(await revalidate(id, card, wt, target, shotPath, fsteps))) {
+  if (!(await revalidate(id, card, wt, target, fsteps))) {
     updateRunSteps(id, fsteps)
     patchCard(id, { status: 'HALTED' }, `${isoNow()} CLEANED->HALTED revalidacao falhou pos-merge: objetivo nao confirmado (worktree + preview mantidos p/ inspecao)`)
     process.stdout.write(`[runner] #${id}: HALTED revalidacao (pos-merge)\n`)

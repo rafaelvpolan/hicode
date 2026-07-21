@@ -2,10 +2,10 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { Card, ImplementResult, StepMap, StepMetric, Usage, VerifyResult } from '../card'
-import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL, VISUAL_AI } from './config'
+import { CARDS_DIR, VERIFY_MODEL, VISUAL_AI } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
-import { hasBuildScript, previewPort, screenshot, startPreview, waitHttp } from './preview'
+import { hasBuildScript, inspectPreview, previewPort, startPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
@@ -116,8 +116,8 @@ export async function handleExecute(id: string): Promise<void> {
   const t0 = Date.now()
   const shotPath = join(CARDS_DIR, 'previews', String(id), 'preview.png')
   const steps = initialSteps()
-  let tx = Date.now()
-  let res = await implement(card, wt, '')
+  const tx = Date.now()
+  const res = await implement(card, wt, '', surface.surface === 'visual')
   steps.Executando.time += toSeconds(Date.now() - tx)
   steps.Executando.cost += parseFloat(res.cost) || 0
   steps.Executando.tokens += tokensOf(res.usage)
@@ -148,39 +148,32 @@ export async function handleExecute(id: string): Promise<void> {
   const url = pid ? `http://localhost:${port}` : ''
   const up = pid ? await waitHttp(url, 30) : false
   const tp = Date.now()
-  let verify: VerifyResult = pid
-    ? { ok: false, conclusive: true, reason: 'dev server nao subiu — preview nao renderizou', cost: 0, tokens: 0 }
-    : { ok: true, conclusive: false, reason: 'sem dev server (check visual pulado)', cost: 0, tokens: 0 }
-  let attempt = 0
-  while (up) {
-    await new Promise(r => setTimeout(r, 2500))
-    const shot = await screenshot(id, url)
-    if (!shot) {
-      verify = { ok: false, conclusive: true, reason: 'falha ao capturar screenshot (playwright ausente ou pagina em erro)', cost: 0, tokens: 0 }
-      break
+  let verify: VerifyResult
+  if (!pid) {
+    verify = { ok: true, conclusive: false, reason: 'repo sem dev server — verificacao humana pelo link', cost: 0, tokens: 0 }
+  } else if (!up) {
+    verify = { ok: false, conclusive: true, reason: 'dev server nao subiu — preview nao respondeu', cost: 0, tokens: 0 }
+  } else {
+    const health = await inspectPreview(id, url, true)
+    if (VISUAL_AI && health.ok) {
+      verify = await verifyVisual(card, shotPath)
+      steps.Preview.cost += verify.cost || 0
+      steps.Preview.tokens += verify.tokens || 0
+      patchCard(id, {}, `${isoNow()} check visual (IA, ${VERIFY_MODEL}): ${verify.ok ? 'OK' : 'FALHOU'} — ${verify.reason}`)
+    } else if (!health.conclusive) {
+      verify = { ok: true, conclusive: false, reason: `preview no ar — confira pelo link (inspecao automatica indisponivel${health.detail ? ': ' + health.detail : ''})`, cost: 0, tokens: 0 }
+    } else if (health.ok) {
+      verify = { ok: true, conclusive: false, reason: 'preview no ar — abra o link para conferir', cost: 0, tokens: 0 }
+    } else {
+      verify = { ok: false, conclusive: true, reason: `preview subiu com erro: ${health.detail}`, cost: 0, tokens: 0 }
     }
-    if (!VISUAL_AI) {
-      verify = { ok: true, conclusive: false, reason: 'preview renderizado (check de IA desligado) — verificacao humana', cost: 0, tokens: 0 }
-      break
-    }
-    verify = await verifyVisual(card, shotPath)
-    steps.Preview.cost += verify.cost || 0
-    steps.Preview.tokens += verify.tokens || 0
-    patchCard(id, {}, `${isoNow()} check visual (IA, ${VERIFY_MODEL}): ${verify.ok ? 'OK' : 'FALHOU'} — ${verify.reason}`)
-    if (verify.ok || attempt >= MAX_VERIFY) break
-    attempt++
-    process.stdout.write(`[runner] #${id}: check visual falhou, reexecutando (${attempt})\n`)
-    const tx2 = Date.now()
-    const r2 = await implement(card, wt, `A verificacao visual falhou: ${verify.reason}. Garanta que o elemento/mudanca pedido apareca DE FATO e visivelmente na pagina.`)
-    steps.Executando.time += toSeconds(Date.now() - tx2)
-    steps.Executando.cost += parseFloat(r2.cost) || 0
-    steps.Executando.tokens += tokensOf(r2.usage)
-    if (r2.ok) res = r2
   }
   steps.Preview.time = toSeconds(Date.now() - tp)
   const { costSum, tokensTotal } = await commitAndRecord(id, wt, card, steps, res, t0)
   const vstate = verify.ok ? 'ok' : (verify.conclusive === false ? 'inconclusivo' : 'falhou')
-  const vlabel = verify.ok ? 'visual OK' : (verify.conclusive === false ? 'visual inconclusivo (verificacao humana)' : 'visual NAO confirmado')
+  const vlabel = verify.ok
+    ? (verify.conclusive === false ? 'preview no ar (verificacao humana pelo link)' : 'visual OK')
+    : (verify.conclusive === false ? 'inconclusivo (verificacao humana)' : 'preview com erro')
   patchCard(id, {
     status: 'PREVIEW',
     preview_url: url,

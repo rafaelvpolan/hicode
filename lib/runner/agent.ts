@@ -7,6 +7,7 @@ import { modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 import type { AiProvider } from '../ai/types'
 import { readProjectRules } from './hicode-home'
+import { FRONTEND_DESIGN_BRIEF } from './design'
 
 export interface StepResult {
   time: number
@@ -20,19 +21,20 @@ function firstLine(s: string, max: number): string {
   return String(s || '').split('\n')[0]?.slice(0, max) ?? ''
 }
 
-function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string): string {
+function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean): string {
   const head = provider.supportsAgents
     ? [
         'Use os AGENTES NEXUS deste projeto para implementar a tarefa abaixo (auto-construcao do hicode).',
         `O codigo a alterar fica em: ${workdir} (Vite + Vue 3 + TypeScript). Edite os arquivos em src/ DESSE diretorio.`,
-        'Roteie via Task: frontend/Vue/UI -> vitro; logica/feature -> limpio; banco -> radix; refactor -> rufus. Apos agente gated, passe pelo crivo.',
+        'Roteie via Task: frontend/Vue/UI -> vitro (estrutura/design-system -> frontiteto); logica/feature -> limpio; banco -> radix; refactor -> rufus. Apos agente gated, passe pelo crivo.',
       ]
     : [
         'Implemente a tarefa abaixo (auto-construcao do hicode).',
         `O codigo a alterar fica em: ${workdir} (Vite + Vue 3 + TypeScript). Edite os arquivos em src/ DESSE diretorio.`,
       ]
   return [
-    rules ? `CONTEXTO DO PROJETO (.hicode/rules.md — respeite):\n${rules}\n` : '',
+    rules ? `CONTEXTO DO PROJETO (.hii/rules.md — respeite):\n${rules}\n` : '',
+    visual ? `${FRONTEND_DESIGN_BRIEF}\n` : '',
     ...head,
     'Faca a MENOR mudanca que cumpra a tarefa. NAO rode git, NAO faca commit, NAO inicie servidores. Sem comentarios de prosa.',
     feedback ? `\nATENCAO (reexecucao): ${feedback}` : '',
@@ -44,12 +46,12 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
   ].join('\n')
 }
 
-export async function implement(card: Card, workdir: string, feedback = ''): Promise<ImplementResult> {
+export async function implement(card: Card, workdir: string, feedback = '', visual = false): Promise<ImplementResult> {
   const desc = extractObjetivo(card.body) || card.fm.title || ''
   const provider = providerFor('implement')
   if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '' }
   const res = await provider.run({
-    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir)),
+    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual),
     cwd: ROOT,
     dirs: [workdir],
     mode: 'edit',
@@ -103,7 +105,7 @@ function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction
     ? `Use o agente Nexus ${agent} no projeto web em ${wt} (Vite + Vue 3 + TypeScript). Edite arquivos em src/ apenas se necessario.`
     : `Atue no papel "${agent}" no projeto web em ${wt} (Vite + Vue 3 + TypeScript). Edite arquivos em src/ apenas se necessario.`
   return [
-    rules ? `CONTEXTO DO PROJETO (.hicode/rules.md — respeite):\n${rules}\n` : '',
+    rules ? `CONTEXTO DO PROJETO (.hii/rules.md — respeite):\n${rules}\n` : '',
     head,
     'NAO rode git/commit, NAO inicie servidores. Sem comentarios de prosa no codigo. Se nao houver nada a fazer, responda "nada a fazer".',
     instruction,

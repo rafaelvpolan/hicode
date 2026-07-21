@@ -8,7 +8,7 @@ import { taskSyncName } from './lib/tasks/registry'
 if (process.argv.includes('--init')) {
   const target = process.argv[process.argv.indexOf('--init') + 1] ?? process.cwd()
   const created = initHicodeHome(target)
-  process.stdout.write(created.length ? `.hicode/ provisionado em ${target}:\n${created.map(c => `  + ${c}`).join('\n')}\n` : `.hicode/ ja existe em ${target}\n`)
+  process.stdout.write(created.length ? `.hii/ provisionado em ${target}:\n${created.map(c => `  + ${c}`).join('\n')}\n` : `.hii/ ja existe em ${target}\n`)
   process.exit(0)
 } else if (process.argv.includes('--sync')) {
   void runSync().then((r) => {

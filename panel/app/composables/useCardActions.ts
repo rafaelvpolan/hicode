@@ -1,7 +1,8 @@
 import { reactive, ref, type Ref } from 'vue'
 import type {
-  AddRepoResponse, CardActionResponse, CardView, CreateSprintResponse,
+  AddRepoResponse, ApiError, CardActionResponse, CardView, CreateSprintResponse,
   EditingForm, GhReposResponse, NewRepoForm, ProjectPreviewResponse, ProjectPreviewState,
+  ResetPreviewResponse,
 } from '#shared/types'
 
 export interface CardActionsOptions {
@@ -103,6 +104,12 @@ export function useCardActions(options: CardActionsOptions) {
     await load()
   }
 
+  async function resetPreview(id: string, hard: boolean): Promise<void> {
+    await $fetch<ResetPreviewResponse | ApiError>(`/api/cards/${id}/reset-preview`, { method: 'POST', body: { hard } })
+      .catch(() => null)
+    await load()
+  }
+
   async function removeCard(c: CardView): Promise<void> {
     if (!window.confirm(`Remover o card #${c.id} "${c.title}"?\nApaga o arquivo do card.`)) return
     await $fetch(`/api/cards/${c.id}`, { method: 'DELETE' })
@@ -139,6 +146,6 @@ export function useCardActions(options: CardActionsOptions) {
   return {
     newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
     addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
-    start, pause, resume, act, reject, replay, removeCard, openEdit, saveEdit, closeEdit,
+    start, pause, resume, act, reject, replay, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
   }
 }

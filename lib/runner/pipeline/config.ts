@@ -18,7 +18,7 @@ function isValidStep(s: PipelineStep): boolean {
 
 export function loadPipeline(worktree?: string): PipelineConfig {
   const candidates = worktree
-    ? [join(worktree, '.hicode', 'pipeline.json'), join(ROOT, 'config', 'pipeline.json')]
+    ? [join(worktree, '.hii', 'pipeline.json'), join(ROOT, 'config', 'pipeline.json')]
     : [join(ROOT, 'config', 'pipeline.json')]
   for (const f of candidates) {
     if (!existsSync(f)) continue

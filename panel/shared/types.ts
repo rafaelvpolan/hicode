@@ -187,3 +187,10 @@ export interface CorrectResponse {
   error?: string
   card?: CardRecord
 }
+
+export interface ResetPreviewResponse {
+  ok: true
+  url: string
+  running: boolean
+  hard: boolean
+}

@@ -23,19 +23,32 @@ function runnerBun(extra: string[]): number {
 
 function usage(): void {
   process.stdout.write([
-    'hicode — plano de controle autonomo',
+    'hii — plano de controle autonomo do hicode',
     '',
-    'Uso: hicode <comando>',
+    'Uso: hii <comando> [opcoes]',
     '',
-    '  start | stop | restart   controla o daemon do motor',
-    '  status                   estado do daemon + progresso dos cards',
-    '  watch                    progresso dos cards ao vivo',
-    '  run                      motor em foreground (nao daemoniza)',
+    'Motor (daemon):',
+    '  start                    inicia o motor em background (daemon)',
+    '  stop                     para o daemon',
+    '  restart                  reinicia o daemon',
+    '  run                      roda o motor em foreground (nao daemoniza)',
     '  once                     processa a fila uma vez e sai',
+    '',
+    'Acompanhamento:',
+    '  status                   estado do daemon + progresso dos cards',
+    '  watch                    progresso dos cards ao vivo (atualiza sozinho)',
+    '',
+    'Tarefas e integracao:',
     '  sync                     sincroniza tarefas externas (HICODE_TASK_SYNC)',
-    '  init [caminho]           provisiona .hicode/ num repo-alvo (default: cwd)',
-    '  hooks install [caminho]  instala o pre-push deterministico num repo (default: cwd)',
-    '  hooks uninstall [caminho] remove o pre-push',
+    '  init [caminho]           provisiona .hii/ num repo-alvo (default: diretorio atual)',
+    '  hooks install [caminho]  instala o gate pre-push deterministico (default: atual)',
+    '  hooks uninstall [caminho] remove o gate pre-push',
+    '',
+    'Ajuda:',
+    '  --help, -h, ajuda        mostra esta ajuda',
+    '',
+    'Fluxo de um card: executar -> preview (link vivo) -> aprovar -> polir -> PR.',
+    'Merge e SEMPRE humano: o motor para em PR_OPEN e nunca da merge.',
     '',
   ].join('\n'))
 }
@@ -54,12 +67,18 @@ function hooks(): number {
     process.stdout.write(ok ? `pre-push removido de ${repo}\n` : `nenhum pre-push encontrado em ${repo}\n`)
     return 0
   }
-  process.stdout.write('uso: hicode hooks <install|uninstall> [caminho]\n')
+  process.stdout.write('uso: hii hooks <install|uninstall> [caminho]\n')
   return 1
 }
 
 async function main(): Promise<number> {
   switch (cmd) {
+    case 'help':
+    case 'ajuda':
+    case '--help':
+    case '-h':
+      usage()
+      return 0
     case 'start':
     case 'stop':
     case 'restart':
@@ -86,7 +105,7 @@ async function main(): Promise<number> {
     case 'init': {
       const target = args[1] || process.cwd()
       const created = initHicodeHome(target)
-      process.stdout.write(created.length ? `.hicode/ provisionado em ${target}:\n${created.map(c => `  + ${c}`).join('\n')}\n` : `.hicode/ ja existe em ${target}\n`)
+      process.stdout.write(created.length ? `.hii/ provisionado em ${target}:\n${created.map(c => `  + ${c}`).join('\n')}\n` : `.hii/ ja existe em ${target}\n`)
       return 0
     }
     case 'hooks':

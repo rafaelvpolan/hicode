@@ -4,6 +4,12 @@ import { spawn } from 'node:child_process'
 import { CARDS_DIR, ROOT, PREVIEW_BASE_PORT } from './config'
 import { run } from './git'
 
+export interface PreviewHealth {
+  ok: boolean
+  conclusive: boolean
+  detail: string
+}
+
 export function previewPort(id: string): number {
   return PREVIEW_BASE_PORT + (Number(id) || 0)
 }
@@ -56,10 +62,15 @@ export async function waitHttp(url: string, tries: number): Promise<boolean> {
   return false
 }
 
-export async function screenshot(id: string, url: string): Promise<boolean> {
+export async function inspectPreview(id: string, url: string, capture: boolean): Promise<PreviewHealth> {
   const dir = join(CARDS_DIR, 'previews', String(id))
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  const out = join(dir, 'preview.png')
-  const { err } = await run('npx', ['--no-install', 'playwright', 'screenshot', '--viewport-size=1280,900', '--full-page', url, out], { cwd: ROOT, timeout: 60000 })
-  return !err && existsSync(out)
+  const out = capture ? join(dir, 'preview.png') : ''
+  const r = await run('bun', [join(ROOT, 'scripts', 'inspect-preview.mjs'), url, out], { cwd: ROOT, timeout: 60000 })
+  try {
+    const j = JSON.parse(String(r.stdout || '')) as { ok?: boolean; conclusive?: boolean; detail?: string }
+    return { ok: !!j.ok, conclusive: !!j.conclusive, detail: String(j.detail || '') }
+  } catch {
+    return { ok: false, conclusive: false, detail: 'inspecao do preview nao concluida (playwright ausente ou pagina inacessivel)' }
+  }
 }

@@ -20,6 +20,7 @@ interface CardRowEmits {
   replay: [step: string]
   review: [id: string]
   preview: [id: string]
+  reset: [id: string]
 }
 
 const props = defineProps<CardRowProps>()
@@ -58,7 +59,7 @@ async function toggleLog(): Promise<void> {
       <span class="eid">#{{ card.id }}</span>
       <span class="etitle">{{ card.title }}</span>
       <span v-if="card.surface === 'none'" class="vbadge nonvis" title="Classificação prévia: tarefa não-visual — preview/screenshot pulado">↷ não-visual</span>
-      <span v-if="card.verify && card.verify !== 'n/a'" class="vbadge" :class="card.verify" :title="'Check visual da IA'">{{ card.verify === 'ok' ? '✓ visual' : '⚠ visual' }}</span>
+      <span v-if="card.verify && card.verify !== 'n/a'" class="vbadge" :class="card.verify" :title="'Estado do preview — você confere abrindo o link'">{{ card.verify === 'ok' ? '✓ preview' : (card.verify === 'inconclusivo' ? '◔ preview' : '⚠ preview') }}</span>
       <span v-if="card.revalidacao" class="vbadge" :class="card.revalidacao" :title="'Revalidação do projeto vs objetivo da tarefa'">{{ card.revalidacao === 'ok' ? '✓ reval' : '⚠ reval' }}</span>
       <span class="erepo">{{ card.repo || '—' }} · {{ card.risk }}<template v-if="card.cost_usd"> · ${{ card.cost_usd }}</template><template v-if="card.tokens_total"> · {{ Number(card.tokens_total).toLocaleString('pt-BR') }} tok</template></span>
       <span class="etools"><button class="icon" title="Editar tarefa" @click="$emit('edit', card)">✏️</button><button class="icon del" title="Remover" @click="$emit('remove', card)">🗑</button></span>
@@ -89,16 +90,19 @@ async function toggleLog(): Promise<void> {
     </div>
 
     <div class="erow-actions">
+      <a v-if="['PREVIEW', 'PREVIEW_OK'].includes(card.status) && card.preview_url" class="prevlink" :href="card.preview_url" target="_blank" rel="noopener">▶ abrir preview ao vivo ↗</a>
       <button v-if="['INBOX', 'READY'].includes(card.status)" @click="$emit('start', card.id)">▶ Começar</button>
       <template v-else-if="card.status === 'EXECUTING'"><span class="run">⏳ executando…</span><button class="ghost" @click="$emit('pause', card.id)">⏸ Pausar</button></template>
       <template v-else-if="card.status === 'PAUSED'"><span class="run">⏸ pausado</span><button @click="$emit('resume', card.id)">▶ Retomar</button></template>
-      <template v-else-if="card.status === 'PREVIEW'"><button @click="$emit('approve', card.id)">✅ Aprovar</button><button class="ghost" @click="$emit('reject', card.id)">✋ Rejeitar</button></template>
+      <template v-else-if="card.status === 'PREVIEW'">
+        <button @click="$emit('approve', card.id)">✅ Aprovar</button>
+        <button class="ghost" @click="$emit('reject', card.id)">✋ Rejeitar</button>
+        <button v-if="card.preview_url" class="ghost" @click="$emit('reset', card.id)">🔄 resetar</button>
+      </template>
       <a v-else-if="card.status === 'PR_OPEN' && card.pr_url" class="btnlink" :href="card.pr_url" target="_blank" rel="noopener">🔗 Abrir PR</a>
-      <a v-if="['PREVIEW', 'PREVIEW_OK'].includes(card.status) && card.preview_url" class="prevlink" :href="card.preview_url" target="_blank" rel="noopener">abrir preview ↗</a>
       <button v-if="isPreviewable" class="ghost" @click="$emit('preview', card.id)">👁 Preview</button>
       <button v-if="isReviewable" class="ghost" @click="$emit('review', card.id)">🔍 Code-review</button>
     </div>
-    <a v-if="card.status === 'PREVIEW' && card.shot" :href="card.preview_url || '#'" target="_blank" rel="noopener"><img class="shot" :src="`/api/preview/${card.id}`" alt="preview"></a>
     <div v-if="cardRuns.length" class="execs">
       <button class="exectoggle" type="button" @click="showAllRuns = !showAllRuns">
         <span class="chev">{{ showAllRuns ? '▾' : '▸' }}</span>
@@ -151,6 +155,7 @@ button.icon:hover{ border-color:var(--acc); color:var(--tx) } button.icon.del:ho
 .vbadge{ font-size:11px; padding:1px 7px; border-radius:6px; border:1px solid var(--bd); font-weight:600 }
 .vbadge.ok{ color:var(--ok); border-color:color-mix(in srgb,var(--ok) 45%,transparent) }
 .vbadge.falhou{ color:var(--warn); border-color:color-mix(in srgb,var(--warn) 45%,transparent) }
+.vbadge.inconclusivo{ color:var(--mut); border-color:color-mix(in srgb,var(--mut) 45%,transparent) }
 .vbadge.nonvis{ color:var(--mut) }
 .edesc{ white-space:pre-wrap; color:var(--mut); font-size:13px; margin:8px 0 2px; border-left:2px solid var(--bd); padding-left:10px }
 .stepper{ display:flex; gap:10px; flex-wrap:wrap; margin:11px 0 4px }
@@ -168,7 +173,9 @@ button.icon:hover{ border-color:var(--acc); color:var(--tx) } button.icon.del:ho
 .run{ color:var(--acc); font-size:13px; font-weight:600 }
 .btnlink{ background:var(--acc); border:1px solid var(--acc); color:#fff; padding:6px 12px; border-radius:8px; font-weight:600; font-size:13px }
 .btnlink:hover{ text-decoration:none }
-.prevlink{ font-size:12px } .paused{ color:var(--gold); font-weight:600; margin:8px 0 }
+.prevlink{ background:var(--acc); border:1px solid var(--acc); color:#fff; padding:6px 12px; border-radius:8px; font-weight:700; font-size:13px }
+.prevlink:hover{ text-decoration:none; filter:brightness(1.08) }
+.paused{ color:var(--gold); font-weight:600; margin:8px 0 }
 .halt{ margin:8px 0; padding:10px 12px; border:1px solid color-mix(in srgb,var(--bad) 45%,transparent); border-radius:8px; background:color-mix(in srgb,var(--bad) 8%,transparent) }
 .halt-head{ color:var(--bad); font-weight:700 }
 .halt-reason{ color:var(--tx); font-size:13px; margin-top:6px; word-break:break-word }
@@ -178,7 +185,6 @@ button.icon:hover{ border-color:var(--acc); color:var(--tx) } button.icon.del:ho
 .halt-actions .resolve{ background:var(--bad); border-color:var(--bad); color:#fff }
 .halt-actions .resolve:hover{ filter:brightness(1.08) }
 .halt-log{ margin:10px 0 0; padding:8px 10px; background:var(--bg); border:1px solid var(--bd); border-radius:7px; font-size:11px; color:var(--mut); white-space:pre-wrap; word-break:break-word; max-height:220px; overflow:auto }
-.shot{ max-width:440px; width:100%; border-radius:6px; border:1px solid var(--bd); margin-top:8px; display:block }
 .execs{ margin-top:10px; padding-top:8px; border-top:1px solid var(--bd); display:flex; flex-direction:column; gap:8px }
 .exectoggle{ align-self:flex-start; background:transparent; border:none; padding:0; font-size:10px; color:var(--mut); text-transform:uppercase; letter-spacing:.03em; font-weight:600; cursor:pointer; display:flex; gap:6px; align-items:center }
 .exectoggle:hover{ color:var(--tx) }

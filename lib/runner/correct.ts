@@ -2,11 +2,10 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { isoNow } from '../card'
 import type { Usage, VerifyResult } from '../card'
-import { CARDS_DIR } from './config'
 import { readCard, patchCard, repoPath } from './card-store'
 import { runGit, stageAll } from './git'
-import { hasBuildScript, previewPort, httpOk, screenshot, startPreview, waitHttp } from './preview'
-import { implement, runStep, verifyVisual } from './agent'
+import { hasBuildScript, previewPort, httpOk, inspectPreview, startPreview, waitHttp } from './preview'
+import { implement, runStep } from './agent'
 
 interface StepOutcome {
   text: string
@@ -27,7 +26,7 @@ function scopedInstruction(instruction: string, file: string, line: string, line
   return `Correção pedida pelo revisor humano.${target} Faça a MENOR mudança que atenda: "${instruction}". Não mude nada fora do necessário. Não rode git, não inicie servidores.`
 }
 
-async function revalidate(id: string, card: NonNullable<ReturnType<typeof readCard>>, wt: string, target: string): Promise<VerifyResult> {
+async function revalidate(id: string, wt: string, target: string): Promise<VerifyResult> {
   if (!hasBuildScript(target)) return { ok: true, reason: 'sem dev server', cost: 0, tokens: 0 }
   const port = previewPort(id)
   const url = `http://localhost:${port}`
@@ -37,10 +36,11 @@ async function revalidate(id: string, card: NonNullable<ReturnType<typeof readCa
     up = await waitHttp(url, 25)
   }
   if (!up) return { ok: true, reason: 'dev server nao respondeu', cost: 0, tokens: 0 }
-  await new Promise(resolve => setTimeout(resolve, 2500))
-  const shotPath = join(CARDS_DIR, 'previews', String(id), 'preview.png')
-  await screenshot(id, url)
-  return verifyVisual(card, shotPath)
+  const health = await inspectPreview(id, url, true)
+  if (!health.conclusive) return { ok: true, reason: `preview no ar — confira pelo link (inspecao automatica indisponivel${health.detail ? ': ' + health.detail : ''})`, cost: 0, tokens: 0 }
+  return health.ok
+    ? { ok: true, reason: 'preview no ar — confira pelo link', cost: 0, tokens: 0 }
+    : { ok: false, reason: `preview com erro: ${health.detail}`, cost: 0, tokens: 0 }
 }
 
 async function commit(wt: string, message: string): Promise<void> {
@@ -51,7 +51,7 @@ async function commit(wt: string, message: string): Promise<void> {
 }
 
 async function redoPreview(card: NonNullable<ReturnType<typeof readCard>>, wt: string, instruction: string): Promise<StepOutcome> {
-  const r = await implement(card, wt, `O preview anterior foi REJEITADO pelo revisor. Refaça a tarefa atendendo exatamente: "${instruction}".`)
+  const r = await implement(card, wt, `O preview anterior foi REJEITADO pelo revisor. Refaça a tarefa atendendo exatamente: "${instruction}".`, card.fm.surface === 'visual')
   return { text: r.resultText ?? r.reason ?? '', cost: parseFloat(r.cost) || 0, tokens: tokensOf(r.usage) }
 }
 
@@ -76,7 +76,7 @@ export async function handleCorrect(id: string): Promise<void> {
   const redo = !file
   process.stdout.write(`[runner] #${id}: ${redo ? 'refazendo preview (rejeitado)' : 'aplicando correção'} em ${wt}\n`)
   const r = redo ? await redoPreview(card, wt, instruction) : await scopedFix(wt, instruction, file, line, lineText)
-  const reval = await revalidate(id, card, wt, target)
+  const reval = await revalidate(id, wt, target)
   await commit(wt, redo ? `feat: refaz preview apos rejeicao (#${id})` : `fix: correção humana (#${id})`)
   patchCard(id, {
     status: 'PREVIEW',

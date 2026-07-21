@@ -128,6 +128,21 @@ export function deleteCard(id: string): boolean {
   return true
 }
 
+export function setPreviewPid(id: string, pid: number, hard = false): CardRecord | null {
+  const f = findCardFile(id)
+  if (!f) return null
+  const p = join(CARDS_DIR, f)
+  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
+  const keys = order.length ? order : Object.keys(fm)
+  fm.preview_pid = String(pid)
+  if (!keys.includes('preview_pid')) keys.push('preview_pid')
+  fm.updated = isoNow()
+  const suffix = hard ? ', cache limpo' : ''
+  const nb = appendLog(body, `${isoNow()} RESET preview reiniciado (pid ${pid}${suffix})`)
+  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
+  return { ...fm, file: f }
+}
+
 export function previewFile(id: string): string | null {
   const p = join(CARDS_DIR, 'previews', String(id).padStart(3, '0'), 'preview.png')
   return existsSync(p) ? p : null
