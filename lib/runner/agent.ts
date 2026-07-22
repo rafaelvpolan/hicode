@@ -124,7 +124,7 @@ function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction
   ].join('\n')
 }
 
-export async function runStep(wt: string, agent: string, instruction: string): Promise<StepResult> {
+export async function runStep(wt: string, agent: string, instruction: string, id = ''): Promise<StepResult> {
   const t = Date.now()
   const provider = providerFor('step')
   if (!provider.agentic) return { time: 0, cost: 0, tokens: 0, ok: false, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use codex/opencode para steps que editam)` }
@@ -136,6 +136,7 @@ export async function runStep(wt: string, agent: string, instruction: string): P
     useAgents: provider.supportsAgents,
     model: modelFor('step'),
     timeoutMs: RUN_TIMEOUT_MS,
+    liveLog: id ? join(CARDS_DIR, 'runs', `${id}.live.log`) : undefined,
   })
   return { time: Math.round((Date.now() - t) / 1000), cost: res.cost, tokens: sumTokens(res.usage), text: firstLine(res.text, 120), ok: res.ok }
 }

@@ -14,7 +14,7 @@ export const IN_PROGRESS: CardStatus[] = [
 ]
 
 export const ACTIVE_STATUSES: CardStatus[] = [
-  'EXECUTING', 'CORRECTING', 'SPECCED', 'REFINED', 'TESTS_GREEN',
+  'EXECUTING', 'CORRECTING', 'SPECCED', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN',
   'SEC_CLEARED', 'REVIEWED', 'CLEANED',
 ]
 

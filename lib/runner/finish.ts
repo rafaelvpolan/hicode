@@ -37,7 +37,7 @@ async function buildWithReajuste(id: string, wt: string, fsteps: StepMap, timeKe
     reajuste++
     const tr = Date.now()
     const detail = String(b.stderr || b.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou. Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`)
+    const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou. Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`, id)
     b = await run('npm', ['run', 'build'], { cwd: wt, timeout: 240000 })
     addMetric(fsteps, reajusteKey, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
     patchCard(id, {}, `${isoNow()} REAJUSTE (${reajuste}/${MAX_REAJUSTE}, rufus): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
@@ -60,7 +60,7 @@ async function testGate(id: string, wt: string, target: string, fsteps: StepMap,
     reajuste++
     const tr = Date.now()
     const detail = String(t.stderr || t.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'testudo', `Os testes do projeto falharam. Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`)
+    const rr = await runStep(wt, 'testudo', `Os testes do projeto falharam. Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`, id)
     t = await run('npm', ['test'], { cwd: wt, timeout: 240000 })
     addMetric(fsteps, label, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
     patchCard(id, {}, `${isoNow()} REAJUSTE testes (${reajuste}/${MAX_REAJUSTE}, testudo): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
@@ -84,7 +84,7 @@ async function syncWithBase(id: string, wt: string, base: string, desc: string, 
     attempt++
     const files = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.split('\n').filter(Boolean)
     const tr = Date.now()
-    const rr = await runStep(wt, 'limpio', `Conflito de merge ao integrar origin/${base} na branch. Resolva os conflitos nestes arquivos: ${files.join(', ')}. Preserve o objetivo "${desc}" E as mudancas de ${base}. Remova TODOS os marcadores de conflito (<<<<<<<, =======, >>>>>>>). Nao rode git.`)
+    const rr = await runStep(wt, 'limpio', `Conflito de merge ao integrar origin/${base} na branch. Resolva os conflitos nestes arquivos: ${files.join(', ')}. Preserve o objetivo "${desc}" E as mudancas de ${base}. Remova TODOS os marcadores de conflito (<<<<<<<, =======, >>>>>>>). Nao rode git.`, id)
     addMetric(fsteps, 'Conflito', { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
     if (files.length) await runGit(wt, ['add', ...files])
     const unmerged = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.trim()
@@ -173,7 +173,7 @@ export async function handleFinish(id: string): Promise<void> {
         return
       }
     } else {
-      const sr = await runStep(wt, step.agent, instruction)
+      const sr = await runStep(wt, step.agent, instruction, id)
       if (!sr.ok) {
         fsteps[step.label] = { time: sr.time, cost: sr.cost, tokens: sr.tokens }
         updateRunSteps(id, fsteps)

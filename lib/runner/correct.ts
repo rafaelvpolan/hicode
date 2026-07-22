@@ -66,8 +66,8 @@ async function redoPreview(card: NonNullable<ReturnType<typeof readCard>>, wt: s
   return { text: r.resultText ?? r.reason ?? '', fullText: r.fullText ?? r.resultText ?? r.reason ?? '', cost: parseFloat(r.cost) || 0, tokens: tokensOf(r.usage) }
 }
 
-async function scopedFix(wt: string, instruction: string, file: string, line: string, lineText: string): Promise<StepOutcome> {
-  const r = await runStep(wt, 'limpio', scopedInstruction(instruction, file, line, lineText))
+async function scopedFix(wt: string, instruction: string, file: string, line: string, lineText: string, id: string): Promise<StepOutcome> {
+  const r = await runStep(wt, 'limpio', scopedInstruction(instruction, file, line, lineText), id)
   return { text: r.text, fullText: r.text, cost: r.cost, tokens: r.tokens }
 }
 
@@ -90,7 +90,7 @@ export async function handleCorrect(id: string): Promise<void> {
   const target = repoPath(card.fm.repo ?? '')
   const redo = !file
   process.stdout.write(`[runner] #${id}: ${redo ? 'refazendo preview (rejeitado)' : 'aplicando correção'} em ${wt}\n`)
-  const r = redo ? await redoPreview(card, wt, instruction) : await scopedFix(wt, instruction, file, line, lineText)
+  const r = redo ? await redoPreview(card, wt, instruction) : await scopedFix(wt, instruction, file, line, lineText, id)
   appendAttempt(id, redo ? 'reprovacao' : 'correcao', instruction, r.fullText)
   await commit(wt, redo ? `feat: refaz preview apos rejeicao (#${id})` : `fix: correção humana (#${id})`)
   patchCard(id, {
