@@ -33,7 +33,7 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
     ? [
         'Use os AGENTES NEXUS deste projeto para implementar a tarefa abaixo (auto-construcao do hicode).',
         `O codigo a alterar fica em: ${workdir} (Vite + Vue 3 + TypeScript). Edite os arquivos em src/ DESSE diretorio.`,
-        'Roteie via Task: frontend/Vue/UI -> vitro (estrutura/design-system -> frontiteto); logica/feature -> limpio; banco -> radix; refactor -> rufus. Apos agente gated, passe pelo crivo.',
+        'Roteie via Task: frontend/Vue/UI -> vitro (estrutura/design-system -> frontiteto); logica/feature -> limpio; banco -> radix; refactor -> rufus. NAO rode crivo/review nesta etapa (nao chame o crivo): a revisao adversarial e os gates rodam DEPOIS, na fase de polimento do motor. Apenas implemente.',
       ]
     : [
         'Implemente a tarefa abaixo (auto-construcao do hicode).',
