@@ -1,12 +1,17 @@
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo } from '../card'
 import type { Card, ImplementResult, VerifyResult } from '../card'
-import { ROOT, RUN_TIMEOUT_MS } from './config'
+import { CARDS_DIR, ROOT, RUN_TIMEOUT_MS, PROJECT_MEMORY } from './config'
 import { modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 import type { AiProvider } from '../ai/types'
 import { readProjectRules } from './hicode-home'
+import { repoPath } from './card-store'
+import { readProjectMemory } from './memory'
+import { DESIGN_SYSTEM_BRIEF } from './design'
+import { clarifyAnswersPrompt } from './clarify'
+import { resolveRefImages } from './refs'
 
 export interface StepResult {
   time: number
@@ -20,19 +25,26 @@ function firstLine(s: string, max: number): string {
   return String(s || '').split('\n')[0]?.slice(0, max) ?? ''
 }
 
-function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string): string {
+function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean, clarifications: string, refImages: string[], memory: string): string {
+  const refs = refImages.length
+    ? `REFERENCIAS DE DESIGN (${refImages.length}): abra CADA imagem abaixo com a tool Read e replique o design o mais FIEL possivel (layout, cores, tipografia, espacamento, componentes); extraia os tokens a partir delas. Imagens:\n${refImages.map(p => `- ${p}`).join('\n')}\n`
+    : ''
   const head = provider.supportsAgents
     ? [
         'Use os AGENTES NEXUS deste projeto para implementar a tarefa abaixo (auto-construcao do hicode).',
         `O codigo a alterar fica em: ${workdir} (Vite + Vue 3 + TypeScript). Edite os arquivos em src/ DESSE diretorio.`,
-        'Roteie via Task: frontend/Vue/UI -> vitro; logica/feature -> limpio; banco -> radix; refactor -> rufus. Apos agente gated, passe pelo crivo.',
+        'Roteie via Task: frontend/Vue/UI -> vitro (estrutura/design-system -> frontiteto); logica/feature -> limpio; banco -> radix; refactor -> rufus. Apos agente gated, passe pelo crivo.',
       ]
     : [
         'Implemente a tarefa abaixo (auto-construcao do hicode).',
         `O codigo a alterar fica em: ${workdir} (Vite + Vue 3 + TypeScript). Edite os arquivos em src/ DESSE diretorio.`,
       ]
   return [
-    rules ? `CONTEXTO DO PROJETO (.hicode/rules.md — respeite):\n${rules}\n` : '',
+    rules ? `CONTEXTO DO PROJETO (.hii/rules.md — respeite):\n${rules}\n` : '',
+    memory ? `MEMORIA DO PROJETO (.hii/memory — decisoes/convencoes acumuladas, respeite):\n${memory}\n` : '',
+    clarifications ? clarifications : '',
+    refs,
+    visual ? `${DESIGN_SYSTEM_BRIEF}\n` : '',
     ...head,
     'Faca a MENOR mudanca que cumpra a tarefa. NAO rode git, NAO faca commit, NAO inicie servidores. Sem comentarios de prosa.',
     feedback ? `\nATENCAO (reexecucao): ${feedback}` : '',
@@ -44,18 +56,23 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
   ].join('\n')
 }
 
-export async function implement(card: Card, workdir: string, feedback = ''): Promise<ImplementResult> {
+export async function implement(card: Card, workdir: string, feedback = '', visual = false): Promise<ImplementResult> {
   const desc = extractObjetivo(card.body) || card.fm.title || ''
   const provider = providerFor('implement')
   if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '' }
+  const id = card.fm.id ?? ''
+  const refImages = provider.supportsVision ? await resolveRefImages(id) : []
+  const dirs = refImages.length ? [workdir, join(CARDS_DIR, 'refs', id)] : [workdir]
+  const memory = PROJECT_MEMORY ? readProjectMemory(repoPath(card.fm.repo ?? '')) : ''
   const res = await provider.run({
-    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir)),
+    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages, memory),
     cwd: ROOT,
-    dirs: [workdir],
+    dirs,
     mode: 'edit',
     useAgents: provider.supportsAgents,
     model: modelFor('implement'),
     timeoutMs: RUN_TIMEOUT_MS,
+    liveLog: id ? join(CARDS_DIR, 'runs', `${id}.live.log`) : undefined,
   })
   const cost = res.cost ? res.cost.toFixed(4) : ''
   if (!res.ok) {
@@ -64,7 +81,7 @@ export async function implement(card: Card, workdir: string, feedback = ''): Pro
       : `${provider.name} ${res.timedOut ? 'timeout' : 'falhou: ' + res.detail}`
     return { ok: false, reason, cost, usage: res.usage, timedOut: res.timedOut }
   }
-  return { ok: true, resultText: firstLine(res.text, 140), cost, usage: res.usage }
+  return { ok: true, resultText: firstLine(res.text, 140), fullText: String(res.text || '').slice(0, 8000), cost, usage: res.usage }
 }
 
 export async function verifyVisual(card: Card, shotPath: string): Promise<VerifyResult> {
@@ -103,7 +120,7 @@ function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction
     ? `Use o agente Nexus ${agent} no projeto web em ${wt} (Vite + Vue 3 + TypeScript). Edite arquivos em src/ apenas se necessario.`
     : `Atue no papel "${agent}" no projeto web em ${wt} (Vite + Vue 3 + TypeScript). Edite arquivos em src/ apenas se necessario.`
   return [
-    rules ? `CONTEXTO DO PROJETO (.hicode/rules.md — respeite):\n${rules}\n` : '',
+    rules ? `CONTEXTO DO PROJETO (.hii/rules.md — respeite):\n${rules}\n` : '',
     head,
     'NAO rode git/commit, NAO inicie servidores. Sem comentarios de prosa no codigo. Se nao houver nada a fazer, responda "nada a fazer".',
     instruction,
@@ -111,7 +128,7 @@ function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction
   ].join('\n')
 }
 
-export async function runStep(wt: string, agent: string, instruction: string): Promise<StepResult> {
+export async function runStep(wt: string, agent: string, instruction: string, id = ''): Promise<StepResult> {
   const t = Date.now()
   const provider = providerFor('step')
   if (!provider.agentic) return { time: 0, cost: 0, tokens: 0, ok: false, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use codex/opencode para steps que editam)` }
@@ -123,6 +140,7 @@ export async function runStep(wt: string, agent: string, instruction: string): P
     useAgents: provider.supportsAgents,
     model: modelFor('step'),
     timeoutMs: RUN_TIMEOUT_MS,
+    liveLog: id ? join(CARDS_DIR, 'runs', `${id}.live.log`) : undefined,
   })
   return { time: Math.round((Date.now() - t) / 1000), cost: res.cost, tokens: sumTokens(res.usage), text: firstLine(res.text, 120), ok: res.ok }
 }

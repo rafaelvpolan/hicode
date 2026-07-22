@@ -1,11 +1,6 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import type { ApiError, ProjectPreviewResponse } from '#shared/types'
-
-const IN_FLIGHT = new Set<string>([
-  'EXECUTING', 'PAUSED', 'EXECUTED', 'PREVIEW', 'PREVIEW_OK',
-  'REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED', 'HALTED',
-])
 
 async function isUp(url: string): Promise<boolean> {
   try {
@@ -14,6 +9,17 @@ async function isUp(url: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+function git(cwd: string, args: string[]): boolean {
+  return spawnSync('git', args, { cwd, stdio: 'ignore', timeout: 20000 }).status === 0
+}
+
+function checkoutBranch(cwd: string, branch: string): boolean {
+  git(cwd, ['fetch', 'origin', branch])
+  if (!git(cwd, ['checkout', branch])) return false
+  git(cwd, ['pull', '--ff-only', 'origin', branch])
+  return true
 }
 
 function startDev(cwd: string, port: number): void {
@@ -26,28 +32,18 @@ export default defineEventHandler(async (event): Promise<ProjectPreviewResponse 
   const repo = repos[0]
   if (!repo) { setResponseStatus(event, 400); return { error: 'nenhum repo configurado' } }
 
-  const base = Number(process.env.HICODE_PROJECT_PORT || 5173)
-
-  const wip = readCards()
-    .filter(c => IN_FLIGHT.has(c.status || '') && !!c.worktree && existsSync(c.worktree))
-    .sort((a, b) => Number(b.id) - Number(a.id))[0]
-
-  if (wip && wip.worktree) {
-    const branch = wip.branch || `hicode/${wip.id}-${wip.slug}`
-    if (wip.preview_url && await isUp(wip.preview_url)) {
-      return { url: wip.preview_url, running: true, source: 'wip', branch, cardId: wip.id }
-    }
-    const port = base + Number(wip.id)
-    const url = `http://localhost:${port}`
-    if (await isUp(url)) return { url, running: true, source: 'wip', branch, cardId: wip.id }
-    startDev(wip.worktree, port)
-    return { url, running: false, started: true, source: 'wip', branch, cardId: wip.id }
-  }
-
   const target = repoLocalPath(repo.name)
   if (!existsSync(target)) { setResponseStatus(event, 400); return { error: 'repo nao clonado: ' + target } }
+
+  const branch = repo.branch || 'main'
+  if (!checkoutBranch(target, branch)) {
+    setResponseStatus(event, 409)
+    return { error: `nao consegui trocar ${target} para a branch "${branch}" (ha mudancas locais no repo?)` }
+  }
+
+  const base = Number(process.env.HICODE_PROJECT_PORT || 5173)
   const url = `http://localhost:${base}`
-  if (await isUp(url)) return { url, running: true, source: 'main', branch: repo.branch || 'main' }
+  if (await isUp(url)) return { url, running: true, source: 'main', branch }
   startDev(target, base)
-  return { url, running: false, started: true, source: 'main', branch: repo.branch || 'main' }
+  return { url, running: false, started: true, source: 'main', branch }
 })

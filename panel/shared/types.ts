@@ -1,5 +1,5 @@
 export type CardStatus =
-  | 'INBOX' | 'READY' | 'SPECCED' | 'PLAN_APPROVED' | 'EXECUTING' | 'PAUSED'
+  | 'INBOX' | 'READY' | 'CLARIFY' | 'SPECCED' | 'PLAN_APPROVED' | 'EXECUTING' | 'PAUSED'
   | 'EXECUTED' | 'PREVIEW' | 'CORRECTING' | 'PREVIEW_OK' | 'REFINED' | 'TESTS_GREEN'
   | 'SEC_CLEARED' | 'REVIEWED' | 'CLEANED' | 'PR_OPEN' | 'MERGED' | 'DEPLOYED' | 'HALTED'
 
@@ -23,6 +23,8 @@ export interface CardView {
   shot: boolean
   halt_reason: string
   surface: string
+  eval_score: string
+  eval_notes: string
 }
 
 export interface RepoView {
@@ -63,6 +65,7 @@ export interface StateResponse {
 
 export interface RunsResponse {
   runs: RunView[]
+  estimates: Record<string, number>
 }
 
 export interface GhRepoItem {
@@ -133,6 +136,12 @@ export interface EditingForm {
   note: string
 }
 
+export interface RejectingForm {
+  open: boolean
+  id: string
+  reason: string
+}
+
 export interface ProjectPreviewState {
   url: string
   msg: string
@@ -182,8 +191,47 @@ export interface LogResponse {
   error?: string
 }
 
+export type AttemptKind = 'reprovacao' | 'correcao'
+
+export interface Attempt {
+  ts: string
+  kind: AttemptKind
+  reason: string
+  response: string
+}
+
+export interface AttemptsResponse {
+  id: string
+  attempts: Attempt[]
+}
+
 export interface CorrectResponse {
   ok?: true
   error?: string
   card?: CardRecord
+}
+
+export interface ResetPreviewResponse {
+  ok: true
+  url: string
+  running: boolean
+  hard: boolean
+}
+
+export interface ClarifyQuestion {
+  q: string
+  options: string[]
+  recommended: string
+  answer?: string
+}
+
+export interface ClarifyResponse {
+  id: string
+  questions: ClarifyQuestion[]
+}
+
+export interface RefsResponse {
+  id: string
+  refs: string[]
+  error?: string
 }

@@ -14,6 +14,7 @@ export interface AgentRequest {
   useAgents: boolean
   model?: string
   timeoutMs: number
+  liveLog?: string
 }
 
 export interface AgentResult {

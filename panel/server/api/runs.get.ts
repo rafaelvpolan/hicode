@@ -1,3 +1,3 @@
 import type { RunsResponse } from '#shared/types'
 
-export default defineEventHandler((): RunsResponse => ({ runs: getRuns() }))
+export default defineEventHandler((): RunsResponse => ({ runs: getRuns(), estimates: getStepEstimates() }))

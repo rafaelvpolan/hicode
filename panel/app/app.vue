@@ -2,14 +2,18 @@
 import { computed, ref, toRef } from 'vue'
 import { useDashboard } from './composables/useDashboard'
 import { useCardActions } from './composables/useCardActions'
+import { useCardReject } from './composables/useCardReject'
 import { usePhases } from './composables/usePhases'
 
-const { state, runs, gh, sprintRepo, load } = useDashboard()
+const { state, runs, estimates, gh, sprintRepo, load } = useDashboard()
 const {
   newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
+  stagedLinks, stagedFiles,
   addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
-  start, pause, resume, act, reject, replay, removeCard, openEdit, saveEdit, closeEdit,
+  addStagedLink, removeStagedLink, addStagedFiles, removeStagedFile,
+  start, pause, resume, act, replay, answerClarify, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
 } = useCardActions({ load, gh, sprintRepo })
+const { rejecting, openReject, closeReject, confirmReject } = useCardReject({ load })
 
 const cardsRef = toRef(state, 'cards')
 const { kpis } = usePhases(cardsRef, runs)
@@ -44,7 +48,7 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
       <span class="brand"><span class="logo">⟳</span> hicode</span>
       <span class="tag">painel · Nuxt 4 + Bun · executar → preview → aprovar → PR</span>
       <span class="navbtns">
-        <button @click="runProjectPreview" title="Sobe o dev server do projeto e abre para ver as alterações em tempo real">▶ preview do projeto</button>
+        <button @click="runProjectPreview" title="Faz checkout da branch configurada do repo e sobe o dev server do projeto">▶ preview do projeto</button>
         <button class="ghost" @click="load">↻ atualizar</button>
       </span>
     </div>
@@ -70,9 +74,15 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
         :sprint-repo="sprintRepo"
         :sprint-text="sprintText"
         :sprint-msg="sprintMsg"
+        :staged-links="stagedLinks"
+        :staged-files="stagedFiles"
         @update:sprint-repo="sprintRepo = $event"
         @update:sprint-text="sprintText = $event"
         @create-sprint="createSprint"
+        @add-staged-link="addStagedLink"
+        @remove-staged-link="removeStagedLink"
+        @add-staged-files="addStagedFiles"
+        @remove-staged-file="removeStagedFile"
       />
     </div>
 
@@ -84,22 +94,26 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
         :key="c.id"
         :card="c"
         :runs="runs"
+        :estimates="estimates"
         @start="start"
         @pause="pause"
         @resume="resume"
         @resolve="(id) => act(id, 'resolve')"
         @approve="(id) => act(id, 'approve')"
-        @reject="reject"
+        @reject="openReject"
         @edit="openEdit"
         @remove="removeCard"
         @replay="(step) => replay(c.id, step)"
         @review="openReviewFor"
         @preview="openPreviewFor"
+        @reset="(id) => resetPreview(id, false)"
+        @clarify="answerClarify"
       />
     </section>
   </main>
 
   <CardEditModal :editing="editing" @save="saveEdit" @close="closeEdit" />
+  <CardRejectModal :rejecting="rejecting" @confirm="confirmReject" @close="closeReject" />
   <ClientOnly>
     <CardReview v-if="reviewingCardId" :card-id="reviewingCardId" @close="closeReview" @preview="openPreviewFor" />
     <CardPreview
@@ -108,6 +122,7 @@ const previewingCard = computed(() => state.cards.find((c) => c.id === previewin
       :shot="previewingCard?.shot ?? false"
       :preview-url="previewingCard?.preview_url ?? ''"
       @close="closePreview"
+      @reset="(hard) => resetPreview(previewingCardId, hard)"
     />
   </ClientOnly>
 </template>

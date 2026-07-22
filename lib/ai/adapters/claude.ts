@@ -1,5 +1,6 @@
 import { run } from '../../runner/git'
 import { emptyUsage } from '../usage'
+import { runClaudeStream } from './claude-stream'
 import type { AgentRequest, AgentResult, AiProvider, AiProviderName } from '../types'
 
 interface ClaudeJson {
@@ -18,14 +19,16 @@ const EDIT_TOOLS_AGENTS = 'Task,Read,Edit,Write,Glob,Grep,Bash'
 const EDIT_TOOLS = 'Read,Edit,Write,Glob,Grep,Bash'
 const READONLY_TOOLS = 'Read,Glob,Grep'
 
+function toolsFor(req: AgentRequest): string {
+  if (req.mode !== 'edit') return READONLY_TOOLS
+  return req.useAgents ? EDIT_TOOLS_AGENTS : EDIT_TOOLS
+}
+
 function argv(req: AgentRequest): string[] {
   const a = ['-p', req.prompt, '--output-format', 'json']
   if (req.model) a.push('--model', req.model)
-  if (req.mode === 'edit') {
-    a.push('--permission-mode', 'acceptEdits', '--allowedTools', req.useAgents ? EDIT_TOOLS_AGENTS : EDIT_TOOLS)
-  } else {
-    a.push('--allowedTools', READONLY_TOOLS)
-  }
+  if (req.mode === 'edit') a.push('--permission-mode', 'acceptEdits', '--allowedTools', toolsFor(req))
+  else a.push('--allowedTools', READONLY_TOOLS)
   for (const d of req.dirs) a.push('--add-dir', d)
   return a
 }
@@ -37,6 +40,7 @@ export class ClaudeProvider implements AiProvider {
   readonly agentic = true
 
   async run(req: AgentRequest): Promise<AgentResult> {
+    if (req.liveLog) return runClaudeStream(req, toolsFor(req), req.liveLog)
     const { err, stdout, stderr } = await run('claude', argv(req), { cwd: req.cwd, timeout: req.timeoutMs })
     let cost = 0
     let text = ''

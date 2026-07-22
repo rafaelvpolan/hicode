@@ -21,7 +21,7 @@ export async function runGatedStep(id: string, wt: string, base: string, agent: 
   let attempt = 0
   while (attempt <= MAX_REAJUSTE) {
     const suffix = attempt === 0 ? '' : `\n\nO revisor CRIVO reprovou a etapa anterior: ${reason}. Corrija exatamente isso, sem quebrar o resto.`
-    const r = await runStep(wt, agent, instruction + suffix)
+    const r = await runStep(wt, agent, instruction + suffix, id)
     cost += r.cost
     tokens += r.tokens
     text = r.text

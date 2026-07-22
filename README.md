@@ -30,7 +30,7 @@ hicode stop | restart
 hicode run           # motor em foreground (não daemoniza)
 hicode once          # processa a fila uma vez e sai
 hicode sync          # sincroniza tarefas externas (ver Pluggabilidade)
-hicode init [caminho] # provisiona .hicode/ num repo-alvo (default: cwd)
+hii init [caminho] # provisiona .hii/ num repo-alvo (default: cwd)
 hicode hooks install [caminho]   # instala o gate de pre-push num repo (default: cwd)
 hicode hooks uninstall [caminho] # remove o pre-push
 ```
@@ -52,18 +52,18 @@ bun run test:unit    # só os testes unitários
 
 ## Primeiros passos — do zero à primeira tarefa
 
-> **`hicode init` é só o passo 0.** Ele provisiona a pasta `.hicode/` no repo-alvo e **para por
+> **`hii init` é só o passo 0.** Ele provisiona a pasta `.hii/` no repo-alvo e **para por
 > aí** — **não** cria tarefas, **não** sobe o motor e **não** registra o repo. "Iniciar as
 > tarefas" são os passos abaixo.
 
 ### Passo 1 — Provisionar o repo-alvo
 
 ```bash
-hicode init /caminho/do/repo-alvo   # cria .hicode/ (aditivo, nunca toca no repo)
+hii init /caminho/do/repo-alvo   # cria .hii/ (aditivo, nunca toca no repo)
 ```
 
-Cria `.hicode/{config.json, rules.md, pipeline.json?, memory/, skills/, state/}`. Edite
-`.hicode/rules.md` (curto: stack, convenções, o que nunca mexer) — ele é injetado no prompt de
+Cria `.hii/{config.json, rules.md, pipeline.json?, memory/, skills/, state/}`. Edite
+`.hii/rules.md` (curto: stack, convenções, o que nunca mexer) — ele é injetado no prompt de
 cada card.
 
 ### Passo 2 — Registrar o repo-alvo no motor
@@ -131,7 +131,7 @@ bun run panel       # painel em http://localhost:4318 (preview, diffs, aprovar/r
 ### Receita rápida (copiar e colar)
 
 ```bash
-hicode init /caminho/do/repo-alvo     # 1. provisiona .hicode/
+hii init /caminho/do/repo-alvo     # 1. provisiona .hii/
 #            ↳ registre o alvo em config/repos.json           # 2. name/path/branch
 hicode start                          # 3. sobe o motor
 bun run panel                         # 4. criar o card na UI (http://localhost:4318)
@@ -151,19 +151,21 @@ Fase 2 (POLIR):     arquitetura → testes → segurança → review → limpeza
 ```
 
 A porta humana obrigatória é o **merge do PR**. A **aprovação do preview** é uma porta leve e cedo
-(recusar volta o card para correção com o motivo). A verificação visual do preview é **feita por
-código** (Playwright abre o `dev` e captura a tela); a análise por IA é **opcional**
-(`HICODE_VISUAL_AI=off` desliga — screenshot + aceite humano, sem token de IA).
+(recusar volta o card para correção com o motivo). A verificação do preview é o **humano abrindo o
+link vivo** — o motor mantém o `dev` no ar (com **reset** que reinicia e limpa o cache do Vite) e só
+detecta de forma **determinística** se o preview subiu quebrado (overlay de erro do Vite / erro de
+console), sem julgar o resultado por IA. O **screenshot é oculto/sob demanda** (fallback). A análise
+por IA é **opt-in** (`HICODE_VISUAL_AI=on`; default `off`, sem token de IA).
 
 ### Classificação prévia — visual vs. não-visual
 
 Antes do preview, o motor faz uma **análise prévia do tipo de tarefa** (heurística
 determinística, **0 token**) e grava `surface: visual|none` no frontmatter do card:
 
-- **Visual** (página, hero, botão, cor, layout, menu, css…) → fluxo normal: sobe o `dev`,
-  captura o screenshot, e **para em `PREVIEW`** aguardando o aceite humano.
+- **Visual** (página, hero, botão, cor, layout, menu, css…) → fluxo normal: sobe o `dev`, deixa o
+  **link vivo** no ar e **para em `PREVIEW`** aguardando o aceite humano (screenshot sob demanda).
 - **Não-visual** (corrigir conflitos, refactor, dependências, config, CI, testes, backend/api,
-  migration, docs…) → **pula dev server + screenshot + preview** e vai direto de `EXECUTED` para
+  migration, docs…) → **pula dev server + preview** e vai direto de `EXECUTED` para
   `PREVIEW_OK` (auto). Não há página pra mostrar — o humano ainda revisa no **PR**.
 - **Ambíguo** (nenhum sinal) → assume **visual** (mostra o preview; default seguro, sem regressão).
 - Repo **sem dev server** → sempre não-visual (nada a renderizar).
@@ -216,7 +218,7 @@ com `SIGTERM`→`SIGKILL`; **no timeout o worktree é preservado** p/ inspeção
 ### Steps configuráveis
 
 A fase de polimento é **dados**, não código: `config/pipeline.json` (override por projeto em
-`<alvo>/.hicode/pipeline.json`). Cada step pode ser **ativado/desativado, reordenado e customizado**
+`<alvo>/.hii/pipeline.json`). Cada step pode ser **ativado/desativado, reordenado e customizado**
 — lido do disco, **0 token** ao modelo.
 
 ```json
@@ -273,11 +275,11 @@ HICODE_GATE_PROVIDER=claude
 
 ### Plugável em qualquer repo (sem apagar a memória do alvo)
 
-`hicode init <repo>` cria **apenas** uma pasta `.hicode/` no repo-alvo — **aditiva e não-destrutiva**
+`hii init <repo>` cria **apenas** uma pasta `.hii/` no repo-alvo — **aditiva e não-destrutiva**
 (nunca toca no `.claude/`, `CLAUDE.md` ou memória do próprio repo).
 
 ```
-<repo-alvo>/.hicode/
+<repo-alvo>/.hii/
 ├── config.json     provider de IA, base branch, task-source do projeto
 ├── rules.md        regras do projeto p/ o motor (aditivas ao CLAUDE.md; injetadas no prompt)
 ├── pipeline.json   override dos steps deste projeto
@@ -327,7 +329,7 @@ lib/ai/                provider de IA: types · usage · registry · adapters/{c
 lib/runner/            motor: queue · execute · finish · correct · merge · spec-phase · gated
   pipeline/            steps configuráveis (types + config)
   progress.ts          board de progresso no terminal
-  hicode-home.ts       resolve/provisiona o .hicode/ do alvo
+  hicode-home.ts       resolve/provisiona o .hii/ do alvo
   hooks.ts             instala/remove o pre-push (hicode hooks install)
   codefox-gate.ts      gate adversarial Crivo (por-step e final)
 lib/spec/openspec.ts   wrapper do OpenSpec (init/validate como gate determinístico)

@@ -50,7 +50,7 @@ export async function handleSpec(id: string): Promise<void> {
   let v: SpecValidation = { ok: false, failed: 1, issues: ['spec nao gerado'] }
   let attempt = 0
   while (attempt <= MAX_REAJUSTE) {
-    await runStep(wt, 'glossia', specPrompt(name, desc, attempt === 0 ? '' : v.issues.slice(0, 5).join('; ')))
+    await runStep(wt, 'glossia', specPrompt(name, desc, attempt === 0 ? '' : v.issues.slice(0, 5).join('; ')), id)
     v = await validateChange(wt, name)
     patchCard(id, {}, `${isoNow()} spec (glossia) openspec validate: ${v.ok ? 'valido' : `invalido[${v.failed}] ${v.issues.slice(0, 3).join('; ')}`}`)
     if (v.ok) break

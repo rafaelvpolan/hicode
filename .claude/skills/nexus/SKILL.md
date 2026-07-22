@@ -18,7 +18,7 @@ If the user provided arguments: $ARGUMENTS
 Five phases. Phases 1–3 and 5 run here, in the main loop (they are interactive). Phase 4 (EXECUTE) runs the agent pipeline — through the **Workflow tool** for any real multi-agent or gated pipeline, or via a single direct Agent call only for trivial work.
 
 1. **ANALYZE** — Read the user's request. Run `git status`, `git diff`, inspect affected files. Identify task types.
-2. **PLAN** — Select agents from the catalog. Order by dependency. Insert Crivo gates after every gated agent (Limpio, Escudo, Rufus, Testudo, Radix, Celer). Mark which agents are independent (can run in parallel).
+2. **PLAN** — Select agents from the catalog. Order by dependency. Insert Crivo gates after every gated agent (Limpio, Escudo, Rufus, Testudo, Radix, Celer, Frontiteto). Mark which agents are independent (can run in parallel). Frontend work pairs **Vitro** (UI/UX & integration) with **Frontiteto** (structure & design-system, gated) — Frontiteto runs before its Crivo gate.
 3. **CONFIRM** — Present the pipeline as a numbered table (agent, reason, gated?, depends-on). Ask the user to confirm, modify, or cancel. NEVER skip this phase.
 4. **EXECUTE** — See **Execution** below. Build the pipeline you just confirmed.
 5. **REPORT** — From the workflow's returned object (or the direct agent's output), produce a final report: per-agent summary, Crivo verdicts, files modified, any HALTs, and remaining actions.
@@ -36,7 +36,8 @@ Five phases. Phases 1–3 and 5 run here, in the main loop (they are interactive
 | Crivo     | `crivo`       | —          | Adversarial review gate (binding verdict) |
 | Quaero    | `quaero`      | No         | External research: libs, docs, RFCs, trade-offs (read-only) |
 | Pluto     | `pluto`       | No         | Dead-code detection — flags removals to Rufus, never deletes (read-only) |
-| Vitro     | `vitro`       | No         | Frontend (React, React Native, Solid.js) |
+| Vitro     | `vitro`       | No         | Frontend UI/UX & integration (Vue 3/Nuxt, React, React Native, Solid.js) |
+| Frontiteto | `frontiteto` | Yes        | Frontend structure & design-system integrity (pairs with Vitro; runs before Crivo) |
 | Corvinus  | `corvinus`    | No         | Observability, logging, metrics, tracing, RCA |
 | Glossia   | `glossia`     | No         | Documentation (.md, ADR, OpenAPI, diagrams) |
 | Fulgor    | `fulgor`      | No         | Visual HTML dashboards & presentations |
@@ -51,7 +52,7 @@ Pick the mode from the confirmed pipeline:
 A single non-gated agent (e.g., Pura on a typo fix, Glossia on a one-line README edit). Just call the Agent tool once. No Workflow overhead.
 
 ### Workflow mode — default for any multi-agent or gated pipeline
-For any pipeline with **≥2 agents**, or **any gated agent** (Limpio/Escudo/Rufus/Testudo/Radix/Celer), orchestrate with the **Workflow tool**. Invoking `/nexus` authorizes this — Workflow is the opt-in execution engine for Nexus pipelines; you do not need to ask again.
+For any pipeline with **≥2 agents**, or **any gated agent** (Limpio/Escudo/Rufus/Testudo/Radix/Celer/Frontiteto), orchestrate with the **Workflow tool**. Invoking `/nexus` authorizes this — Workflow is the opt-in execution engine for Nexus pipelines; you do not need to ask again.
 
 Why Workflow here: deterministic ordering, real parallelism for independent agents, the Crivo gate + retry loop encoded in code (not improvised turn-by-turn), and intermediate agent outputs stay in script variables instead of flooding the main context.
 

@@ -38,7 +38,12 @@ Nunca rodar testes/refactor/segurança antes do preview aprovado: valida-se a **
   opencode/ollama, escolhida por papel via env), com **reajuste/retry + HALT** e o **gate codefox
   (crivo) vinculante**, e fecha o **loop verde lendo exit code real em disco** (build/test/gate). Os
   steps de polimento são **configuráveis** em `config/pipeline.json` (ativar/desativar/reordenar;
-  override por projeto em `<alvo>/.hicode/pipeline.json`).
+  override por projeto em `<alvo>/.hii/pipeline.json`). Por card, um **analisador de tarefa**
+  (`lib/runner/analyze.ts`, determinístico) seleciona **quais** desses steps rodam pela natureza da
+  tarefa: mudança cosmética/texto/visual pula Arquitetura/Testes/Segurança (perfil `enxuto`);
+  backend/dados/deps/`risk: high`/ambíguo mantêm tudo; **Segurança só é pulada em mudança sem risco**
+  (build + gate codefox no fim continuam sempre valendo). Override manual no card: `steps: all` força
+  tudo, `steps: <ids>` roda só esses, `steps: auto` (default) usa o analisador.
 - **CONFIRM substituído:** no modo autônomo, a fase `CONFIRM` interativa do `/nexus` é trocada pelo
   **gate Crivo sobre o plano** (`PLAN_APPROVED`) + a **aprovação do preview** + a **porta do PR**.
   O `/nexus` interativo continua disponível para trabalho manual.
@@ -69,6 +74,8 @@ Delegue **trabalho de domínio substancial** ao agente certo; faça você mesmo 
 - Banco/dados (schema, migrations, índices, queries) → **radix**
 - Performance (profiling, otimização) → **celer**
 - Frontend (Vue 3/Nuxt, React/RN/Solid) → **vitro**
+- Estrutura/design-system de frontend (gated, roda **antes** do crivo) → **frontiteto** (pareia com **vitro**)
+- Design system de UI (tokens, primitivos, reuso) → o **motor injeta um brief de design system** + as **imagens de referência** do card (links/uploads baixados, via visão) no prompt de cards visuais; **`frontiteto`** impõe a consistência (gated). Direção estética manual/pontual → skill **`frontend-design`**
 - CI/CD, IaC, deploy → **continuum** (gera, **nunca aplica**)
 - Observabilidade (logs, métricas, tracing, RCA) → **corvinus**
 - Documentação (.md, ADR, OpenAPI, diagramas) → **glossia**
@@ -79,7 +86,7 @@ Delegue **trabalho de domínio substancial** ao agente certo; faça você mesmo 
 
 Regras:
 - Pipeline multi-agente (ordem/gates) → prefira **`/nexus`** (manual) ou o harness por card (autônomo).
-- Resultado de agente **gated** (limpio, escudo, testudo, rufus, radix, celer) passa pelo **crivo**
+- Resultado de agente **gated** (limpio, escudo, testudo, rufus, radix, celer, frontiteto) passa pelo **crivo**
   antes de "pronto".
 - Nunca inventar agentes fora do catálogo. Se nenhum se aplica, faça você mesmo.
 

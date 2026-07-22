@@ -3,7 +3,7 @@ import { join, resolve, dirname, basename } from 'node:path'
 import type { CardStatus } from '#shared/types'
 
 export const STATUSES: CardStatus[] = [
-  'INBOX', 'READY', 'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'PAUSED', 'EXECUTED',
+  'INBOX', 'READY', 'CLARIFY', 'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'PAUSED', 'EXECUTED',
   'PREVIEW', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED',
   'CLEANED', 'PR_OPEN', 'MERGED', 'DEPLOYED', 'HALTED',
 ]

@@ -1,14 +1,15 @@
-import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
-import type { StepMap, StepMetric, Card, VerifyResult } from '../card'
-import { CARDS_DIR, MAX_REAJUSTE, MAX_CONFLICT, VISUAL_AI } from './config'
+import type { StepMap, StepMetric, Card } from '../card'
+import { MAX_REAJUSTE, MAX_CONFLICT, CARD_BUDGET_USD, PROJECT_MEMORY } from './config'
+import { appendProjectMemory } from './memory'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
-import { hasBuildScript, hasTestScript, previewPort, httpOk, screenshot, startPreview, stopPreview, waitHttp } from './preview'
-import { runStep, verifyVisual } from './agent'
+import { freePort, hasBuildScript, hasTestScript, previewPort, httpOk, inspectPreview, startPreview, stopPreview, waitHttp } from './preview'
+import { runStep } from './agent'
 import { activeSteps } from './pipeline/config'
 import { isNonVisual } from './classify'
+import { planSteps } from './analyze'
 import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
 import { runCodefoxGate, persistGate, buildPrBody } from './codefox-gate'
@@ -37,7 +38,7 @@ async function buildWithReajuste(id: string, wt: string, fsteps: StepMap, timeKe
     reajuste++
     const tr = Date.now()
     const detail = String(b.stderr || b.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou. Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`)
+    const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou. Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`, id)
     b = await run('npm', ['run', 'build'], { cwd: wt, timeout: 240000 })
     addMetric(fsteps, reajusteKey, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
     patchCard(id, {}, `${isoNow()} REAJUSTE (${reajuste}/${MAX_REAJUSTE}, rufus): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
@@ -60,7 +61,7 @@ async function testGate(id: string, wt: string, target: string, fsteps: StepMap,
     reajuste++
     const tr = Date.now()
     const detail = String(t.stderr || t.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'testudo', `Os testes do projeto falharam. Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`)
+    const rr = await runStep(wt, 'testudo', `Os testes do projeto falharam. Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`, id)
     t = await run('npm', ['test'], { cwd: wt, timeout: 240000 })
     addMetric(fsteps, label, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
     patchCard(id, {}, `${isoNow()} REAJUSTE testes (${reajuste}/${MAX_REAJUSTE}, testudo): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
@@ -84,7 +85,7 @@ async function syncWithBase(id: string, wt: string, base: string, desc: string, 
     attempt++
     const files = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.split('\n').filter(Boolean)
     const tr = Date.now()
-    const rr = await runStep(wt, 'limpio', `Conflito de merge ao integrar origin/${base} na branch. Resolva os conflitos nestes arquivos: ${files.join(', ')}. Preserve o objetivo "${desc}" E as mudancas de ${base}. Remova TODOS os marcadores de conflito (<<<<<<<, =======, >>>>>>>). Nao rode git.`)
+    const rr = await runStep(wt, 'limpio', `Conflito de merge ao integrar origin/${base} na branch. Resolva os conflitos nestes arquivos: ${files.join(', ')}. Preserve o objetivo "${desc}" E as mudancas de ${base}. Remova TODOS os marcadores de conflito (<<<<<<<, =======, >>>>>>>). Nao rode git.`, id)
     addMetric(fsteps, 'Conflito', { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
     if (files.length) await runGit(wt, ['add', ...files])
     const unmerged = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.trim()
@@ -99,39 +100,47 @@ async function syncWithBase(id: string, wt: string, base: string, desc: string, 
   return { ok: false, changed: true }
 }
 
-async function revalidate(id: string, card: Card, wt: string, target: string, shotPath: string, fsteps: StepMap): Promise<boolean> {
+async function revalidate(id: string, card: Card, wt: string, target: string, fsteps: StepMap): Promise<boolean> {
   if (isNonVisual(card.fm.surface)) {
     patchCard(id, { revalidacao: 'n/a' }, `${isoNow()} revalidacao pulada — tarefa nao-visual (build/testes ja validaram)`)
     return true
   }
-  let reval: VerifyResult = { ok: true, reason: 'sem dev server (revalidacao pulada)', cost: 0, tokens: 0 }
+  let ok = true
+  let reason = 'sem dev server (revalidacao pulada)'
   const rt = Date.now()
   if (hasBuildScript(target)) {
     const rport = previewPort(id)
     const rurl = `http://localhost:${rport}`
     let up = await httpOk(rurl)
     if (!up) {
+      await freePort(rport)
       startPreview(wt, rport)
       up = await waitHttp(rurl, 25)
     }
     if (up) {
-      await new Promise(r => setTimeout(r, 3000))
-      const shot = await screenshot(id, rurl)
-      reval = VISUAL_AI
-        ? await verifyVisual(card, shotPath)
-        : { ok: shot, conclusive: false, reason: shot ? 'preview renderizado (check de IA off) — verificacao humana' : 'screenshot falhou', cost: 0, tokens: 0 }
+      const h = await inspectPreview(id, rurl, true)
+      if (!h.conclusive) {
+        reason = `preview no ar apos merge — verificacao humana (inspecao automatica indisponivel${h.detail ? ': ' + h.detail : ''})`
+      } else {
+        ok = h.ok
+        reason = h.ok ? 'preview no ar apos merge — confira pelo link' : `preview com erro: ${h.detail}`
+      }
+    } else {
+      reason = 'dev server nao respondeu (revalidacao pulada)'
     }
   }
-  addMetric(fsteps, 'Revalidacao', { time: Math.round((Date.now() - rt) / 1000), cost: reval.cost || 0, tokens: reval.tokens || 0 })
-  const pass = reval.ok || reval.conclusive === false
-  const veredito = reval.ok ? 'OK' : (reval.conclusive === false ? 'INCONCLUSIVO (nao bloqueante)' : 'FALHOU')
-  patchCard(id, { revalidacao: reval.ok ? 'ok' : (reval.conclusive === false ? 'inconclusivo' : 'falhou') }, `${isoNow()} revalidacao do projeto (vs objetivo, pos-merge): ${veredito} — ${reval.reason}`)
-  return pass
+  addMetric(fsteps, 'Revalidacao', { time: Math.round((Date.now() - rt) / 1000), cost: 0, tokens: 0 })
+  patchCard(id, { revalidacao: ok ? 'ok' : 'falhou' }, `${isoNow()} revalidacao do projeto (vs objetivo, pos-merge): ${ok ? 'OK' : 'FALHOU'} — ${reason}`)
+  return ok
 }
 
 export async function handleFinish(id: string): Promise<void> {
   const card = readCard(id)
   if (!card) return
+  if (CARD_BUDGET_USD > 0 && (parseFloat(card.fm.cost_usd || '0') || 0) > CARD_BUDGET_USD) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED orcamento excedido (US$${card.fm.cost_usd} > US$${CARD_BUDGET_USD}) antes do polimento — decida se continua`)
+    return
+  }
   const repoName = card.fm.repo ?? ''
   const slug = card.fm.slug ?? ''
   const target = repoPath(repoName)
@@ -139,17 +148,18 @@ export async function handleFinish(id: string): Promise<void> {
   const branch = card.fm.branch || `hicode/${id}-${slug}`
   const wt = card.fm.worktree || worktreePath(target, id, slug)
   const msg = `feat: ${card.fm.title ?? ''} (#${id})`
-  const shotPath = join(CARDS_DIR, 'previews', String(id), 'preview.png')
   if (!existsSync(wt)) {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED worktree ausente: ${wt}`)
     return
   }
   const resumeFrom = card.fm.resume_from ?? ''
   if (resumeFrom) patchCard(id, { resume_from: '' }, `${isoNow()} retomando finish a partir de ${resumeFrom}`)
-  const steps = activeSteps(wt)
-  const startIdx = resumeFrom ? Math.max(0, steps.findIndex(s => s.label === resumeFrom)) : 0
-  process.stdout.write(`[runner] #${id}: finalizando (qualidade Nexus + PR)${resumeFrom ? ` a partir de ${resumeFrom}` : ''}\n`)
   const desc = extractObjetivo(card.body) || card.fm.title
+  const plan = planSteps({ title: card.fm.title, objetivo: desc, risk: card.fm.risk, surface: card.fm.surface, override: card.fm.steps }, activeSteps(wt))
+  const steps = plan.steps
+  patchCard(id, { steps_profile: plan.profile }, `${isoNow()} analise de passos: perfil "${plan.profile}" — roda [${steps.map(s => s.label).join(', ') || 'nenhum'}]${plan.skipped.length ? ` · pula [${plan.skipped.join(', ')}]` : ''} (${plan.reason})`)
+  const startIdx = resumeFrom ? Math.max(0, steps.findIndex(s => s.label === resumeFrom)) : 0
+  process.stdout.write(`[runner] #${id}: finalizando (perfil ${plan.profile}: ${steps.length} passo(s)${plan.skipped.length ? `, pulou ${plan.skipped.length}` : ''})${resumeFrom ? ` a partir de ${resumeFrom}` : ''}\n`)
   const fsteps: StepMap = {}
   for (const step of steps.slice(startIdx)) {
     const instruction = step.instruction.replace('%s', desc ?? '')
@@ -164,7 +174,7 @@ export async function handleFinish(id: string): Promise<void> {
         return
       }
     } else {
-      const sr = await runStep(wt, step.agent, instruction)
+      const sr = await runStep(wt, step.agent, instruction, id)
       if (!sr.ok) {
         fsteps[step.label] = { time: sr.time, cost: sr.cost, tokens: sr.tokens }
         updateRunSteps(id, fsteps)
@@ -203,7 +213,7 @@ export async function handleFinish(id: string): Promise<void> {
     }
     await commitAll(wt, `chore: integra ${base} (#${id})`)
   }
-  if (!(await revalidate(id, card, wt, target, shotPath, fsteps))) {
+  if (!(await revalidate(id, card, wt, target, fsteps))) {
     updateRunSteps(id, fsteps)
     patchCard(id, { status: 'HALTED' }, `${isoNow()} CLEANED->HALTED revalidacao falhou pos-merge: objetivo nao confirmado (worktree + preview mantidos p/ inspecao)`)
     process.stdout.write(`[runner] #${id}: HALTED revalidacao (pos-merge)\n`)
@@ -239,5 +249,6 @@ export async function handleFinish(id: string): Promise<void> {
     cost_usd: String(totals.cost || card.fm.cost_usd || ''),
     tokens_total: String(totals.tokens || card.fm.tokens_total || ''),
   }, `${isoNow()} REVIEWED->PR_OPEN ${url} (merge e do humano)`)
+  if (PROJECT_MEMORY) appendProjectMemory(target, `#${id} "${(desc ?? '').slice(0, 80)}" -> PR aberto (${url})`)
   process.stdout.write(`[runner] #${id}: PR_OPEN ${url}\n`)
 }

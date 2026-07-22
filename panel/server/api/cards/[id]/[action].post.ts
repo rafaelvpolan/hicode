@@ -14,6 +14,7 @@ interface CardActionBody {
   instruction?: string
   line?: number
   lineContent?: string
+  answers?: { q: string; answer: string }[]
 }
 
 export default defineEventHandler(async (event): Promise<CardActionResponse> => {
@@ -43,6 +44,14 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
     if (!cur) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
     if (cur.status !== 'HALTED') { setResponseStatus(event, 409); return { error: 'só dá pra retomar um card em HALTED' } }
     card = transition(id, 'EXECUTING', 'resolvido pelo humano — retomando execução')
+  }
+  else if (action === 'clarify') {
+    const cur = readCards().find(c => c.id === id)
+    if (!cur) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
+    if (cur.status !== 'CLARIFY') { setResponseStatus(event, 409); return { error: 'só dá pra responder um card em CLARIFY' } }
+    const answers = b?.answers ?? []
+    if (!answers.length) { setResponseStatus(event, 400); return { error: 'respostas vazias' } }
+    card = answerClarify(id, answers)
   }
   else if (action === 'edit') card = editCard(id, { title: b?.title, desc: b?.desc, risk: b?.risk })
   else if (action === 'replay') {

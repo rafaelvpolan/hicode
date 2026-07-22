@@ -1,8 +1,10 @@
 import { reactive, ref, type Ref } from 'vue'
 import type {
-  AddRepoResponse, CardActionResponse, CardView, CreateSprintResponse,
+  AddRepoResponse, ApiError, CardActionResponse, CardView, CreateSprintResponse,
   EditingForm, GhReposResponse, NewRepoForm, ProjectPreviewResponse, ProjectPreviewState,
+  RefsResponse, ResetPreviewResponse,
 } from '#shared/types'
+import { useSprintRefs } from './useSprintRefs'
 
 export interface CardActionsOptions {
   load: () => Promise<void>
@@ -19,6 +21,9 @@ export function useCardActions(options: CardActionsOptions) {
   const sprintText = ref('')
   const projectPreview = reactive<ProjectPreviewState>({ url: '', msg: '' })
   const editing = reactive<EditingForm>({ open: false, id: '', title: '', desc: '', risk: 'low', note: '' })
+  const {
+    stagedLinks, stagedFiles, addStagedLink, removeStagedLink, addStagedFiles, removeStagedFile, clearStaged,
+  } = useSprintRefs()
 
   async function addRepo(): Promise<void> {
     const name = newRepo.name.trim()
@@ -44,6 +49,19 @@ export function useCardActions(options: CardActionsOptions) {
     await load()
   }
 
+  async function flushStagedRefs(id: string): Promise<void> {
+    const links = stagedLinks.value
+    const files = stagedFiles.value
+    if (links.length) {
+      await $fetch<RefsResponse>(`/api/cards/${id}/refs`, { method: 'POST', body: { links } }).catch(() => null)
+    }
+    if (files.length) {
+      const formData = new FormData()
+      for (const file of files) formData.append('file', file, file.name)
+      await $fetch<RefsResponse>(`/api/cards/${id}/refs`, { method: 'POST', body: formData }).catch(() => null)
+    }
+  }
+
   async function createSprint(): Promise<void> {
     let text = sprintText.value.trim()
     if (!text) { sprintMsg.value = 'escreva a feature'; return }
@@ -54,8 +72,11 @@ export function useCardActions(options: CardActionsOptions) {
       method: 'POST',
       body: { repo: sprintRepo.value, features: [{ title, risk: high ? 'high' : 'low', desc: text }] },
     })
+    const firstId = r.cards[0]?.id
+    if (firstId && (stagedLinks.value.length || stagedFiles.value.length)) await flushStagedRefs(firstId)
     sprintMsg.value = (r.created || 0) + ' card criado (texto inteiro = 1 task)'
     sprintText.value = ''
+    clearStaged()
     await load()
   }
 
@@ -65,7 +86,7 @@ export function useCardActions(options: CardActionsOptions) {
       const r = await $fetch<ProjectPreviewResponse>('/api/project-preview', { method: 'POST' })
       if (r.error) { projectPreview.msg = r.error; return }
       projectPreview.url = r.url
-      const alvo = r.source === 'wip' ? `branch ${r.branch} (task #${r.cardId})` : `main (${r.branch ?? 'main'})`
+      const alvo = `repo na branch ${r.branch ?? 'main'}`
       const estado = r.running ? 'já rodando' : 'iniciado (aguarde alguns segundos)'
       projectPreview.msg = `${estado} · ${alvo}`
       window.open(r.url, '_blank')
@@ -92,14 +113,19 @@ export function useCardActions(options: CardActionsOptions) {
     await load()
   }
 
-  async function reject(id: string): Promise<void> {
-    const reason = window.prompt('Rejeitar preview — o que refazer? (o preview será REFEITO com esta instrução; vazio = só rejeitar)') || ''
-    await $fetch<CardActionResponse>(`/api/cards/${id}/reject`, { method: 'POST', body: { reason } })
+  async function replay(id: string, step: string): Promise<void> {
+    await $fetch<CardActionResponse>(`/api/cards/${id}/replay`, { method: 'POST', body: { step } })
     await load()
   }
 
-  async function replay(id: string, step: string): Promise<void> {
-    await $fetch<CardActionResponse>(`/api/cards/${id}/replay`, { method: 'POST', body: { step } })
+  async function answerClarify(id: string, answers: { q: string; answer: string }[]): Promise<void> {
+    await $fetch<CardActionResponse>(`/api/cards/${id}/clarify`, { method: 'POST', body: { answers } })
+    await load()
+  }
+
+  async function resetPreview(id: string, hard: boolean): Promise<void> {
+    await $fetch<ResetPreviewResponse | ApiError>(`/api/cards/${id}/reset-preview`, { method: 'POST', body: { hard } })
+      .catch(() => null)
     await load()
   }
 
@@ -138,7 +164,9 @@ export function useCardActions(options: CardActionsOptions) {
 
   return {
     newRepo, repoMsg, sprintMsg, sprintText, projectPreview, editing,
+    stagedLinks, stagedFiles,
     addRepo, loadGh, quickAdd, createSprint, runProjectPreview,
-    start, pause, resume, act, reject, replay, removeCard, openEdit, saveEdit, closeEdit,
+    addStagedLink, removeStagedLink, addStagedFiles, removeStagedFile,
+    start, pause, resume, act, replay, answerClarify, resetPreview, removeCard, openEdit, saveEdit, closeEdit,
   }
 }

@@ -1,6 +1,6 @@
 import { existsSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CardRecord, CardRisk, CardStatus } from '#shared/types'
+import type { CardRecord, CardRisk, CardStatus, ClarifyQuestion } from '#shared/types'
 import {
   CARDS_DIR, appendLog, ensure, findCardFile, isoNow, nextId,
   serializeCard, setObjetivo, slugify, splitFrontMatter,
@@ -95,6 +95,41 @@ export function requestCorrection(id: string, file: string, instruction: string,
   return { ...fm, file: f }
 }
 
+export interface ClarifyAnswerInput {
+  q: string
+  answer: string
+}
+
+export function answerClarify(id: string, answers: ClarifyAnswerInput[]): CardRecord | null {
+  const f = findCardFile(id)
+  if (!f) return null
+  const clarifyPath = join(CARDS_DIR, 'runs', `${id}.clarify.json`)
+  if (!existsSync(clarifyPath)) return null
+  let questions: ClarifyQuestion[]
+  try {
+    const parsed = JSON.parse(readFileSync(clarifyPath, 'utf8')) as ClarifyQuestion[]
+    questions = Array.isArray(parsed) ? parsed : []
+  } catch {
+    questions = []
+  }
+  for (const a of answers) {
+    const match = questions.find((q) => q.q === a.q)
+    if (match) match.answer = a.answer
+  }
+  writeFileSync(clarifyPath, JSON.stringify(questions, null, 2) + '\n')
+
+  const p = join(CARDS_DIR, f)
+  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
+  const keys = order.length ? order : Object.keys(fm)
+  fm.clarified = 'true'
+  if (!keys.includes('clarified')) keys.push('clarified')
+  fm.status = 'EXECUTING'
+  fm.updated = isoNow()
+  const nb = appendLog(body, `${isoNow()} CLARIFY->EXECUTING respondido (${answers.length} resposta(s))`)
+  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
+  return { ...fm, file: f }
+}
+
 export interface EditCardFields {
   title?: string
   desc?: string
@@ -126,6 +161,21 @@ export function deleteCard(id: string): boolean {
   const prev = join(CARDS_DIR, 'previews', String(id))
   if (existsSync(prev)) rmSync(prev, { recursive: true, force: true })
   return true
+}
+
+export function setPreviewPid(id: string, pid: number, hard = false): CardRecord | null {
+  const f = findCardFile(id)
+  if (!f) return null
+  const p = join(CARDS_DIR, f)
+  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
+  const keys = order.length ? order : Object.keys(fm)
+  fm.preview_pid = String(pid)
+  if (!keys.includes('preview_pid')) keys.push('preview_pid')
+  fm.updated = isoNow()
+  const suffix = hard ? ', cache limpo' : ''
+  const nb = appendLog(body, `${isoNow()} RESET preview reiniciado (pid ${pid}${suffix})`)
+  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
+  return { ...fm, file: f }
 }
 
 export function previewFile(id: string): string | null {

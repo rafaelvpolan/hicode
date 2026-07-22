@@ -24,6 +24,7 @@ defineEmits<CardEditModalEmits>()
       <textarea v-model="editing.desc" rows="8"></textarea>
       <label>Risco</label>
       <select v-model="editing.risk"><option value="low">low</option><option value="high">high</option></select>
+      <CardRefs v-if="editing.id" :card-id="editing.id" />
       <div v-if="editing.note" class="msg ok">{{ editing.note }}</div>
       <div class="modal-actions"><button @click="$emit('save')">Salvar</button><button class="ghost" @click="$emit('close')">Cancelar</button></div>
     </div>

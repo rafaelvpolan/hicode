@@ -1,11 +1,13 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
-import type { Card, ImplementResult, StepMap, StepMetric, Usage, VerifyResult } from '../card'
-import { CARDS_DIR, MAX_VERIFY, VERIFY_MODEL, VISUAL_AI } from './config'
+import type { Card, ImplementResult, StepMap, StepMetric, Usage } from '../card'
+import { CARDS_DIR, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
+import { clarify, writeClarify } from './clarify'
+import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
-import { hasBuildScript, previewPort, screenshot, startPreview, waitHttp } from './preview'
+import { freePort, hasBuildScript, inspectPreview, previewPort, startPreview, stopPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
@@ -88,6 +90,16 @@ export async function handleExecute(id: string): Promise<void> {
   if (card.fm.surface !== surface.surface) {
     patchCard(id, { surface: surface.surface }, `${isoNow()} classificacao previa: tarefa ${surface.surface === 'visual' ? 'VISUAL' : 'NAO-VISUAL'} (${surface.reason})`)
   }
+  if (CLARIFY && card.fm.clarified !== 'true') {
+    const c = await clarify(card)
+    if (c.questions.length) {
+      writeClarify(id, c.questions)
+      patchCard(id, { status: 'CLARIFY' }, `${isoNow()} EXECUTING->CLARIFY ${c.questions.length} pergunta(s) — aguardando decisao humana`)
+      process.stdout.write(`[runner] #${id}: CLARIFY (${c.questions.length} pergunta(s))\n`)
+      return
+    }
+    patchCard(id, { clarified: 'true' }, `${isoNow()} clarify: tarefa clara — seguindo sem perguntas`)
+  }
   if (card.fm.spec === 'required' && card.fm.spec_done !== 'true') {
     patchCard(id, { status: 'SPECCED' }, `${isoNow()} EXECUTING->SPECCED roteado para a fase de spec (spec: required)`)
     return
@@ -113,11 +125,19 @@ export async function handleExecute(id: string): Promise<void> {
     return
   }
   process.stdout.write(`[runner] #${id}: implementando em worktree ${wt}\n`)
+  const port = previewPort(id)
+  let previewPid = 0
+  if (surface.surface === 'visual' && hasBuildScript(target)) {
+    await freePort(port)
+    previewPid = startPreview(wt, port)
+    patchCard(id, { preview_url: `http://localhost:${port}`, preview_pid: String(previewPid) }, `${isoNow()} preview subindo em http://localhost:${port} — acompanhe pelo link enquanto a IA trabalha`)
+    process.stdout.write(`[runner] #${id}: preview ao vivo em http://localhost:${port} (durante a execucao)\n`)
+  }
   const t0 = Date.now()
   const shotPath = join(CARDS_DIR, 'previews', String(id), 'preview.png')
   const steps = initialSteps()
-  let tx = Date.now()
-  let res = await implement(card, wt, '')
+  const tx = Date.now()
+  const res = await implement(card, wt, '', surface.surface === 'visual')
   steps.Executando.time += toSeconds(Date.now() - tx)
   steps.Executando.cost += parseFloat(res.cost) || 0
   steps.Executando.tokens += tokensOf(res.usage)
@@ -128,7 +148,10 @@ export async function handleExecute(id: string): Promise<void> {
       ? `${res.reason} apos ${elapsed}s (worktree mantido p/ inspecao/retomada)`
       : res.reason
     patchCard(id, { status: 'HALTED', cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->HALTED ${reason}`)
-    if (!res.timedOut) await removeWorktree(target, wt)
+    if (!res.timedOut) {
+      if (previewPid) stopPreview(String(previewPid))
+      await removeWorktree(target, wt)
+    }
     return
   }
   patchCard(id, {}, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'}`)
@@ -143,51 +166,43 @@ export async function handleExecute(id: string): Promise<void> {
     process.stdout.write(`[runner] #${id}: PREVIEW_OK auto (nao-visual) — preview pulado\n`)
     return
   }
-  const port = previewPort(id)
-  const pid = hasBuildScript(target) ? startPreview(wt, port) : 0
+  const tpv = Date.now()
+  const pid = previewPid || (hasBuildScript(target) ? startPreview(wt, port) : 0)
   const url = pid ? `http://localhost:${port}` : ''
   const up = pid ? await waitHttp(url, 30) : false
-  const tp = Date.now()
-  let verify: VerifyResult = pid
-    ? { ok: false, conclusive: true, reason: 'dev server nao subiu — preview nao renderizou', cost: 0, tokens: 0 }
-    : { ok: true, conclusive: false, reason: 'sem dev server (check visual pulado)', cost: 0, tokens: 0 }
-  let attempt = 0
-  while (up) {
-    await new Promise(r => setTimeout(r, 2500))
-    const shot = await screenshot(id, url)
-    if (!shot) {
-      verify = { ok: false, conclusive: true, reason: 'falha ao capturar screenshot (playwright ausente ou pagina em erro)', cost: 0, tokens: 0 }
-      break
-    }
-    if (!VISUAL_AI) {
-      verify = { ok: true, conclusive: false, reason: 'preview renderizado (check de IA desligado) — verificacao humana', cost: 0, tokens: 0 }
-      break
-    }
-    verify = await verifyVisual(card, shotPath)
-    steps.Preview.cost += verify.cost || 0
-    steps.Preview.tokens += verify.tokens || 0
-    patchCard(id, {}, `${isoNow()} check visual (IA, ${VERIFY_MODEL}): ${verify.ok ? 'OK' : 'FALHOU'} — ${verify.reason}`)
-    if (verify.ok || attempt >= MAX_VERIFY) break
-    attempt++
-    process.stdout.write(`[runner] #${id}: check visual falhou, reexecutando (${attempt})\n`)
-    const tx2 = Date.now()
-    const r2 = await implement(card, wt, `A verificacao visual falhou: ${verify.reason}. Garanta que o elemento/mudanca pedido apareca DE FATO e visivelmente na pagina.`)
-    steps.Executando.time += toSeconds(Date.now() - tx2)
-    steps.Executando.cost += parseFloat(r2.cost) || 0
-    steps.Executando.tokens += tokensOf(r2.usage)
-    if (r2.ok) res = r2
-  }
-  steps.Preview.time = toSeconds(Date.now() - tp)
+  steps.Preview.time = toSeconds(Date.now() - tpv)
   const { costSum, tokensTotal } = await commitAndRecord(id, wt, card, steps, res, t0)
-  const vstate = verify.ok ? 'ok' : (verify.conclusive === false ? 'inconclusivo' : 'falhou')
-  const vlabel = verify.ok ? 'visual OK' : (verify.conclusive === false ? 'visual inconclusivo (verificacao humana)' : 'visual NAO confirmado')
+  const initState = !pid ? 'inconclusivo' : (up ? 'inconclusivo' : 'falhou')
+  const initReason = !pid
+    ? 'repo sem dev server — verificacao humana pelo link'
+    : (up ? 'preview no ar — abra o link (verificando…)' : 'dev server nao subiu — preview nao respondeu')
   patchCard(id, {
     status: 'PREVIEW',
     preview_url: url,
     preview_pid: String(pid || ''),
-    verify: vstate,
+    verify: initState,
     cost_usd: costSum.toFixed(4),
     tokens_total: String(tokensTotal),
-  }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${vlabel}: ${verify.reason})`)
-  process.stdout.write(`[runner] #${id}: PREVIEW ${url} (${vlabel})\n`)
+  }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${initReason})`)
+  process.stdout.write(`[runner] #${id}: PREVIEW ${url} (${initReason})\n`)
+  if (up) {
+    const health = await inspectPreview(id, url, true)
+    let vstate = 'inconclusivo'
+    let vreason = `preview no ar — confira pelo link (inspecao automatica indisponivel${health.detail ? ': ' + health.detail : ''})`
+    if (VISUAL_AI && health.ok) {
+      const v = await verifyVisual(card, shotPath)
+      vstate = v.ok ? 'ok' : 'falhou'
+      vreason = `check visual (IA, ${VERIFY_MODEL}): ${v.reason}`
+    } else if (health.conclusive) {
+      vstate = health.ok ? 'ok' : 'falhou'
+      vreason = health.ok ? 'preview no ar — abra o link para conferir' : `preview subiu com erro: ${health.detail}`
+    }
+    patchCard(id, { verify: vstate }, `${isoNow()} inspecao do preview: ${vstate} — ${vreason}`)
+    process.stdout.write(`[runner] #${id}: inspecao ${vstate}\n`)
+  }
+  if (EVAL) {
+    const e = await evaluate(card, wt, base)
+    patchCard(id, { eval_score: String(e.score), eval_notes: e.notes }, `${isoNow()} eval (qualidade vs objetivo): ${e.score}/5 ${e.meets ? '(cumpre)' : '(revisar)'} — ${e.notes}`)
+    process.stdout.write(`[runner] #${id}: eval ${e.score}/5\n`)
+  }
 }

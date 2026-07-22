@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 
 export interface ProjectConfig {
@@ -8,7 +8,7 @@ export interface ProjectConfig {
 }
 
 export function hicodeHome(repo: string): string {
-  return join(repo, '.hicode')
+  return join(repo, '.hii')
 }
 
 export function readProjectConfig(repo: string): ProjectConfig {
@@ -43,6 +43,11 @@ o que nunca mexer). Quanto mais curto, menos tokens por card.
 export function initHicodeHome(repo: string): string[] {
   const home = hicodeHome(repo)
   const created: string[] = []
+  const legacy = join(repo, '.hicode')
+  if (!existsSync(home) && existsSync(legacy)) {
+    renameSync(legacy, home)
+    created.push(`${home} (migrado de .hicode/)`)
+  }
   for (const d of [home, join(home, 'memory'), join(home, 'skills'), join(home, 'state')]) {
     if (!existsSync(d)) { mkdirSync(d, { recursive: true }); created.push(d) }
   }
