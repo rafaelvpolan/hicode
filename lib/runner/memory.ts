@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { isoNow } from '../card'
 
@@ -26,8 +26,10 @@ export function appendProjectMemory(target: string, line: string): void {
   const file = join(dir, 'motor.md')
   try {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    const head = existsSync(file) ? readFileSync(file, 'utf8') : '# Memoria do motor (acumulada por card — decisoes e o que foi construido)\n\n'
-    writeFileSync(file, `${head}- ${isoNow()} ${line.replace(/\s+/g, ' ').slice(0, 200)}\n`)
+    if (!existsSync(file)) {
+      try { writeFileSync(file, '# Memoria do motor (acumulada por card — decisoes e o que foi construido)\n\n', { flag: 'wx' }) } catch { void 0 }
+    }
+    appendFileSync(file, `- ${isoNow()} ${line.replace(/\s+/g, ' ').slice(0, 200)}\n`)
   } catch {
     void 0
   }

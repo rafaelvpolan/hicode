@@ -15,6 +15,10 @@ function git(cwd: string, args: string[]): boolean {
   return spawnSync('git', args, { cwd, stdio: 'ignore', timeout: 20000 }).status === 0
 }
 
+function isSafeBranch(b: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(b) && !b.includes('..')
+}
+
 function checkoutBranch(cwd: string, branch: string): boolean {
   git(cwd, ['fetch', 'origin', branch])
   if (!git(cwd, ['checkout', branch])) return false
@@ -36,6 +40,7 @@ export default defineEventHandler(async (event): Promise<ProjectPreviewResponse 
   if (!existsSync(target)) { setResponseStatus(event, 400); return { error: 'repo nao clonado: ' + target } }
 
   const branch = repo.branch || 'main'
+  if (!isSafeBranch(branch)) { setResponseStatus(event, 400); return { error: `nome de branch invalido: "${branch}"` } }
   if (!checkoutBranch(target, branch)) {
     setResponseStatus(event, 409)
     return { error: `nao consegui trocar ${target} para a branch "${branch}" (ha mudancas locais no repo?)` }

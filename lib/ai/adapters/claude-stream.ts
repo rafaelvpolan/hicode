@@ -5,6 +5,14 @@ import { emptyUsage } from '../usage'
 import type { AgentRequest, AgentResult } from '../types'
 import type { Usage } from '../../card'
 
+const NONINTERACTIVE_ENV: Record<string, string> = {
+  GIT_TERMINAL_PROMPT: '0',
+  GIT_EDITOR: 'true',
+  GIT_SEQUENCE_EDITOR: 'true',
+  GIT_PAGER: 'cat',
+  PAGER: 'cat',
+}
+
 interface StreamPart {
   type: string
   text?: string
@@ -88,7 +96,7 @@ export function runClaudeStream(req: AgentRequest, tools: string, liveLog: strin
     let timedOut = false
     let hard: ReturnType<typeof setTimeout> | null = null
 
-    const child = spawn('claude', argvStream(req, tools), { cwd: req.cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn('claude', argvStream(req, tools), { cwd: req.cwd, env: { ...process.env, ...NONINTERACTIVE_ENV }, stdio: ['ignore', 'pipe', 'pipe'] })
 
     const soft = setTimeout(() => {
       timedOut = true
@@ -105,31 +113,33 @@ export function runClaudeStream(req: AgentRequest, tools: string, liveLog: strin
       resolve({ ok: !failed && !isError, failed, timedOut, isError, detail, text: text || assistantText, cost, usage })
     }
 
+    const handleLine = (line: string): void => {
+      if (!line.trim()) return
+      try {
+        const ev = JSON.parse(line) as StreamEvent
+        const human = renderEvent(ev)
+        if (human) write(human + '\n')
+        if (ev.type === 'assistant' && ev.message?.content) {
+          for (const c of ev.message.content) if (c.type === 'text' && c.text) assistantText = c.text
+        }
+        if (ev.type === 'result') {
+          gotResult = true
+          cost = Number(ev.total_cost_usd) || 0
+          text = String(ev.result ?? '')
+          isError = !!ev.is_error
+          usage = usageFrom(ev.usage)
+        }
+      } catch {
+        write(line + '\n')
+      }
+    }
+
     child.stdout.on('data', (d: Buffer) => {
       buf += String(d)
       let i = buf.indexOf('\n')
       while (i >= 0) {
-        const line = buf.slice(0, i)
+        handleLine(buf.slice(0, i))
         buf = buf.slice(i + 1)
-        if (line.trim()) {
-          try {
-            const ev = JSON.parse(line) as StreamEvent
-            const human = renderEvent(ev)
-            if (human) write(human + '\n')
-            if (ev.type === 'assistant' && ev.message?.content) {
-              for (const c of ev.message.content) if (c.type === 'text' && c.text) assistantText = c.text
-            }
-            if (ev.type === 'result') {
-              gotResult = true
-              cost = Number(ev.total_cost_usd) || 0
-              text = String(ev.result ?? '')
-              isError = !!ev.is_error
-              usage = usageFrom(ev.usage)
-            }
-          } catch {
-            write(line + '\n')
-          }
-        }
         i = buf.indexOf('\n')
       }
     })
@@ -137,8 +147,9 @@ export function runClaudeStream(req: AgentRequest, tools: string, liveLog: strin
     child.stderr.on('data', (d: Buffer) => write(String(d)))
     child.on('error', (e: Error) => done(true, String(e?.message || e)))
     child.on('close', (code: number | null) => {
+      if (buf.trim()) handleLine(buf)
       if (!gotResult && code) isError = true
-      done(!gotResult && !!code, code ? `exit ${code}` : '')
+      done(timedOut || !gotResult, timedOut ? 'timeout' : code ? `exit ${code}` : '')
     })
   })
 }
