@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { StepMap, StepMetric, Card } from '../card'
-import { MAX_REAJUSTE, MAX_CONFLICT, CARD_BUDGET_USD } from './config'
+import { MAX_REAJUSTE, MAX_CONFLICT, CARD_BUDGET_USD, PROJECT_MEMORY } from './config'
+import { appendProjectMemory } from './memory'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
 import { freePort, hasBuildScript, hasTestScript, previewPort, httpOk, inspectPreview, startPreview, stopPreview, waitHttp } from './preview'
@@ -248,5 +249,6 @@ export async function handleFinish(id: string): Promise<void> {
     cost_usd: String(totals.cost || card.fm.cost_usd || ''),
     tokens_total: String(totals.tokens || card.fm.tokens_total || ''),
   }, `${isoNow()} REVIEWED->PR_OPEN ${url} (merge e do humano)`)
+  if (PROJECT_MEMORY) appendProjectMemory(target, `#${id} "${(desc ?? '').slice(0, 80)}" -> PR aberto (${url})`)
   process.stdout.write(`[runner] #${id}: PR_OPEN ${url}\n`)
 }

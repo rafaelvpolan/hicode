@@ -2,11 +2,13 @@ import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo } from '../card'
 import type { Card, ImplementResult, VerifyResult } from '../card'
-import { CARDS_DIR, ROOT, RUN_TIMEOUT_MS } from './config'
+import { CARDS_DIR, ROOT, RUN_TIMEOUT_MS, PROJECT_MEMORY } from './config'
 import { modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 import type { AiProvider } from '../ai/types'
 import { readProjectRules } from './hicode-home'
+import { repoPath } from './card-store'
+import { readProjectMemory } from './memory'
 import { DESIGN_SYSTEM_BRIEF } from './design'
 import { clarifyAnswersPrompt } from './clarify'
 import { resolveRefImages } from './refs'
@@ -23,7 +25,7 @@ function firstLine(s: string, max: number): string {
   return String(s || '').split('\n')[0]?.slice(0, max) ?? ''
 }
 
-function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean, clarifications: string, refImages: string[]): string {
+function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean, clarifications: string, refImages: string[], memory: string): string {
   const refs = refImages.length
     ? `REFERENCIAS DE DESIGN (${refImages.length}): abra CADA imagem abaixo com a tool Read e replique o design o mais FIEL possivel (layout, cores, tipografia, espacamento, componentes); extraia os tokens a partir delas. Imagens:\n${refImages.map(p => `- ${p}`).join('\n')}\n`
     : ''
@@ -39,6 +41,7 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
       ]
   return [
     rules ? `CONTEXTO DO PROJETO (.hii/rules.md — respeite):\n${rules}\n` : '',
+    memory ? `MEMORIA DO PROJETO (.hii/memory — decisoes/convencoes acumuladas, respeite):\n${memory}\n` : '',
     clarifications ? clarifications : '',
     refs,
     visual ? `${DESIGN_SYSTEM_BRIEF}\n` : '',
@@ -60,8 +63,9 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
   const id = card.fm.id ?? ''
   const refImages = provider.supportsVision ? await resolveRefImages(id) : []
   const dirs = refImages.length ? [workdir, join(CARDS_DIR, 'refs', id)] : [workdir]
+  const memory = PROJECT_MEMORY ? readProjectMemory(repoPath(card.fm.repo ?? '')) : ''
   const res = await provider.run({
-    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages),
+    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages, memory),
     cwd: ROOT,
     dirs,
     mode: 'edit',
