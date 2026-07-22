@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { extname, join, resolve } from 'node:path'
 import { CARDS_DIR } from './card-io'
 
@@ -74,7 +74,10 @@ export function addRefs(id: string, sources: string[]): string[] {
 export function removeRefAt(id: string, index: number): string[] {
   const current = readRefs(id)
   if (index < 0 || index >= current.length) return current
-  current.splice(index, 1)
+  const [removed] = current.splice(index, 1)
+  if (removed && !isRefUrl(removed) && isRefUploadPath(id, removed) && existsSync(removed)) {
+    try { rmSync(removed) } catch { void 0 }
+  }
   return writeRefs(id, current)
 }
 

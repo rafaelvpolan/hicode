@@ -10,6 +10,7 @@ import { runStep } from './agent'
 import { activeSteps } from './pipeline/config'
 import { isNonVisual } from './classify'
 import { planSteps } from './analyze'
+import type { PipelineStep } from './pipeline/types'
 import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
 import { runCodefoxGate, persistGate, buildPrBody } from './codefox-gate'
@@ -134,6 +135,16 @@ async function revalidate(id: string, card: Card, wt: string, target: string, fs
   return ok
 }
 
+function resumeStart(steps: PipelineStep[], all: PipelineStep[], resumeFrom: string, id: string, profile: string): number {
+  if (!resumeFrom) return 0
+  const exact = steps.findIndex(s => s.label === resumeFrom)
+  if (exact >= 0) return exact
+  const wantPos = all.findIndex(s => s.label === resumeFrom)
+  const mapped = wantPos < 0 ? -1 : steps.findIndex(s => all.findIndex(a => a.label === s.label) >= wantPos)
+  patchCard(id, {}, `${isoNow()} replay: passo "${resumeFrom}" nao roda neste card (perfil ${profile}); ${mapped >= 0 ? 'retomando do passo aplicavel seguinte' : 'nada a repetir — seguindo para revalidacao/PR'}`)
+  return mapped >= 0 ? mapped : steps.length
+}
+
 export async function handleFinish(id: string): Promise<void> {
   const card = readCard(id)
   if (!card) return
@@ -155,10 +166,11 @@ export async function handleFinish(id: string): Promise<void> {
   const resumeFrom = card.fm.resume_from ?? ''
   if (resumeFrom) patchCard(id, { resume_from: '' }, `${isoNow()} retomando finish a partir de ${resumeFrom}`)
   const desc = extractObjetivo(card.body) || card.fm.title
-  const plan = planSteps({ title: card.fm.title, objetivo: desc, risk: card.fm.risk, surface: card.fm.surface, override: card.fm.steps }, activeSteps(wt))
+  const all = activeSteps(wt)
+  const plan = planSteps({ title: card.fm.title, objetivo: desc, risk: card.fm.risk, surface: card.fm.surface, override: card.fm.steps }, all)
   const steps = plan.steps
   patchCard(id, { steps_profile: plan.profile }, `${isoNow()} analise de passos: perfil "${plan.profile}" — roda [${steps.map(s => s.label).join(', ') || 'nenhum'}]${plan.skipped.length ? ` · pula [${plan.skipped.join(', ')}]` : ''} (${plan.reason})`)
-  const startIdx = resumeFrom ? Math.max(0, steps.findIndex(s => s.label === resumeFrom)) : 0
+  const startIdx = resumeStart(steps, all, resumeFrom, id, plan.profile)
   process.stdout.write(`[runner] #${id}: finalizando (perfil ${plan.profile}: ${steps.length} passo(s)${plan.skipped.length ? `, pulou ${plan.skipped.length}` : ''})${resumeFrom ? ` a partir de ${resumeFrom}` : ''}\n`)
   const fsteps: StepMap = {}
   for (const step of steps.slice(startIdx)) {

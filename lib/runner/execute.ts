@@ -79,6 +79,8 @@ async function commitAndRecord(id: string, wt: string, card: Card, steps: Execut
 export async function handleExecute(id: string): Promise<void> {
   const card = readCard(id)
   if (!card) return
+  let auxCost = 0
+  let auxTokens = 0
   const repoName = card.fm.repo ?? ''
   const slug = card.fm.slug ?? ''
   const target = repoPath(repoName)
@@ -92,9 +94,11 @@ export async function handleExecute(id: string): Promise<void> {
   }
   if (CLARIFY && card.fm.clarified !== 'true') {
     const c = await clarify(card)
+    auxCost += c.cost || 0
+    auxTokens += c.tokens || 0
     if (c.questions.length) {
       writeClarify(id, c.questions)
-      patchCard(id, { status: 'CLARIFY' }, `${isoNow()} EXECUTING->CLARIFY ${c.questions.length} pergunta(s) — aguardando decisao humana`)
+      patchCard(id, { status: 'CLARIFY', cost_usd: auxCost.toFixed(4), tokens_total: String(auxTokens) }, `${isoNow()} EXECUTING->CLARIFY ${c.questions.length} pergunta(s) — aguardando decisao humana`)
       process.stdout.write(`[runner] #${id}: CLARIFY (${c.questions.length} pergunta(s))\n`)
       return
     }
@@ -160,8 +164,8 @@ export async function handleExecute(id: string): Promise<void> {
     patchCard(id, {
       status: 'PREVIEW_OK',
       verify: 'n/a',
-      cost_usd: costSum.toFixed(4),
-      tokens_total: String(tokensTotal),
+      cost_usd: (costSum + auxCost).toFixed(4),
+      tokens_total: String(tokensTotal + auxTokens),
     }, `${isoNow()} EXECUTED->PREVIEW_OK auto — tarefa nao-visual (${surface.reason}); preview pulado`)
     process.stdout.write(`[runner] #${id}: PREVIEW_OK auto (nao-visual) — preview pulado\n`)
     return
@@ -172,6 +176,7 @@ export async function handleExecute(id: string): Promise<void> {
   const up = pid ? await waitHttp(url, 30) : false
   steps.Preview.time = toSeconds(Date.now() - tpv)
   const { costSum, tokensTotal } = await commitAndRecord(id, wt, card, steps, res, t0)
+  const auxAtPreview = auxCost
   const initState = !pid ? 'inconclusivo' : (up ? 'inconclusivo' : 'falhou')
   const initReason = !pid
     ? 'repo sem dev server — verificacao humana pelo link'
@@ -181,8 +186,8 @@ export async function handleExecute(id: string): Promise<void> {
     preview_url: url,
     preview_pid: String(pid || ''),
     verify: initState,
-    cost_usd: costSum.toFixed(4),
-    tokens_total: String(tokensTotal),
+    cost_usd: (costSum + auxCost).toFixed(4),
+    tokens_total: String(tokensTotal + auxTokens),
   }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${initReason})`)
   process.stdout.write(`[runner] #${id}: PREVIEW ${url} (${initReason})\n`)
   if (up) {
@@ -191,6 +196,8 @@ export async function handleExecute(id: string): Promise<void> {
     let vreason = `preview no ar — confira pelo link (inspecao automatica indisponivel${health.detail ? ': ' + health.detail : ''})`
     if (VISUAL_AI && health.ok) {
       const v = await verifyVisual(card, shotPath)
+      auxCost += v.cost || 0
+      auxTokens += v.tokens || 0
       vstate = v.ok ? 'ok' : 'falhou'
       vreason = `check visual (IA, ${VERIFY_MODEL}): ${v.reason}`
     } else if (health.conclusive) {
@@ -202,7 +209,12 @@ export async function handleExecute(id: string): Promise<void> {
   }
   if (EVAL) {
     const e = await evaluate(card, wt, base)
+    auxCost += e.cost || 0
+    auxTokens += e.tokens || 0
     patchCard(id, { eval_score: String(e.score), eval_notes: e.notes }, `${isoNow()} eval (qualidade vs objetivo): ${e.score}/5 ${e.meets ? '(cumpre)' : '(revisar)'} — ${e.notes}`)
     process.stdout.write(`[runner] #${id}: eval ${e.score}/5\n`)
+  }
+  if (auxCost !== auxAtPreview) {
+    patchCard(id, { cost_usd: (costSum + auxCost).toFixed(4), tokens_total: String(tokensTotal + auxTokens) }, `${isoNow()} custo atualizado (verificacao/eval): $${(costSum + auxCost).toFixed(4)}`)
   }
 }
