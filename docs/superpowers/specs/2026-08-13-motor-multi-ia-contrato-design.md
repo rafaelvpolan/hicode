@@ -127,8 +127,8 @@ consultada quando ele falha.
 ```
 INBOX
  └─ SPEC ......................... só grande/breaking · gate: openspec validate --strict
- └─ LAYOUT ....................... só se visual · tokens + markup + dados mockados, zero lógica
-     └─ PREVIEW_LAYOUT ........... gate: screenshot + diff vs cards/refs/ · aprovação humana
+ └─ LAYOUT ....................... só se visual SUBJETIVO · desleixado de proposito, fora do contrato
+     └─ PREVIEW_LAYOUT ........... aprovação humana · o screenshot aprovado vira a barra do §8.2
  └─ EXECUTE ...................... contrato de CRIAÇÃO (fino)
      └─ PREVIEW .................. aprovação humana (auto se não-visual)
  └─ POLIMENTO (DAG) .............. arquitetura → { testes ∥ segurança }
@@ -254,6 +254,46 @@ fluxo X"), complementar a esta, que é mecânica.
 → preview → gate, com modelo barato, porque a parte difícil já foi resolvida sem IA.
 
 ---
+
+### 6.1 Layout-first deliberadamente desleixado
+
+Para card visual **subjetivo**, o passe de LAYOUT **não é cobrado pelo contrato**. É a regra já
+registrada em `.shared/memory/feedback_contract_two_moments_local.md`: *"construção não cobra
+padrão (só piso de segurança)"*. O contrato de criação no LAYOUT cai ao mínimo — piso de segurança
+e tokens de design. Sem invariantes, sem teto de 350 linhas, sem os hooks de bloqueio. Modelo
+barato, um passe, rápido.
+
+**Argumento econômico.** Hoje a rejeição de preview cai em `correct.ts:64` → `redoPreview` → refaz
+a implementação inteira. Num card visual isso significa pagar lógica, integração e estado de novo
+porque o espaçamento não agradou. Com layout desleixado, a rejeição mais provável — a estética —
+acontece quando só existe markup jogado.
+
+**O efeito colateral que resolve o D15.** O screenshot do layout **aprovado** vira a barra nomeada
+do Gauntlet (§8.2) para o passe refinado: a implementação sob contrato tem de bater visualmente com
+o layout aprovado, em A/B cego contra aquele screenshot.
+
+Isso conserta o buraco do Gauntlet. A barra do desenho original é *deliberadamente inalcançável* —
+por isso o loop nunca termina. Esta barra é **alcançável por construção**: foi renderizada pelo
+passo anterior e aprovada por um humano. O crítico não tem como inventar a comparação, e o loop tem
+condição real de vitória.
+
+**Dois riscos travados por desenho:**
+
+1. **Desleixo vazando para produção.** O refinamento **reimplementa** sob contrato, tendo o
+   screenshot aprovado como especificação e o markup desleixado como referência de intenção — não
+   como base a editar. Paga a implementação duas vezes, e é barato porque o primeiro passe nasceu
+   descartável.
+2. **Relaxamento virando bypass permanente.** Os hooks (`block-monolithic`, `block-any-unknown`,
+   `block-comments`) ficam desligados no LAYOUT, então o motor precisa **impedir que um card chegue
+   ao PR com código de fase de layout não-refinado**. Refinamento obrigatório, não opcional.
+
+**Ajuste no analisador.** O corte deixa de ser visual × não-visual e passa a ser **localizado ×
+subjetivo**:
+
+| Card | Rota |
+|---|---|
+| "remover o negrito", "tirar esse texto", "alinhar esse elemento" | `micro` — índice (§6) + patch, sem layout |
+| "deixar o card de stars mais chamativo", "melhorar o hero" | visual **subjetivo** — layout desleixado → aprovação → refino sob contrato |
 
 ## 7. Peça 4 — malha multi-IA via OmniRoute
 
@@ -651,14 +691,36 @@ descartadas **na ingestão**, não filtradas depois.
 ## 14. Entrega fatiada (stacked PRs)
 
 O `/pilha` já tem a mecânica: git nativo `--update-refs`, topologia fora do repo, PRs numerados
-`[N/total]` com "Depende de #X", `restack`. Duas formas de o motor usar:
+`[N/total]` com "Depende de #X", `restack`.
 
-- **(a) fatiar depois:** teto de arquivos antes do `gh pr create`; acima de 30, reescreve o
-  histórico em fatias, com "cada fatia compila sozinha" como gate. Poderoso, mas é cirurgia de
-  histórico.
-- **(b) fatiar antes (recomendado):** o analisador detecta card grande e o quebra em **cards filhos**
-  com `depends_on: <id>`, cada um numa branch empilhada na do pai. PRs nascem pequenos, pilha
-  natural, zero reescrita. Respeita "o card é a espinha".
+**Decisão: fatiar DEPOIS** (revertendo a recomendação anterior — ver D8).
+
+A objeção original a fatiar depois era cirurgia de histórico: engenharia-reversa de um diff grande
+em fatias coerentes exigiria um planner adivinhando fronteiras. **Essa objeção cai quando o fan-out
+do §8.2 existe:** o Gauntlet já decompõe em partes julgáveis independentemente, uma por builder.
+As fatias ficam decididas **antes** de o trabalho começar; o que resta no fim é **replay agrupado
+por rótulo de parte** — não adivinhação. E os critérios coincidem: "parte julgável isoladamente" e
+"fatia que compila sozinha" são o mesmo teste.
+
+O argumento decisivo é paralelismo: pilha de cards filhos **serializa por construção** (fatia-02
+precisa da branch da fatia-01), então feature grande = N execuções em fila, latência = soma.
+Fatiando depois, N builders rodam simultaneamente e a pilha só se materializa na entrega.
+
+**Mecânica — worktree efêmero por parte, não worktree compartilhado:**
+
+- Cada builder recebe worktree próprio a partir da mesma base + **conjunto de arquivos atribuído**.
+  Custo: ~200–500ms de setup por agente, irrelevante perto de minutos de LLM.
+- **Guard de file-set**, determinístico: agente que toca arquivo fora do seu conjunto falha a
+  parte. É o `cwd-guard` estendido de diretório para conjunto de arquivos — impede colisão sem
+  lock.
+- Arquivos compartilhados por natureza (barrel, router, arquivo de tokens) não entram em parte
+  alguma: viram a **fatia-00 base**, que roda primeiro e sobre a qual as outras empilham. É o
+  padrão de pilha de qualquer forma — contratos e tipos primeiro.
+- Entrega: cada parte é um patch rotulado; o motor aplica em ordem de dependência sobre branches
+  empilhadas e roda build cumulativo (fatia-N contém 01..N). Gate de fatia boa: **compila sozinha**.
+
+Efeito: `MAX_CONCURRENCY` segue significando paralelismo **entre** cards, e ganha-se paralelismo
+**dentro** do card — que hoje não existe (`finish.ts:176` é um `for` sequencial).
 
 Nota: `syncWithBase` (`finish.ts:74`) usa **merge**; num stack isso quebra a pilha — precisa virar
 rebase/`restack` quando o card faz parte de uma.
@@ -722,7 +784,10 @@ repositório, e modelos novos recebem prompt que mente sobre o alvo.
 | D5 | Compressão por classe; `off` em gate/review | evidência comprimida invalida a ancoragem em `file:line` |
 | D6 | `command`/`working_dir` só de fonte `kind: repo` | fonte remota editável injetaria shell no daemon |
 | D7 | Fato do repo vence prosa externa | doc desatualizado quebraria o comando de build de todos os cards |
-| D8 | Fatiamento preferencialmente em cards filhos (antes), não reescrita de histórico (depois) | respeita "o card é a espinha"; evita cirurgia de histórico |
+| D8 | ~~Fatiamento em cards filhos (antes)~~ **revertida** — ver D17 | a objeção (cirurgia de histórico) caiu com o fan-out do §8.2, e a pilha de cards serializa o trabalho |
+| D17 | **Fatiar depois**, usando a partição do fan-out como fatias; worktree efêmero + guard de file-set por parte | pilha de cards filhos serializa por construção; fatiando depois N builders rodam juntos e a pilha só se materializa na entrega. As fatias já vêm decididas — é replay agrupado, não adivinhação |
+| D18 | Layout-first **desleixado**, fora do contrato; refinamento **reimplementa** sob contrato a partir do screenshot aprovado | rejeição estética passa a custar um passe barato; e o screenshot aprovado vira uma barra **alcançável por construção** para o §8.2, resolvendo o D15 |
+| D19 | Analisador corta por **localizado × subjetivo**, não visual × não-visual | "remover o negrito" é `micro` (índice + patch); "deixar mais chamativo" precisa do passe desleixado |
 | D9 | Contrato em duas projeções (criação fina, revisão grossa) | `.shared/memory/feedback_contract_two_moments_local.md` — construção não cobra padrão |
 | D10 | Roteamento ciente de capacidade; classe que depende de plugin só vai para `claude`; plugin inativo é logado, nunca silencioso | skills/MCP só disparam sob `supportsAgents`; rotear barato desligaria context7/superpowers/impeccable e pagaria em alucinação |
 | D11 | Durabilidade comprada (DBOS-TS embarcado), com o card como projeção humana e o estado de execução no engine | não reescrever `reconcile`/retry/resume à mão; mas sem a separação viram duas fontes de verdade |
