@@ -127,7 +127,7 @@ consultada quando ele falha.
 ```
 INBOX
  └─ SPEC ......................... só grande/breaking · gate: openspec validate --strict
- └─ LAYOUT ....................... só se visual SUBJETIVO · desleixado de proposito, fora do contrato
+ └─ LAYOUT ....................... só se visual SUBJETIVO · monofile, na stack do projeto, sem contrato
      └─ PREVIEW_LAYOUT ........... aprovação humana · o screenshot aprovado vira a barra do §8.2
  └─ EXECUTE ...................... contrato de CRIAÇÃO (fino)
      └─ PREVIEW .................. aprovação humana (auto se não-visual)
@@ -255,13 +255,35 @@ fluxo X"), complementar a esta, que é mecânica.
 
 ---
 
-### 6.1 Layout-first deliberadamente desleixado
+### 6.1 Layout-first sem contrato (monofile)
 
-Para card visual **subjetivo**, o passe de LAYOUT **não é cobrado pelo contrato**. É a regra já
-registrada em `.shared/memory/feedback_contract_two_moments_local.md`: *"construção não cobra
-padrão (só piso de segurança)"*. O contrato de criação no LAYOUT cai ao mínimo — piso de segurança
-e tokens de design. Sem invariantes, sem teto de 350 linhas, sem os hooks de bloqueio. Modelo
-barato, um passe, rápido.
+Para card visual **subjetivo**, o passe de LAYOUT **não segue contrato nenhum**. Definição exata,
+e cada cláusula é verificável:
+
+- **Não segue contrato.** Nem o de criação, nem o de revisão. Sem invariantes, sem teto de 350
+  linhas, sem tipagem estrita, sem regra de comentário. Só o **piso de segurança** permanece.
+  É a regra já registrada em `.shared/memory/feedback_contract_two_moments_local.md`:
+  *"construção não cobra padrão (só piso de segurança)"*.
+- **Mínimo, nos frameworks e linguagens que já existem no projeto.** Não é HTML descartável à
+  parte: é Vue/React/o-que-o-contrato-detectou, renderizando no **dev server real** do alvo.
+- **Monofile, mesmo.** Um arquivo. Sem quebrar em componentes, sem extrair composable, sem arquivo
+  de tipos separado.
+
+**Por que "na stack do projeto" não é conveniência, é requisito.** O screenshot aprovado vira a
+barra do §8.2. Se o layout fosse HTML solto, a implementação refinada em Vue nunca bateria com ele
+— fonte, aplicação de token e engine de layout diferentes — e a barra voltaria a ser inalcançável,
+reintroduzindo exatamente o problema do D15. Renderizar na stack real é o que torna a barra
+legítima.
+
+**Por que monofile é a definição certa de "mínimo".** "Faça simples" não é checável; "um arquivo"
+é. E dá fronteira inequívoca ao descarte: o refinamento **apaga** o arquivo e reimplementa, não
+edita.
+
+**Marcador próprio, não `hicode:allow-monolith`.** O arquivo carrega uma diretiva dedicada
+(`hicode:layout-draft`) que (a) relaxa os hooks `block-monolithic`, `block-any-unknown`,
+`block-comments` e `block-derived-state` naquele arquivo e (b) o identifica para o gate de PR.
+Reusar `hicode:allow-monolith` seria armadilha: aquela diretiva existe para **permitir
+permanência** (dívida técnica assumida), e o rascunho de layout é o oposto — não pode sobreviver.
 
 **Argumento econômico.** Hoje a rejeição de preview cai em `correct.ts:64` → `redoPreview` → refaz
 a implementação inteira. Num card visual isso significa pagar lógica, integração e estado de novo
@@ -279,13 +301,13 @@ condição real de vitória.
 
 **Dois riscos travados por desenho:**
 
-1. **Desleixo vazando para produção.** O refinamento **reimplementa** sob contrato, tendo o
-   screenshot aprovado como especificação e o markup desleixado como referência de intenção — não
-   como base a editar. Paga a implementação duas vezes, e é barato porque o primeiro passe nasceu
-   descartável.
-2. **Relaxamento virando bypass permanente.** Os hooks (`block-monolithic`, `block-any-unknown`,
-   `block-comments`) ficam desligados no LAYOUT, então o motor precisa **impedir que um card chegue
-   ao PR com código de fase de layout não-refinado**. Refinamento obrigatório, não opcional.
+1. **Rascunho vazando para produção.** O refinamento **reimplementa** sob contrato, tendo o
+   screenshot aprovado como especificação e o monofile como referência de intenção — não como base
+   a editar. O arquivo é apagado. Paga a implementação duas vezes, e é barato porque o primeiro
+   passe nasceu descartável.
+2. **Relaxamento virando bypass permanente.** Os hooks ficam desligados naquele arquivo, então o
+   motor precisa **impedir que um card chegue ao PR com o arquivo `hicode:layout-draft` vivo**.
+   Refinamento obrigatório, não opcional — e o check é trivial porque é um arquivo só, marcado.
 
 **Ajuste no analisador.** O corte deixa de ser visual × não-visual e passa a ser **localizado ×
 subjetivo**:
@@ -336,6 +358,8 @@ Router como default, override explícito. No frontmatter do card:
 ai: auto              # auto (combo da classe) | claude | codex | deepseek/deepseek-r1 | <combo>
 effort: medium        # low | medium | high | max
 ai_steps: testes=deepseek-r1, seguranca=claude, limpeza=qwen3-coder
+pilha: off            # D20 — só o humano liga; motor sugere, nunca ativa
+layout: off           # D20 — idem; liga o passe monofile sem contrato (§6.1)
 ```
 
 `ai_steps` é o que torna o multi-IA real — hoje todos os steps dividem um único
@@ -693,34 +717,39 @@ descartadas **na ingestão**, não filtradas depois.
 O `/pilha` já tem a mecânica: git nativo `--update-refs`, topologia fora do repo, PRs numerados
 `[N/total]` com "Depende de #X", `restack`.
 
-**Decisão: fatiar DEPOIS** (revertendo a recomendação anterior — ver D8).
+**Decisão: fatiar ANTES, como DAG de cards** — não como corrente, e não cortando o diff no fim.
 
-A objeção original a fatiar depois era cirurgia de histórico: engenharia-reversa de um diff grande
-em fatias coerentes exigiria um planner adivinhando fronteiras. **Essa objeção cai quando o fan-out
-do §8.2 existe:** o Gauntlet já decompõe em partes julgáveis independentemente, uma por builder.
-As fatias ficam decididas **antes** de o trabalho começar; o que resta no fim é **replay agrupado
-por rótulo de parte** — não adivinhação. E os critérios coincidem: "parte julgável isoladamente" e
-"fatia que compila sozinha" são o mesmo teste.
+**Ativação é humana** (D20): `pilha: on` no card, default `off`. O motor **propõe** a decomposição,
+você **aprova** — é o `PLAN_APPROVED`, estado que já existe na máquina — e só então materializa.
 
-O argumento decisivo é paralelismo: pilha de cards filhos **serializa por construção** (fatia-02
-precisa da branch da fatia-01), então feature grande = N execuções em fila, latência = soma.
-Fatiando depois, N builders rodam simultaneamente e a pilha só se materializa na entrega.
+**A premissa que estava errada.** "Pilha serializa" assume que a pilha é uma cadeia. Não é:
+decomposição típica é `fatia-00 base → N irmãs → integração opcional`. Árvore rasa. As irmãs não
+dependem umas das outras, então rodam **em paralelo**, cada uma com worktree e preview próprios,
+governadas por `MAX_CONCURRENCY`. Só as genuinamente dependentes empilham.
 
-**Mecânica — worktree efêmero por parte, não worktree compartilhado:**
+- **`fatia-00` base:** tipos, contratos e arquivos compartilhados por natureza (barrel, router,
+  arquivo de tokens). Roda primeiro, é curta, e é sobre ela que as irmãs partem.
+- **Irmãs:** cards filhos com `depends_on: <base>`, despachados juntos. A fila já despacha por
+  status (`queue.ts:57`) — o paralelismo sai quase de graça.
+- **Entrega:** PRs numerados `[N/total]` com "Depende de #X", ordem de merge 00 → N, merge humano.
 
-- Cada builder recebe worktree próprio a partir da mesma base + **conjunto de arquivos atribuído**.
-  Custo: ~200–500ms de setup por agente, irrelevante perto de minutos de LLM.
-- **Guard de file-set**, determinístico: agente que toca arquivo fora do seu conjunto falha a
-  parte. É o `cwd-guard` estendido de diretório para conjunto de arquivos — impede colisão sem
-  lock.
-- Arquivos compartilhados por natureza (barrel, router, arquivo de tokens) não entram em parte
-  alguma: viram a **fatia-00 base**, que roda primeiro e sobre a qual as outras empilham. É o
-  padrão de pilha de qualquer forma — contratos e tipos primeiro.
-- Entrega: cada parte é um patch rotulado; o motor aplica em ordem de dependência sobre branches
-  empilhadas e roda build cumulativo (fatia-N contém 01..N). Gate de fatia boa: **compila sozinha**.
+**Por que não fatiar depois.** Cortar o diff no fim exige guard de file-set, planner de partição,
+detecção da fatia base, loop de reparo, agrupamento de patches por rótulo, ordenação de dependência
+entre partes, build cumulativo e montagem de histórico. Fatiar antes exige `depends_on`, branch a
+partir do pai, despacho paralelo e `restack` — cerca de um quinto do trabalho. Além disso:
 
-Efeito: `MAX_CONCURRENCY` segue significando paralelismo **entre** cards, e ganha-se paralelismo
-**dentro** do card — que hoje não existe (`finish.ts:176` é um `for` sequencial).
+- a **aprovação da decomposição acontece antes de gastar**; fatiando depois, uma partição errada só
+  aparece com N builders já pagos (era a razão de existir do R7, que deixa de existir);
+- **entrega parcial** é preservada: se a parte 3 falha, 00–02 já são PRs;
+- nada de reescrita de histórico, nunca.
+
+**Custo honesto desta escolha:** N cards = N overheads de pipeline (N clarifies, N previews,
+N gates) em vez de um. Mitiga-se com cards filhos herdando contrato/spec/clarify do pai e com o
+analisador pulando fases inaplicáveis — mas não zera. É o argumento real do outro lado.
+
+**Fallback documentado — fatiar depois:** quando a decomposição **não é conhecível antes** ("polir
+o produto inteiro", onde as superfícies só aparecem explorando), um card explora, faz fan-out e
+corta na entrega, com a mecânica acima. É exceção, é mais caro, e não é incremento agora.
 
 Nota: `syncWithBase` (`finish.ts:74`) usa **merge**; num stack isso quebra a pilha — precisa virar
 rebase/`restack` quando o card faz parte de uma.
@@ -741,8 +770,8 @@ seguem o mesmo padrão: **um check determinístico e barato no ponto de uso, ant
 | R4 | roteamento não-determinístico | pinar modelo por card + replay | eliminado p/ reprodução |
 | R5 | índice apodrece | verificar no ponto de uso | vira cache miss |
 | R6 | fonte externa velha | TTL visível + staleness declarada no PR | eliminado o silêncio |
-| R7 | partição do fan-out errada | guard reporta o arquivo faltante → recomputa 1× | degrada p/ builder único |
-| R8 | desleixo do layout vaza | commits marcados; PR recusa arquivo marcado não-refinado | eliminado |
+| R7 | ~~partição do fan-out errada~~ | **deixou de existir** com D17 — a decomposição é aprovada por humano antes de gastar | só volta no fallback de fatiar-depois |
+| R8 | rascunho de layout vaza | `hicode:layout-draft` no arquivo; PR recusa se o arquivo marcado sobreviver | eliminado |
 | R9 | A/B "cego" que não é cego | cegar mecanicamente + sonda de calibração | ver abaixo |
 | R10 | duas fontes de verdade | engine dono do estado; card é projeção com geração | eliminado |
 
@@ -780,10 +809,14 @@ chamadas do mesmo card. Uma vez resolvido "review" no modelo X para o card #42, 
 de review daquele card usam X. É o que torna um HALT reproduzível, e habilita
 `hii run <id> --pin-models-from <run>`.
 
-**R7 — reparo de partição, uma vez.** A partição sai do grafo de pacotes do contrato + code-map, não
-de palpite de LLM. Parte que bate no guard **reporta o arquivo que precisava**; o motor move esse
-arquivo para a fatia-00 base, recomputa e re-roda **só aquela parte**. Acima de K reparos, cai para
-builder único — degradação, não falha.
+**R7 — eliminado pela ordem, não por mecanismo.** Com D17 a decomposição é proposta pelo motor e
+**aprovada por humano antes de qualquer builder rodar**; partição errada custa segundos de conversa,
+não N builders pagos. O loop de reparo (guard reporta arquivo faltante → move para a fatia-00 →
+re-roda só aquela parte) fica reservado ao fallback de fatiar-depois, onde a partição só se revela
+durante o trabalho.
+
+Vale como princípio geral: **mover a decisão para antes do gasto elimina o risco; mecanismo de
+reparo apenas o limita.**
 
 ---
 
@@ -828,9 +861,10 @@ repositório, e modelos novos recebem prompt que mente sobre o alvo.
 | D5 | Compressão por classe; `off` em gate/review | evidência comprimida invalida a ancoragem em `file:line` |
 | D6 | `command`/`working_dir` só de fonte `kind: repo` | fonte remota editável injetaria shell no daemon |
 | D7 | Fato do repo vence prosa externa | doc desatualizado quebraria o comando de build de todos os cards |
-| D8 | ~~Fatiamento em cards filhos (antes)~~ **revertida** — ver D17 | a objeção (cirurgia de histórico) caiu com o fan-out do §8.2, e a pilha de cards serializa o trabalho |
-| D17 | **Fatiar depois**, usando a partição do fan-out como fatias; worktree efêmero + guard de file-set por parte | pilha de cards filhos serializa por construção; fatiando depois N builders rodam juntos e a pilha só se materializa na entrega. As fatias já vêm decididas — é replay agrupado, não adivinhação |
-| D18 | Layout-first **desleixado**, fora do contrato; refinamento **reimplementa** sob contrato a partir do screenshot aprovado | rejeição estética passa a custar um passe barato; e o screenshot aprovado vira uma barra **alcançável por construção** para o §8.2, resolvendo o D15 |
+| D8 | ~~Fatiamento em cards filhos, em corrente~~ **superada** — ver D17 | a premissa "pilha = corrente" estava errada: decomposição é árvore rasa, não cadeia |
+| D17 | **Fatiar antes, como DAG de cards**: `fatia-00` base → N irmãs **em paralelo** → integração opcional. Só as genuinamente dependentes empilham. Fatiar depois fica como fallback documentado para decomposição não-conhecível antes | atende o paralelismo sem comprar o subsistema de corte na entrega (guard de file-set, planner de partição, reparo, agrupamento, montagem de histórico ≈ 5× o trabalho); aprovação da decomposição acontece **antes** de gastar; entrega parcial preservada; R7 deixa de existir |
+| D20 | `pilha` e `layout` são **flags explícitas do card**, default `off`, ativadas pelo humano na submissão. O analisador **sugere**, nunca ativa | mesma lógica do merge humano: quem decide o que é caro de errar é a pessoa |
+| D18 | Layout-first **sem contrato, monofile, na stack já existente no projeto**; refinamento **reimplementa** sob contrato a partir do screenshot aprovado, apagando o rascunho | rejeição estética passa a custar um passe barato; renderizar na stack real é o que faz o screenshot ser uma barra **alcançável por construção** para o §8.2 (resolve D15); "um arquivo" é verificável, "simples" não |
 | D19 | Analisador corta por **localizado × subjetivo**, não visual × não-visual | "remover o negrito" é `micro` (índice + patch); "deixar mais chamativo" precisa do passe desleixado |
 | D9 | Contrato em duas projeções (criação fina, revisão grossa) | `.shared/memory/feedback_contract_two_moments_local.md` — construção não cobra padrão |
 | D10 | Roteamento ciente de capacidade; classe que depende de plugin só vai para `claude`; plugin inativo é logado, nunca silencioso | skills/MCP só disparam sob `supportsAgents`; rotear barato desligaria context7/superpowers/impeccable e pagaria em alucinação |
