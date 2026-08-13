@@ -119,12 +119,23 @@ cada card.
 
 ### Passo 2 — Registrar o repo-alvo no motor
 
-O motor precisa achar o clone local do alvo. O registro é **configuração de máquina** e por isso
-**não é versionado** — `config/repos.json` está no `.gitignore`. O que vai no git é o modelo:
+Pelo CLI — **determinístico, 0 token**:
 
 ```bash
-cp config/repos.example.json config/repos.json   # e ajuste o `path`
+hii repo add owner/repo-alvo --path /caminho/do/clone
+hii repo ls          # estado de cada alvo (clone ok? contrato gerado?)
+hii repo rm owner/repo-alvo
 ```
+
+Sem `--path`, procura o clone **irmão** deste repo (`../<nome>`). O `add` faz tudo numa passada:
+
+1. **valida** que o clone existe e é um repositório git — falha aqui, não depois em `HALTED`;
+2. **detecta a branch base** pelo próprio git (`origin/HEAD`, senão a branch atual);
+3. **provisiona `.hii/`** no alvo (o mesmo que `hii init`);
+4. **gera o contrato** — stack, gerenciador de pacotes, comandos e pacotes do alvo.
+
+O registro é **configuração de máquina**, então `config/repos.json` **não é versionado**
+(`config/repos.example.json` é o modelo). Editar à mão continua valendo:
 
 ```json
 [
@@ -147,6 +158,36 @@ cp config/repos.example.json config/repos.json   # e ajuste o `path`
 > uma execução para descobrir.
 
 Para apontar o registro para outro lugar (ex.: perfis por máquina), use `HICODE_REPOS_FILE`.
+
+### Passo 2b — O contrato do alvo (detecção determinística, 0 token)
+
+`hii repo add` já gera; para redetectar depois de mudar dependências:
+
+```bash
+hii contract /caminho/do/alvo     # escreve <alvo>/.hii/contract.json
+hii contract /caminho --json      # a estrutura crua
+```
+
+O que ele descobre **sem gastar um token** — lendo lockfile, `package.json`, `tsconfig` e configs:
+
+| Campo | De onde sai |
+|---|---|
+| `packageManager` | lockfile (`bun.lock` › `pnpm-lock.yaml` › `yarn.lock` › `package-lock.json`) |
+| `shape` | `single` · `workspaces` (globs de workspace) · `poly` (projetos irmãos sem raiz comum) |
+| `packages[]` | nome, caminho, framework, linguagem, **gerenciador próprio**, scripts, porta de dev |
+| `commands` | build/test/lint/typecheck/dev **derivados dos scripts que existem** — script ausente vira comando vazio, nunca um chute |
+| `stack` | a frase que vai no prompt (ex.: `Vite + Vue 3 + TypeScript (pnpm)`) |
+| `hash` | das fontes — regenera só quando elas mudam |
+
+O `poly` cobre a forma "pasta com vários projetos independentes, cada um com seu gerenciador" —
+onde nenhum comando fixo funcionaria.
+
+`contract.json` é **derivado e gitignorado** no alvo (regenera em menos de 1s); o que fica
+versionado lá é `.hii/rules.md` e `.hii/config.json`.
+
+> **Por que isso importa para o custo:** antes, o prompt afirmava um stack fixo. Num alvo que não
+> batia, a IA escrevia código errado e o motor pagava reajuste para consertar. Detectar é grátis;
+> adivinhar é caro.
 
 ### Passo 3 — Subir o motor
 
@@ -469,7 +510,10 @@ config/pipeline.json   steps default com `needs` (editável, 0 token)
 config/repos.example.json  modelo do registro de alvos (versionado)
 config/repos.json      registro local da maquina — NAO versionado (.gitignore)
 cards/                 cards (<NNN>.md) + runs/*.json + previews/  — dados
+lib/contract/          DETECCAO DETERMINISTICA do alvo (0 token): detect · probe · store
 scripts/               runner-daemon.sh (daemonização/PID) · check-no-any.mjs
+  setup/repo.mjs       `hii repo add|rm|ls` — registro do alvo, validado
+  setup/contract.mjs   `hii contract` — redetecta stack e comandos do alvo
   hooks/pre-push       gate de pre-push determinístico e portátil (versionado)
 test/                  testes (bun test)
 .github/workflows/     ci.yml (typecheck + lint + testes)

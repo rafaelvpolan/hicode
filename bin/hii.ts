@@ -17,6 +17,10 @@ function daemon(sub: string): number {
   return spawnSync(DAEMON, [sub], { stdio: 'inherit' }).status ?? 1
 }
 
+function script(name: string, extra: string[]): number {
+  return spawnSync('bun', [join(ROOT, 'scripts', 'setup', `${name}.mjs`), ...extra], { stdio: 'inherit', cwd: ROOT }).status ?? 1
+}
+
 function runnerBun(extra: string[]): number {
   return spawnSync('bun', [join(ROOT, 'runner.ts'), ...extra], { stdio: 'inherit', cwd: ROOT }).status ?? 1
 }
@@ -41,6 +45,12 @@ function usage(): void {
     'Acompanhamento:',
     '  status                   estado do daemon + progresso dos cards',
     '  watch                    progresso dos cards ao vivo (atualiza sozinho)',
+    '',
+    'Repo-alvo (deterministico, 0 token):',
+    '  repo add <owner/nome>    registra o alvo, valida o clone, provisiona .hii/ e gera o contrato',
+    '  repo rm <owner/nome>     remove do registro (nao toca no clone)',
+    '  repo ls                  lista os alvos e o estado de cada clone',
+    '  contract [caminho]       redetecta o contrato do alvo (stack, comandos, pacotes)',
     '',
     'Tarefas e integracao:',
     '  sync                     sincroniza tarefas externas (HICODE_TASK_SYNC)',
@@ -114,6 +124,10 @@ async function main(): Promise<number> {
     }
     case 'hooks':
       return hooks()
+    case 'repo':
+      return script('repo', args.slice(1))
+    case 'contract':
+      return script('contract', args.slice(1))
     case undefined:
       return spawnSync('bun', [join(ROOT, 'bin', 'repl.ts')], { stdio: 'inherit', cwd: ROOT }).status ?? 0
     default:
