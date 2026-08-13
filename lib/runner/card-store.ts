@@ -3,6 +3,7 @@ import { join, dirname, basename } from 'node:path'
 import { splitFrontMatter, serializeCard, appendLog, isoNow } from '../card'
 import type { Card, Fields } from '../card'
 import { CARDS_DIR, REPOS_FILE, ROOT } from './config'
+import { withFileLock, writeFileAtomic } from './file-lock'
 
 interface RepoConfig {
   name: string
@@ -25,16 +26,19 @@ export function readCard(id: string): Card | null {
 }
 
 export function patchCard(id: string, fields: Fields, logLine?: string): void {
-  const c = readCard(id)
-  if (!c) return
-  const { fm, order, body } = c
-  for (const [k, v] of Object.entries(fields)) {
-    fm[k] = v
-    if (!order.includes(k)) order.push(k)
-  }
-  fm.updated = isoNow()
-  const nb = logLine ? appendLog(body, logLine) : body
-  writeFileSync(join(CARDS_DIR, c.file), serializeCard(fm, order, nb) + '\n')
+  const name = findCardFile(id)
+  if (!name) return
+  const file = join(CARDS_DIR, name)
+  withFileLock(file, () => {
+    const { fm, order, body } = splitFrontMatter(readFileSync(file, 'utf8'))
+    for (const [k, v] of Object.entries(fields)) {
+      fm[k] = v
+      if (!order.includes(k)) order.push(k)
+    }
+    fm.updated = isoNow()
+    const nb = logLine ? appendLog(body, logLine) : body
+    writeFileAtomic(file, serializeCard(fm, order, nb) + '\n')
+  })
 }
 
 export function cardsByStatus(status: string): Array<Fields & { file: string }> {

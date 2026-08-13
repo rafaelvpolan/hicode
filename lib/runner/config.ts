@@ -2,8 +2,8 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
-export const CARDS_DIR = join(ROOT, 'cards')
-export const REPOS_FILE = join(ROOT, 'config', 'repos.json')
+export const CARDS_DIR = process.env.HICODE_CARDS_DIR || join(ROOT, 'cards')
+export const REPOS_FILE = process.env.HICODE_REPOS_FILE || join(ROOT, 'config', 'repos.json')
 export const WT_BASE = join(dirname(ROOT), '.hicode-worktrees')
 export const PREVIEW_BASE_PORT = Number(process.env.HICODE_PREVIEW_BASE || 5200)
 export const POLL_MS = Number(process.env.HICODE_POLL_MS || 5000)
