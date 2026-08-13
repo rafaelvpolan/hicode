@@ -110,9 +110,11 @@ async function main(): Promise<number> {
     }
     case 'hooks':
       return hooks()
+    case undefined:
+      return spawnSync('bun', [join(ROOT, 'bin', 'repl.ts')], { stdio: 'inherit', cwd: ROOT }).status ?? 0
     default:
       usage()
-      return cmd ? 1 : 0
+      return 1
   }
 }
 

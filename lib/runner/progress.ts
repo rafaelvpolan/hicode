@@ -8,24 +8,7 @@ const DIM = '\x1b[2m'
 const RED = '\x1b[31m'
 const YELLOW = '\x1b[33m'
 
-interface Phase {
-  label: string
-  states: string[]
-  color: string
-}
-
-const PHASES: Phase[] = [
-  { label: 'Fila', states: ['INBOX', 'READY', 'SPECCED', 'PLAN_APPROVED'], color: '\x1b[90m' },
-  { label: 'Executar', states: ['EXECUTING', 'EXECUTED'], color: '\x1b[33m' },
-  { label: 'Preview', states: ['PREVIEW', 'CORRECTING'], color: '\x1b[36m' },
-  { label: 'Aprovado', states: ['PREVIEW_OK'], color: '\x1b[34m' },
-  { label: 'Polir', states: ['REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED'], color: '\x1b[35m' },
-  { label: 'PR', states: ['PR_OPEN', 'MERGED', 'DEPLOYED'], color: '\x1b[32m' },
-]
-
-function phaseIndex(status: string): number {
-  return PHASES.findIndex(p => p.states.includes(status))
-}
+import { PHASES, phaseIndex } from '../core/render/phases'
 
 function track(status: string): string {
   if (status === 'HALTED') return `${RED}■ ■ ■ ■ ■ ■  parou${RESET}`

@@ -1,0 +1,82 @@
+export type EffectKind =
+  | 'none' | 'submit' | 'approve-plan' | 'discard-plan' | 'board' | 'cards'
+  | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
+
+export interface SessionState {
+  repo: string
+  pendingPlan: string
+}
+
+export interface Effect {
+  kind: EffectKind
+  id?: string
+  text?: string
+}
+
+export interface Reply {
+  effect: Effect
+  state: SessionState
+}
+
+export const COMMANDS = ['/help', '/board', '/cards', '/watch', '/halt', '/plan', '/repo', '/quit'] as const
+
+export function newSession(repo = ''): SessionState {
+  return { repo, pendingPlan: '' }
+}
+
+function reply(effect: Effect, state: SessionState): Reply {
+  return { effect, state }
+}
+
+function command(line: string, state: SessionState): Reply {
+  const [head, ...rest] = line.slice(1).trim().split(/\s+/)
+  const arg = rest.join(' ')
+  const cleared = { ...state, pendingPlan: '' }
+  switch (head) {
+    case 'help':
+    case 'h':
+    case '?':
+      return reply({ kind: 'help' }, state)
+    case 'board':
+      return reply({ kind: 'board' }, state)
+    case 'cards':
+    case 'ls':
+      return reply({ kind: 'cards', text: arg }, state)
+    case 'watch':
+      return arg ? reply({ kind: 'watch', id: arg }, state) : reply({ kind: 'error', text: 'uso: /watch <id>' }, state)
+    case 'halt':
+      return rest[0]
+        ? reply({ kind: 'halt', id: rest[0], text: rest.slice(1).join(' ') || 'parado pelo humano' }, cleared)
+        : reply({ kind: 'error', text: 'uso: /halt <id> [motivo]' }, state)
+    case 'plan':
+      return arg ? reply({ kind: 'plan', id: arg }, state) : reply({ kind: 'error', text: 'uso: /plan <id>' }, state)
+    case 'repo':
+      return arg
+        ? reply({ kind: 'none' }, { ...state, repo: arg })
+        : reply({ kind: 'error', text: `repo atual: ${state.repo || '(nenhum)'}` }, state)
+    case 'quit':
+    case 'exit':
+    case 'q':
+      return reply({ kind: 'quit' }, state)
+    default:
+      return reply({ kind: 'error', text: `comando desconhecido: /${head} — tente /help` }, state)
+  }
+}
+
+export function handle(raw: string, state: SessionState): Reply {
+  const line = raw.trim()
+  if (!line) {
+    return state.pendingPlan
+      ? reply({ kind: 'approve-plan', id: state.pendingPlan }, { ...state, pendingPlan: '' })
+      : reply({ kind: 'none' }, state)
+  }
+  if (line.startsWith('/')) return command(line, state)
+  if (state.pendingPlan) {
+    return reply({ kind: 'submit', text: line }, { ...state, pendingPlan: '' })
+  }
+  return reply({ kind: 'submit', text: line }, state)
+}
+
+export function planShown(state: SessionState, id: string): SessionState {
+  return { ...state, pendingPlan: id }
+}
