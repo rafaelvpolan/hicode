@@ -1,7 +1,22 @@
-import { join, dirname } from 'node:path'
+import { join, dirname, resolve } from 'node:path'
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-export const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
+function hasRepoMarkers(dir: string): boolean {
+  return existsSync(join(dir, 'cards')) || existsSync(join(dir, 'config', 'repos.json'))
+}
+
+function resolveRoot(): string {
+  if (process.env.HICODE_ROOT) return process.env.HICODE_ROOT
+  const fromModule = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
+  if (hasRepoMarkers(fromModule)) return fromModule
+  for (const c of [process.cwd(), resolve(process.cwd(), '..')]) {
+    if (hasRepoMarkers(c)) return c
+  }
+  return fromModule
+}
+
+export const ROOT = resolveRoot()
 export function cardsDir(): string {
   return process.env.HICODE_CARDS_DIR || join(ROOT, 'cards')
 }
