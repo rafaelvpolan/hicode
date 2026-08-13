@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo } from '../card'
 import type { Card, ImplementResult, VerifyResult } from '../card'
-import { CARDS_DIR, ROOT, RUN_TIMEOUT_MS, PROJECT_MEMORY } from './config'
+import { cardsDir, ROOT, RUN_TIMEOUT_MS, PROJECT_MEMORY } from './config'
 import { modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 import type { AiProvider } from '../ai/types'
@@ -62,7 +62,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
   if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '' }
   const id = card.fm.id ?? ''
   const refImages = provider.supportsVision ? await resolveRefImages(id) : []
-  const dirs = refImages.length ? [workdir, join(CARDS_DIR, 'refs', id)] : [workdir]
+  const dirs = refImages.length ? [workdir, join(cardsDir(), 'refs', id)] : [workdir]
   const memory = PROJECT_MEMORY ? readProjectMemory(repoPath(card.fm.repo ?? '')) : ''
   const res = await provider.run({
     prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages, memory),
@@ -72,7 +72,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
     useAgents: provider.supportsAgents,
     model: modelFor('implement'),
     timeoutMs: RUN_TIMEOUT_MS,
-    liveLog: id ? join(CARDS_DIR, 'runs', `${id}.live.log`) : undefined,
+    liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
   })
   const cost = res.cost ? res.cost.toFixed(4) : ''
   if (!res.ok) {
@@ -140,7 +140,7 @@ export async function runStep(wt: string, agent: string, instruction: string, id
     useAgents: provider.supportsAgents,
     model: modelFor('step'),
     timeoutMs: RUN_TIMEOUT_MS,
-    liveLog: id ? join(CARDS_DIR, 'runs', `${id}.live.log`) : undefined,
+    liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
   })
   return { time: Math.round((Date.now() - t) / 1000), cost: res.cost, tokens: sumTokens(res.usage), text: firstLine(res.text, 120), ok: res.ok }
 }

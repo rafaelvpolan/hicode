@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { extractObjetivo } from '../card'
 import type { Card, ClarifyQuestion } from '../card'
-import { CARDS_DIR, ROOT } from './config'
+import { cardsDir, ROOT } from './config'
 import { providerFor, modelFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 
@@ -13,7 +13,7 @@ export interface ClarifyResult {
 }
 
 function clarifyFile(id: string): string {
-  return join(CARDS_DIR, 'runs', `${id}.clarify.json`)
+  return join(cardsDir(), 'runs', `${id}.clarify.json`)
 }
 
 export function readClarify(id: string): ClarifyQuestion[] {
@@ -28,7 +28,7 @@ export function readClarify(id: string): ClarifyQuestion[] {
 }
 
 export function writeClarify(id: string, questions: ClarifyQuestion[]): void {
-  const dir = join(CARDS_DIR, 'runs')
+  const dir = join(cardsDir(), 'runs')
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   writeFileSync(clarifyFile(id), JSON.stringify(questions, null, 2))
 }

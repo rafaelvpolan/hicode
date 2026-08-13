@@ -13,7 +13,7 @@ import { planSteps } from './analyze'
 import type { PipelineStep } from './pipeline/types'
 import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
-import { runCodefoxGate, persistGate, buildPrBody } from './codefox-gate'
+import { runCodefoxGate, persistGate, buildPrBody, gateOutcome, gateHaltReason } from './codefox-gate'
 
 interface SyncResult {
   ok: boolean
@@ -234,10 +234,10 @@ export async function handleFinish(id: string): Promise<void> {
   const gate = await runCodefoxGate(wt, base, desc ?? '')
   addMetric(fsteps, 'Codefox', { time: 0, cost: gate.cost, tokens: gate.tokens })
   persistGate(id, gate)
-  if (gate.verdict === 'BLOCKED') {
+  if (gateOutcome(gate) === 'halt') {
     updateRunSteps(id, fsteps)
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} REVIEWED->HALTED codefox gate BLOCKED: ${gate.reason} (worktree mantido p/ inspecao)`)
-    process.stdout.write(`[runner] #${id}: HALTED codefox gate BLOCKED\n`)
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} REVIEWED->HALTED ${gateHaltReason(gate)} (worktree mantido p/ inspecao)`)
+    process.stdout.write(`[runner] #${id}: HALTED ${gate.ok ? 'codefox gate BLOCKED' : 'codefox gate nao concluiu'}\n`)
     return
   }
   const totals = updateRunSteps(id, fsteps)

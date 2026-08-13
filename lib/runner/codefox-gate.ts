@@ -141,6 +141,19 @@ async function gateReview(wt: string, base: string, desc: string, working: boole
   return { ok: true, verdict: parsed.verdict, reason: parsed.reason, questions: parsed.questions, cost: res.cost, tokens }
 }
 
+export type GateOutcome = 'halt' | 'proceed'
+
+export function gateOutcome(gate: GateResult): GateOutcome {
+  if (!gate.ok) return 'halt'
+  return gate.verdict === 'BLOCKED' ? 'halt' : 'proceed'
+}
+
+export function gateHaltReason(gate: GateResult): string {
+  return gate.ok
+    ? `codefox gate BLOCKED: ${gate.reason}`
+    : `codefox gate NAO concluiu (nao ha veredito confiavel): ${gate.reason}`
+}
+
 export function runCodefoxGate(wt: string, base: string, desc: string): Promise<GateResult> {
   return gateReview(wt, base, desc, false)
 }

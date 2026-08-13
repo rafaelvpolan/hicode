@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
-import { CARDS_DIR, ROOT, PREVIEW_BASE_PORT } from './config'
+import { cardsDir, ROOT, PREVIEW_BASE_PORT } from './config'
 import { run } from './git'
 
 export interface PreviewHealth {
@@ -68,7 +68,7 @@ export async function waitHttp(url: string, tries: number): Promise<boolean> {
 }
 
 export async function inspectPreview(id: string, url: string, capture: boolean): Promise<PreviewHealth> {
-  const dir = join(CARDS_DIR, 'previews', String(id))
+  const dir = join(cardsDir(), 'previews', String(id))
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   const out = capture ? join(dir, 'preview.png') : ''
   const r = await run('bun', [join(ROOT, 'scripts', 'inspect-preview.mjs'), url, out], { cwd: ROOT, timeout: 60000 })

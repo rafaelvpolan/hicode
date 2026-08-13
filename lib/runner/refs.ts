@@ -1,6 +1,6 @@
 import { readFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { CARDS_DIR } from './config'
+import { cardsDir } from './config'
 import { run } from './git'
 
 function isBlockedHost(host: string): boolean {
@@ -31,11 +31,11 @@ function isInRefsDir(p: string, id: string): boolean {
 }
 
 function refsFile(id: string): string {
-  return join(CARDS_DIR, 'refs', `${id}.json`)
+  return join(cardsDir(), 'refs', `${id}.json`)
 }
 
 function refsDir(id: string): string {
-  return join(CARDS_DIR, 'refs', id)
+  return join(cardsDir(), 'refs', id)
 }
 
 export function readRefSources(id: string): string[] {

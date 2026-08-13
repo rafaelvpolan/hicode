@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
 import { splitFrontMatter, serializeCard, appendLog, isoNow } from '../card'
 import type { Card, Fields } from '../card'
-import { CARDS_DIR, REPOS_FILE, ROOT } from './config'
+import { cardsDir, reposFile, ROOT } from './config'
 import { withFileLock, writeFileAtomic } from './file-lock'
 
 interface RepoConfig {
@@ -12,7 +12,7 @@ interface RepoConfig {
 }
 
 export function cardFiles(): string[] {
-  return existsSync(CARDS_DIR) ? readdirSync(CARDS_DIR).filter(f => f.endsWith('.md')) : []
+  return existsSync(cardsDir()) ? readdirSync(cardsDir()).filter(f => f.endsWith('.md')) : []
 }
 
 export function findCardFile(id: string): string | null {
@@ -22,13 +22,13 @@ export function findCardFile(id: string): string | null {
 export function readCard(id: string): Card | null {
   const f = findCardFile(id)
   if (!f) return null
-  return { ...splitFrontMatter(readFileSync(join(CARDS_DIR, f), 'utf8')), file: f }
+  return { ...splitFrontMatter(readFileSync(join(cardsDir(), f), 'utf8')), file: f }
 }
 
 export function patchCard(id: string, fields: Fields, logLine?: string): void {
   const name = findCardFile(id)
   if (!name) return
-  const file = join(CARDS_DIR, name)
+  const file = join(cardsDir(), name)
   withFileLock(file, () => {
     const { fm, order, body } = splitFrontMatter(readFileSync(file, 'utf8'))
     for (const [k, v] of Object.entries(fields)) {
@@ -47,7 +47,7 @@ export function cardsByStatus(status: string): Array<Fields & { file: string }> 
 
 export function allCards(): Array<Fields & { file: string }> {
   return cardFiles()
-    .map((f): Fields & { file: string } => ({ ...splitFrontMatter(readFileSync(join(CARDS_DIR, f), 'utf8')).fm, file: f }))
+    .map((f): Fields & { file: string } => ({ ...splitFrontMatter(readFileSync(join(cardsDir(), f), 'utf8')).fm, file: f }))
     .filter(c => c.id)
 }
 
@@ -66,13 +66,13 @@ export function createCard(fields: Fields, body: string): string {
   const slug = fields.slug || slugify(fields.title || '')
   const fm: Fields = { id, slug, status: 'READY', ...fields, updated: isoNow() }
   const order = Object.keys(fm)
-  writeFileSync(join(CARDS_DIR, `${id}-${slug}.md`), serializeCard(fm, order, body) + '\n')
+  writeFileSync(join(cardsDir(), `${id}-${slug}.md`), serializeCard(fm, order, body) + '\n')
   return id
 }
 
 function loadRepos(): RepoConfig[] {
   try {
-    return JSON.parse(readFileSync(REPOS_FILE, 'utf8')) as RepoConfig[]
+    return JSON.parse(readFileSync(reposFile(), 'utf8')) as RepoConfig[]
   } catch {
     return []
   }

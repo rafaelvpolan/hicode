@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { Card, ImplementResult, StepMap, StepMetric, Usage } from '../card'
-import { CARDS_DIR, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
+import { cardsDir, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
 import { clarify, writeClarify } from './clarify'
 import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
@@ -138,7 +138,7 @@ export async function handleExecute(id: string): Promise<void> {
     process.stdout.write(`[runner] #${id}: preview ao vivo em http://localhost:${port} (durante a execucao)\n`)
   }
   const t0 = Date.now()
-  const shotPath = join(CARDS_DIR, 'previews', String(id), 'preview.png')
+  const shotPath = join(cardsDir(), 'previews', String(id), 'preview.png')
   const steps = initialSteps()
   const tx = Date.now()
   const res = await implement(card, wt, '', surface.surface === 'visual')
