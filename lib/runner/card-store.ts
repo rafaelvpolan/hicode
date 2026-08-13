@@ -25,20 +25,34 @@ export function readCard(id: string): Card | null {
   return { ...splitFrontMatter(readFileSync(join(cardsDir(), f), 'utf8')), file: f }
 }
 
-export function patchCard(id: string, fields: Fields, logLine?: string): void {
+export interface CardPatch {
+  fields?: Fields
+  body?: (body: string, fm: Fields) => string
+  log?: string | ((fm: Fields) => string)
+}
+
+export function updateCard(id: string, patch: CardPatch): Fields | null {
   const name = findCardFile(id)
-  if (!name) return
+  if (!name) return null
   const file = join(cardsDir(), name)
-  withFileLock(file, () => {
+  return withFileLock(file, () => {
     const { fm, order, body } = splitFrontMatter(readFileSync(file, 'utf8'))
-    for (const [k, v] of Object.entries(fields)) {
+    const before: Fields = { ...fm }
+    for (const [k, v] of Object.entries(patch.fields ?? {})) {
       fm[k] = v
       if (!order.includes(k)) order.push(k)
     }
     fm.updated = isoNow()
-    const nb = logLine ? appendLog(body, logLine) : body
+    let nb = patch.body ? patch.body(body, before) : body
+    const line = typeof patch.log === 'function' ? patch.log(before) : patch.log
+    if (line) nb = appendLog(nb, line)
     writeFileAtomic(file, serializeCard(fm, order, nb) + '\n')
+    return { ...fm, file: name }
   })
+}
+
+export function patchCard(id: string, fields: Fields, logLine?: string): void {
+  updateCard(id, { fields, log: logLine })
 }
 
 export function cardsByStatus(status: string): Array<Fields & { file: string }> {
