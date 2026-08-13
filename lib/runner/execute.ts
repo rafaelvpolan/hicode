@@ -7,7 +7,7 @@ import { clarify, writeClarify } from './clarify'
 import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
-import { freePort, hasBuildScript, inspectPreview, previewPort, startPreview, stopPreview, waitHttp } from './preview'
+import { freePort, hasDevServer, inspectPreview, previewPort, startPreview, stopPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
@@ -63,7 +63,7 @@ function asStepMap(steps: ExecuteSteps): StepMap {
 function resolveSurface(card: Card, target: string): SurfaceVerdict {
   const explicit = card.fm.surface
   if (explicit === 'visual' || explicit === 'none') return { surface: explicit, reason: 'definido no card' }
-  return classifySurface(card.fm.title ?? '', extractObjetivo(card.body), hasBuildScript(target))
+  return classifySurface(card.fm.title ?? '', extractObjetivo(card.body), hasDevServer(target))
 }
 
 async function commitAndRecord(id: string, wt: string, card: Card, steps: ExecuteSteps, res: ImplementResult, t0: number): Promise<{ costSum: number; tokensTotal: number }> {
@@ -131,9 +131,9 @@ export async function handleExecute(id: string): Promise<void> {
   process.stdout.write(`[runner] #${id}: implementando em worktree ${wt}\n`)
   const port = previewPort(id)
   let previewPid = 0
-  if (surface.surface === 'visual' && hasBuildScript(target)) {
+  if (surface.surface === 'visual' && hasDevServer(target)) {
     await freePort(port)
-    previewPid = startPreview(wt, port)
+    previewPid = startPreview(wt, port, target)
     patchCard(id, { preview_url: `http://localhost:${port}`, preview_pid: String(previewPid) }, `${isoNow()} preview subindo em http://localhost:${port} — acompanhe pelo link enquanto a IA trabalha`)
     process.stdout.write(`[runner] #${id}: preview ao vivo em http://localhost:${port} (durante a execucao)\n`)
   }
@@ -171,7 +171,7 @@ export async function handleExecute(id: string): Promise<void> {
     return
   }
   const tpv = Date.now()
-  const pid = previewPid || (hasBuildScript(target) ? startPreview(wt, port) : 0)
+  const pid = previewPid || (hasDevServer(target) ? startPreview(wt, port, target) : 0)
   const url = pid ? `http://localhost:${port}` : ''
   const up = pid ? await waitHttp(url, 30) : false
   steps.Preview.time = toSeconds(Date.now() - tpv)

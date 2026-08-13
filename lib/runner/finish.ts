@@ -5,7 +5,7 @@ import { MAX_REAJUSTE, MAX_CONFLICT, CARD_BUDGET_USD, PROJECT_MEMORY } from './c
 import { appendProjectMemory } from './memory'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
-import { freePort, hasBuildScript, hasTestScript, previewPort, httpOk, inspectPreview, startPreview, stopPreview, waitHttp } from './preview'
+import { freePort, hasDevServer, previewPort, httpOk, inspectPreview, startPreview, stopPreview, waitHttp } from './preview'
 import { runStep } from './agent'
 import { activeSteps } from './pipeline/config'
 import { isNonVisual } from './classify'
@@ -14,6 +14,15 @@ import type { PipelineStep } from './pipeline/types'
 import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
 import { runCodefoxGate, persistGate, buildPrBody, gateOutcome, gateHaltReason } from './codefox-gate'
+import { ensureContract } from '../contract/store'
+import { affectedPackage, resolveCommand } from './commands'
+import type { Contract, PackageInfo } from '../contract/types'
+
+interface RunCtx {
+  contract: Contract
+  pkg: PackageInfo | undefined
+  target: string
+}
 
 interface SyncResult {
   ok: boolean
@@ -30,44 +39,50 @@ async function commitAll(wt: string, message: string): Promise<void> {
   await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', message])
 }
 
-async function buildWithReajuste(id: string, wt: string, fsteps: StepMap, timeKey: string, reajusteKey: string): Promise<boolean> {
+async function buildWithReajuste(id: string, wt: string, ctx: RunCtx, fsteps: StepMap, timeKey: string, reajusteKey: string): Promise<boolean> {
+  const cmd = resolveCommand(ctx.contract, 'build', wt, ctx.pkg)
+  if (!cmd) {
+    patchCard(id, {}, `${isoNow()} build: alvo sem script de build no contrato — gate de build pulado`)
+    return true
+  }
   const tb = Date.now()
-  let b = await run('npm', ['run', 'build'], { cwd: wt, timeout: 240000 })
+  let b = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
   addMetric(fsteps, timeKey, { time: Math.round((Date.now() - tb) / 1000), cost: 0, tokens: 0 })
   let reajuste = 0
   while (b.err && reajuste < MAX_REAJUSTE) {
     reajuste++
     const tr = Date.now()
     const detail = String(b.stderr || b.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou. Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`, id)
-    b = await run('npm', ['run', 'build'], { cwd: wt, timeout: 240000 })
+    const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou (${cmd.label}). Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`, id, ctx.target)
+    b = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
     addMetric(fsteps, reajusteKey, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
     patchCard(id, {}, `${isoNow()} REAJUSTE (${reajuste}/${MAX_REAJUSTE}, rufus): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
     process.stdout.write(`[runner] #${id}: REAJUSTE ${reajuste} (rufus)\n`)
   }
-  if (!b.err) patchCard(id, {}, `${isoNow()} build (tsc + vite) exit=0${reajuste ? ` (apos ${reajuste} reajuste)` : ''}`)
+  if (!b.err) patchCard(id, {}, `${isoNow()} build (${cmd.label}) exit=0${reajuste ? ` (apos ${reajuste} reajuste)` : ''}`)
   return !b.err
 }
 
-async function testGate(id: string, wt: string, target: string, fsteps: StepMap, label: string): Promise<boolean> {
-  if (!hasTestScript(target)) {
-    patchCard(id, {}, `${isoNow()} ${label}: alvo sem script de teste — gate de teste pulado`)
+async function testGate(id: string, wt: string, ctx: RunCtx, fsteps: StepMap, label: string): Promise<boolean> {
+  const cmd = resolveCommand(ctx.contract, 'test', wt, ctx.pkg)
+  if (!cmd) {
+    patchCard(id, {}, `${isoNow()} ${label}: alvo sem script de teste no contrato — gate de teste pulado`)
     return true
   }
   const tb = Date.now()
-  let t = await run('npm', ['test'], { cwd: wt, timeout: 240000 })
+  let t = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
   addMetric(fsteps, label, { time: Math.round((Date.now() - tb) / 1000), cost: 0, tokens: 0 })
   let reajuste = 0
   while (t.err && reajuste < MAX_REAJUSTE) {
     reajuste++
     const tr = Date.now()
     const detail = String(t.stderr || t.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'testudo', `Os testes do projeto falharam. Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`, id)
-    t = await run('npm', ['test'], { cwd: wt, timeout: 240000 })
+    const rr = await runStep(wt, 'testudo', `Os testes do projeto falharam (${cmd.label}). Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`, id, ctx.target)
+    t = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
     addMetric(fsteps, label, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
     patchCard(id, {}, `${isoNow()} REAJUSTE testes (${reajuste}/${MAX_REAJUSTE}, testudo): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
   }
-  if (!t.err) patchCard(id, {}, `${isoNow()} ${label}: npm test exit=0${reajuste ? ` (apos ${reajuste} reajuste)` : ''}`)
+  if (!t.err) patchCard(id, {}, `${isoNow()} ${label}: ${cmd.label} exit=0${reajuste ? ` (apos ${reajuste} reajuste)` : ''}`)
   return !t.err
 }
 
@@ -109,13 +124,13 @@ async function revalidate(id: string, card: Card, wt: string, target: string, fs
   let ok = true
   let reason = 'sem dev server (revalidacao pulada)'
   const rt = Date.now()
-  if (hasBuildScript(target)) {
+  if (hasDevServer(target)) {
     const rport = previewPort(id)
     const rurl = `http://localhost:${rport}`
     let up = await httpOk(rurl)
     if (!up) {
       await freePort(rport)
-      startPreview(wt, rport)
+      startPreview(wt, rport, target)
       up = await waitHttp(rurl, 25)
     }
     if (up) {
@@ -166,6 +181,11 @@ export async function handleFinish(id: string): Promise<void> {
   const resumeFrom = card.fm.resume_from ?? ''
   if (resumeFrom) patchCard(id, { resume_from: '' }, `${isoNow()} retomando finish a partir de ${resumeFrom}`)
   const desc = extractObjetivo(card.body) || card.fm.title
+  const contract = ensureContract(target, isoNow())
+  const changed = (await runGit(wt, ['diff', '--name-only', `origin/${base}...HEAD`])).stdout.split('\n').filter(Boolean)
+  const pkg = affectedPackage(contract, changed)
+  const ctx: RunCtx = { contract, pkg, target }
+  patchCard(id, {}, `${isoNow()} contrato: ${contract.stack}${pkg ? ` · pacote afetado: ${pkg.name}` : ''}`)
   const all = activeSteps(wt)
   const plan = planSteps({ title: card.fm.title, objetivo: desc, risk: card.fm.risk, surface: card.fm.surface, override: card.fm.steps }, all)
   const steps = plan.steps
@@ -196,7 +216,7 @@ export async function handleFinish(id: string): Promise<void> {
       r = { time: sr.time, cost: sr.cost, tokens: sr.tokens, text: sr.text }
     }
     fsteps[step.label] = { time: r.time, cost: r.cost, tokens: r.tokens }
-    if (step.gate === 'test' && !(await testGate(id, wt, target, fsteps, step.label))) {
+    if (step.gate === 'test' && !(await testGate(id, wt, ctx, fsteps, step.label))) {
       updateRunSteps(id, fsteps)
       patchCard(id, { status: 'HALTED' }, `${isoNow()} ${step.label}->HALTED testes falharam apos reajuste(s)`)
       return
@@ -204,7 +224,7 @@ export async function handleFinish(id: string): Promise<void> {
     patchCard(id, { status: step.state }, `${isoNow()} ${step.label} (${step.agent})${step.gated ? ' [crivo ok]' : ''}: ${r.text || 'ok'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
     process.stdout.write(`[runner] #${id}: ${step.label} (${step.agent}) $${r.cost.toFixed(4)}\n`)
   }
-  if (hasBuildScript(target) && !(await buildWithReajuste(id, wt, fsteps, 'Testes', 'Reajuste'))) {
+  if (!(await buildWithReajuste(id, wt, ctx, fsteps, 'Testes', 'Reajuste'))) {
     updateRunSteps(id, fsteps)
     patchCard(id, { status: 'HALTED' }, `${isoNow()} build->HALTED build falhou apos reajuste(s)`)
     return
@@ -218,7 +238,7 @@ export async function handleFinish(id: string): Promise<void> {
     return
   }
   if (sync.changed) {
-    if (hasBuildScript(target) && !(await buildWithReajuste(id, wt, fsteps, 'Conflito', 'Conflito'))) {
+    if (!(await buildWithReajuste(id, wt, ctx, fsteps, 'Conflito', 'Conflito'))) {
       updateRunSteps(id, fsteps)
       patchCard(id, { status: 'HALTED' }, `${isoNow()} CLEANED->HALTED build falhou apos merge com ${base}`)
       return

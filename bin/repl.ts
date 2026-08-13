@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { ROOT, reposFile } from '../lib/runner/config'
 import { allCards, listRepos, readCard, repoPath, repoRegistered } from '../lib/runner/card-store'
-import { hasBuildScript } from '../lib/runner/preview'
+import { hasDevServer } from '../lib/runner/preview'
 import * as core from '../lib/core/actions'
 import { buildPlan } from '../lib/core/plan'
 import { renderPlan } from '../lib/core/render/plan'
@@ -70,7 +70,7 @@ function showPlan(id: string, state: SessionState): SessionState {
     return state
   }
   const target = repoPath(card.fm.repo ?? '')
-  const plan = buildPlan({ card, hasDevServer: existsSync(target) && hasBuildScript(target) })
+  const plan = buildPlan({ card, hasDevServer: existsSync(target) && hasDevServer(target) })
   say('')
   say(renderPlan(plan, { color }))
   say('')
