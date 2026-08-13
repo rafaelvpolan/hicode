@@ -13,6 +13,7 @@ export interface PipelineStep {
   gate: GateKind
   enabled: boolean
   gated?: boolean
+  needs?: string[]
   instruction: string
 }
 
