@@ -22,7 +22,9 @@ export function reconcileStranded(): void {
   }
   for (const s of RERUN_STATES) {
     for (const c of cardsByStatus(s)) {
-      patchCard(c.id ?? '', {}, `${isoNow()} ${s} interrompido por reinicio do daemon — sera reexecutado`)
+      if (c.reconciled !== s) {
+        patchCard(c.id ?? '', { reconciled: s }, `${isoNow()} ${s} interrompido por reinicio do daemon — sera reexecutado`)
+      }
       process.stdout.write(`[runner] #${c.id}: ${s} interrompido, reexecutando apos reinicio\n`)
     }
   }

@@ -98,16 +98,36 @@ test('agente que falha consome tentativa e nao chama o crivo', async () => {
   expect(stepCalls.length).toBe(2)
 })
 
-test('CARACTERIZACAO: gate que NAO executou conta como reprovacao e queima tentativa', async () => {
+test('REGRESSAO crivo indisponivel: repete o GATE, nao reexecuta o agente', async () => {
   const naoRodou = gate({ ok: false, verdict: 'CONDITIONAL', reason: 'gate NAO executou (timeout)' })
-  const id = reset(
-    [step({}), step({}), step({})],
-    [naoRodou, naoRodou, naoRodou],
-  )
+  const id = reset([step({}), step({}), step({})], [naoRodou, naoRodou, naoRodou])
   const r = await run(id)
   expect(r.ok).toBe(false)
-  expect(r.reason).toContain('crivo nao executou')
-  expect(stepCalls.length).toBe(3)
+  expect(r.reason).toContain('crivo indisponivel')
+  expect(stepCalls.length).toBe(1)
+})
+
+test('REGRESSAO crivo falha e volta na repeticao: aproveita o trabalho ja feito', async () => {
+  const naoRodou = gate({ ok: false, verdict: 'CONDITIONAL', reason: 'saida ilegivel' })
+  const id = reset([step({})], [naoRodou, gate({ verdict: 'APPROVED' })])
+  const r = await run(id)
+  expect(r.ok).toBe(true)
+  expect(stepCalls.length).toBe(1)
+})
+
+test('REGRESSAO crivo indisponivel nao vira reprovacao no prompt do agente', async () => {
+  const naoRodou = gate({ ok: false, verdict: 'CONDITIONAL', reason: 'timeout' })
+  const id = reset([step({}), step({})], [naoRodou, naoRodou])
+  await run(id)
+  expect(stepCalls.some(c => c.instrucao.includes('CRIVO reprovou'))).toBe(false)
+})
+
+test('custo do gate repetido entra na conta mesmo sem veredito', async () => {
+  const naoRodou = gate({ ok: false, verdict: 'CONDITIONAL', reason: 'timeout', cost: 0.02, tokens: 200 })
+  const id = reset([step({ cost: 0.01, tokens: 100 })], [naoRodou, naoRodou])
+  const r = await run(id)
+  expect(r.metric.cost).toBeCloseTo(0.05, 5)
+  expect(r.metric.tokens).toBe(500)
 })
 
 test('custo e tokens somam agente + crivo de todas as tentativas', async () => {

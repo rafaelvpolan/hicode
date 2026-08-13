@@ -59,6 +59,27 @@ test('reconcile e idempotente: rodar duas vezes nao muda mais nada', () => {
   expect(statusOf(id)).toBe(depois)
 })
 
+function ocorrencias(id: string, trecho: string): number {
+  return (readCard(id)?.body.match(new RegExp(trecho, 'g')) ?? []).length
+}
+
+test('REGRESSAO: reinicio repetido nao duplica a linha de interrompido no card', () => {
+  const id = card('EXECUTING')
+  reconcileStranded()
+  reconcileStranded()
+  reconcileStranded()
+  expect(ocorrencias(id, 'interrompido por reinicio do daemon')).toBe(1)
+})
+
+test('REGRESSAO: card que muda de estado volta a registrar o interrompido', async () => {
+  const { patchCard } = await import('../lib/runner/card-store')
+  const id = card('EXECUTING')
+  reconcileStranded()
+  patchCard(id, { status: 'CORRECTING' })
+  reconcileStranded()
+  expect(ocorrencias(id, 'interrompido por reinicio do daemon')).toBe(2)
+})
+
 test('pending: spec vem antes de execute, finish e correct', () => {
   const sp = card('SPECCED')
   const ex = card('EXECUTING')
