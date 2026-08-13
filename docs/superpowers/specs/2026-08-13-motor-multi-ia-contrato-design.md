@@ -126,9 +126,14 @@ consultada quando ele falha.
 
 ```
 INBOX
+ └─ BRAINSTORM ................... pergunta TUDO antes · uma por vez · fail-closed
+     └─ só o que contrato/índice não resolvem sozinhos
+ └─ PLANO ........................ o que será feito · é layout? · agentes+skills · IA por step
+     └─ arquivos/pacotes tocados · fatias (se pilha) · custo estimado · COMO será verificado
+     └─ PLAN_APPROVED ............ humano aprova · SEMPRE, para todo card
  └─ SPEC ......................... só grande/breaking · gate: openspec validate --strict
- └─ LAYOUT ....................... só se visual SUBJETIVO · monofile, na stack do projeto, sem contrato
-     └─ PREVIEW_LAYOUT ........... aprovação humana · o screenshot aprovado vira a barra do §8.2
+ └─ LAYOUT ....................... se o plano aprovou · monofile, na stack do projeto, sem contrato
+     └─ PREVIEW_LAYOUT ........... humano vê no DEV SERVER e aprova · o screenshot vira a barra do §8.2
  └─ EXECUTE ...................... contrato de CRIAÇÃO (fino)
      └─ PREVIEW .................. aprovação humana (auto se não-visual)
  └─ POLIMENTO (DAG) .............. arquitetura → { testes ∥ segurança }
@@ -146,6 +151,59 @@ A via rápida corta o grafo: card classificado como **`micro`** (§6) vai de INB
 lookup → patch → PREVIEW → gate.
 
 ---
+
+### 3.1 Brainstorm e plano — a porta de entrada de todo card
+
+**Todo card passa por plano aprovado por humano. Sem exceção.** O que escala com a simplicidade da
+tarefa é o **artefato**, nunca o **gate**: para um card `micro` o plano é uma linha; para uma
+feature com `pilha: on` são as fatias e os agentes. A aprovação é igual nos dois casos.
+
+#### Brainstorm — perguntar tudo antes, mas só o que importa
+
+Duas correções ao que existe hoje:
+
+1. **Fail-closed.** `clarify.ts` hoje é fail-open: JSON não-parseável vira "tarefa clara" e o card
+   segue (`execute.ts:105`). Sob "perguntar tudo antes", saída ilegível significa **perguntar ao
+   humano**, nunca prosseguir. É o mesmo defeito do gate final (§2.3.1), na outra ponta do pipeline.
+2. **Depois do contrato e do índice, não antes.** O motor só pergunta o que **não consegue
+   descobrir sozinho**. Perguntar "qual framework?" quando o contrato (§4) sabe, ou "onde fica esse
+   texto?" quando o índice (§6) resolve, é ruído — e ruído treina a pessoa a carimbar sem ler, que
+   destrói justamente o gate que estamos criando.
+
+Formato: **uma pergunta por vez**, múltipla escolha quando couber, focadas em propósito, restrição
+e critério de sucesso. Pergunta cuja resposta não muda o que será feito não deve ser feita.
+
+#### O plano — o que precisa conter para ser aprovável
+
+| Campo | Origem |
+|---|---|
+| **É layout?** sim/não + por quê; se sim, propõe `layout: on` | analisador (§6.1, corte localizado × subjetivo) |
+| Perfil de steps e quais rodam | `analyze.ts` (§ perfis) |
+| **Agentes e skills por step**, com justificativa | catálogo Nexus (`.claude/agents/`) + skills |
+| **Qual IA em cada step** + `effort` | router (§7.3), marcando o que **exige `claude`** (D10) |
+| Arquivos/pacotes que serão tocados | contrato + índice — é o que permite pegar erro de escopo |
+| Fatias, se `pilha: on` | decomposição proposta (§14) |
+| Barra do gauntlet, se `effort: max` | §8.2, com o gate de validação da barra |
+| **Custo estimado** | tabela de preço × tamanho de prompt (depende de R1) |
+| **Como será verificado** | E2E, invariantes, preview, A/B — declarado *antes* de fazer |
+
+Os dois últimos são os que mais mudam a conversa. Custo estimado antes de gastar transforma "isso
+saiu caro" em decisão consciente. E declarar o critério de verificação antes de executar é o
+elemento *metric* do loop engineering (§8.2): sem ele, o sucesso é negociado depois do fato.
+
+A marcação de **o que exige `claude`** é o que torna a restrição D10 visível: o plano mostra, por
+step, se a escolha de IA barata desligaria skill ou MCP — em vez de degradar em silêncio.
+
+#### Aprovação visual é humana, no dev server
+
+A parte visual é validada por **quem pediu**, no dev server em execução — não por visão de IA. O
+motor entrega URL viva e estável; `VISUAL_AI` fica **off** por padrão (o código já é assim em
+`config.ts:18`; o README é que está errado).
+
+A IA **nunca aprova intenção visual**. Ela só é usada depois, no refino, para conferir **fidelidade
+ao screenshot que o humano já aprovou** (o A/B do §8.2). A linha é essa: humano decide se é o
+resultado certo; IA verifica se a implementação sob contrato continua batendo com o que foi
+aprovado.
 
 ## 4. Peça 1 — contrato do repositório
 
@@ -864,6 +922,11 @@ repositório, e modelos novos recebem prompt que mente sobre o alvo.
 | D8 | ~~Fatiamento em cards filhos, em corrente~~ **superada** — ver D17 | a premissa "pilha = corrente" estava errada: decomposição é árvore rasa, não cadeia |
 | D17 | **Fatiar antes, como DAG de cards**: `fatia-00` base → N irmãs **em paralelo** → integração opcional. Só as genuinamente dependentes empilham. Fatiar depois fica como fallback documentado para decomposição não-conhecível antes | atende o paralelismo sem comprar o subsistema de corte na entrega (guard de file-set, planner de partição, reparo, agrupamento, montagem de histórico ≈ 5× o trabalho); aprovação da decomposição acontece **antes** de gastar; entrega parcial preservada; R7 deixa de existir |
 | D20 | `pilha` e `layout` são **flags explícitas do card**, default `off`, ativadas pelo humano na submissão. O analisador **sugere**, nunca ativa | mesma lógica do merge humano: quem decide o que é caro de errar é a pessoa |
+| D21 | **Plano aprovado por humano em todo card**, sem exceção. O artefato escala com a complexidade; o gate nunca | erro de escopo custa o run inteiro; aprovar um plano custa segundos |
+| D22 | Clarify **fail-closed** e posterior ao contrato/índice: só pergunta o que o motor não descobre sozinho | JSON ilegível virando "tarefa clara" (`execute.ts:105`) é o mesmo defeito do gate final; e pergunta desnecessária treina a pessoa a carimbar sem ler |
+| D23 | O plano declara **agente + skill + IA por step**, marcando explicitamente o que exige `claude` | torna a restrição D10 visível na hora da decisão, em vez de degradar em silêncio |
+| D24 | Aprovação visual é **humana, no dev server**; `VISUAL_AI` off por padrão. IA nunca aprova intenção visual — só confere fidelidade ao screenshot já aprovado | quem pediu é quem sabe se é o resultado certo; à IA cabe verificar que o refino sob contrato não desviou do aprovado |
+| D25 | O plano declara **custo estimado** e **como será verificado**, antes de executar | custo vira decisão consciente; critério de sucesso declarado antes impede negociá-lo depois do fato |
 | D18 | Layout-first **sem contrato, monofile, na stack já existente no projeto**; refinamento **reimplementa** sob contrato a partir do screenshot aprovado, apagando o rascunho | rejeição estética passa a custar um passe barato; renderizar na stack real é o que faz o screenshot ser uma barra **alcançável por construção** para o §8.2 (resolve D15); "um arquivo" é verificável, "simples" não |
 | D19 | Analisador corta por **localizado × subjetivo**, não visual × não-visual | "remover o negrito" é `micro` (índice + patch); "deixar mais chamativo" precisa do passe desleixado |
 | D9 | Contrato em duas projeções (criação fina, revisão grossa) | `.shared/memory/feedback_contract_two_moments_local.md` — construção não cobra padrão |
