@@ -727,19 +727,63 @@ rebase/`restack` quando o card faz parte de uma.
 
 ---
 
-## 15. Riscos
+## 15. Riscos e contramedidas
 
-1. **Custo por card multiplica.** Spec + layout + execute + polimento + autor de E2E + N juízes +
-   gate. O gateway (modelo barato no julgamento), o RTK e o escopo por pacote afetado não são
-   otimizações opcionais — são o que torna este pipeline pagável.
-2. **E2E flaky vira fonte de HALT.** Mitigado pela distinção flake/defeito (§9); se a suíte do alvo
-   for instável, o gate precisa começar como não-bloqueante.
-3. **Dependência de infra nova** (gateway). Mitigado por health check e bypass.
-4. **Non-determinismo de roteamento.** Mitigado por combos pinados e registro do modelo resolvido.
-5. **Índices apodrecem.** Índice errado é pior que ausente. Invalidação por hash é obrigatória, não
-   otimização.
-6. **Fonte externa desatualizada.** Mitigado pela precedência (fato do repo vence) e pela trava de
-   comandos.
+**Princípio.** A maioria destes riscos não se elimina — converte-se. O que se elimina é a *classe*:
+transformar "falha cara, tardia e silenciosa" em "falha barata, imediata e visível". Seis dos dez
+seguem o mesmo padrão: **um check determinístico e barato no ponto de uso, antes de pagar**.
+
+| # | Risco | Contramedida | Resíduo |
+|---|---|---|---|
+| R1 | custo multiplica | contabilidade primeiro; corte pré-gasto por classe; teto duplo | permanece — só limitável |
+| R2 | E2E flaky | quarentena de spec instável | vira manutenção |
+| R3 | gateway como dependência | candidato direto no fim da fila + circuit breaker | degradação de custo |
+| R4 | roteamento não-determinístico | pinar modelo por card + replay | eliminado p/ reprodução |
+| R5 | índice apodrece | verificar no ponto de uso | vira cache miss |
+| R6 | fonte externa velha | TTL visível + staleness declarada no PR | eliminado o silêncio |
+| R7 | partição do fan-out errada | guard reporta o arquivo faltante → recomputa 1× | degrada p/ builder único |
+| R8 | desleixo do layout vaza | commits marcados; PR recusa arquivo marcado não-refinado | eliminado |
+| R9 | A/B "cego" que não é cego | cegar mecanicamente + sonda de calibração | ver abaixo |
+| R10 | duas fontes de verdade | engine dono do estado; card é projeção com geração | eliminado |
+
+**R1 — a ordem importa mais que o teto.** Único risco cuja falha é lenta, invisível e cumulativa:
+os outros falham alto (card para, gate bloqueia, guard recusa); um pipeline 5× mais caro não dá
+HALT, drena em silêncio. E hoje o motor **não consegue ver** — `codex.ts:63` e `ollama.ts:47`
+reportam `cost: 0`, então `CARD_BUDGET_USD` é decorativo. Logo: **corrigir a contabilidade antes de
+instituir qualquer teto.** Teto sobre número errado é teatro de governança. Orçamento por classe de
+card só depois de medir, com números de medição — não de estimativa.
+
+Redutores estruturais (multiplicativos, não aditivos): cache do prefixo estável (§7.6), escopo por
+pacote afetado (§5), via rápida `micro` (§6), papéis de julgamento fora da CLI (§7.6), curadoria de
+contexto (§7.6).
+
+**R2 — quarentena, não gate não-bloqueante.** Spec que falha e passa em rerun isolado é marcada
+flaky, continua rodando e **nunca gateia**, com contador. Só falha reproduzível bloqueia. Se a taxa
+de flake do alvo passar do limite, o gate se auto-desliga e reporta em vez de derrubar cards.
+
+**R5 — o índice deixa de poder errar.** Hash diz que o arquivo mudou, não que a entrada ficou
+errada. Se o motor **confere no uso** que o texto ainda está naquele símbolo antes de entregar ao
+agente, índice podre vira cache miss: cai na busca, reindexa, segue. Custo: um grep. Índice
+verificado no ponto de uso nunca dá resposta errada, só resposta lenta.
+
+**R9 — sonda de calibração.** Cegar mecanicamente ainda não diz se o crítico está julgando. Detector
+barato: periodicamente, entregar a ele **duas cópias do mesmo artefato**. Preferência forte = ou o
+cegamento vaza, ou o crítico é ruído — nos dois casos o veredito não vale nada. Sem essa sonda não
+há como saber se o gauntlet funciona ou performa.
+
+Este é o segundo risco que eu temo, porque produz **confiança falsa**: um verde que não significa
+nada, e no qual se confiaria mais que na rubrica substituída. Risco que gera falso positivo de
+qualidade é pior que risco que gera falha — a falha você vê.
+
+**R4 — pinar por card, não por chamada.** Combo pinado por classe ainda deixa o modelo variar entre
+chamadas do mesmo card. Uma vez resolvido "review" no modelo X para o card #42, todas as chamadas
+de review daquele card usam X. É o que torna um HALT reproduzível, e habilita
+`hii run <id> --pin-models-from <run>`.
+
+**R7 — reparo de partição, uma vez.** A partição sai do grafo de pacotes do contrato + code-map, não
+de palpite de LLM. Parte que bate no guard **reporta o arquivo que precisava**; o motor move esse
+arquivo para a fatia-00 base, recomputa e re-roda **só aquela parte**. Acima de K reparos, cai para
+builder único — degradação, não falha.
 
 ---
 
