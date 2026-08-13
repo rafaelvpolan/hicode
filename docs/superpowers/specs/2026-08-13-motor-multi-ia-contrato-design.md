@@ -133,7 +133,8 @@ INBOX
      └─ PREVIEW .................. aprovação humana (auto se não-visual)
  └─ POLIMENTO (DAG) .............. arquitetura → { testes ∥ segurança }
  └─ E2E .......................... qa-tester + Playwright · gate: exit code real
- └─ SCORE ........................ rubrica 0–10 · painel cross-família · mediana · loop até ≥9 ou platô
+ └─ JULGAMENTO ................... gauntlet (A/B cego vs barra nomeada) se effort:max e barra válida
+                                   senão rubrica 0–10 · painel cross-família · mediana · platô
  └─ REVISÃO ...................... contrato de REVISÃO (crivo + invariantes determinísticos)
  └─ PR_OPEN ...................... para. merge é humano.
 ```
@@ -386,6 +387,146 @@ vulnerabilidade).
 Razão: calibração de LLM entre 8 e 9 é ruído. Com `MAX_REAJUSTE=2`, meta literal faria um card que
 estaciona em 8 queimar três ciclos completos de polimento para terminar em `HALTED`.
 
+### 8.2 Gauntlet Loop — julgar por comparação, não por nota
+
+**Origem.** Matt Shumer, julho/2026. O prompt de três parágrafos que produziu o "Claude of Duty"
+(FPS em Three.js/WebGL2, ~55k linhas, 11 subsistemas, assets gerados em runtime) foi publicado em
+25/07/2026; a técnica foi nomeada dias depois. Conceito com semanas de idade — o que exige tratá-lo
+como promissor e não-validado, não como prática estabelecida.
+
+**Mecânica.** Objetivo + **barra de qualidade nomeada** ("construa X no nível de REFERÊNCIA");
+decomposição em **partes julgáveis independentemente**; builders separados por parte; **crítico
+severo de contexto fresco** compara com a referência em **A/B cego** e **escolhe** (binário, não
+pontua); parte que perde volta para outra rodada.
+
+Requisitos da barra: **nomeada** (coisa específica, não categoria), **buscável** (o crítico
+consegue abrir, rodar ou screenshotar) e **comparável** (as duas versões cabem lado a lado).
+
+#### A taxonomia — e onde o hicode se encaixa
+
+A literatura que se formou em volta situa o Gauntlet dentro de **AI Loop Engineering**: *"projetar
+um sistema em que a IA age, observa o resultado, avalia contra um padrão definido, melhora o
+trabalho e repete até uma condição de sucesso, fronteira de segurança, orçamento ou regra de
+escalonamento parar"* — que é a definição do `METODOLOGIA.md` deste repositório.
+
+E distingue dois tipos:
+
+| | **Gauntlet guiado por prompt** | **Loop recorrente engenheirado** |
+|---|---|---|
+| Unidade | um artefato ambicioso | processo contínuo entre tentativas |
+| Setup | pouco código, se o harness der tools | persistência de estado, gatilhos, permissões |
+| Serve para | jogo, site, design, capítulo | triagem de issue, investigação de CI, testes noturnos |
+
+**O hicode é a coluna da direita; o Gauntlet é a da esquerda.** Integrar = embutir um padrão de
+uma coluna dentro do sistema da outra. A taxonomia valida explicitamente a síntese abaixo.
+
+#### O problema da barra inalcançável — a ressalva que mais importa
+
+Shumer é honesto sobre o próprio resultado: *"a barra de qualidade era uma bússola, não a nota
+final"* — o jogo **não** alcançou paridade com Call of Duty. E uma das implementações descreve o
+método como *"blind A/B against an **unreachable** reference"*.
+
+Isso reinterpreta o "sai ao vencer": **com barra deliberadamente inalcançável, a vitória nunca
+acontece** — daí *"You are the brake. The loop will not finish on its own."* A barra existe para
+puxar qualidade para cima, não para ser atingida.
+
+Para um motor autônomo isso é inaceitável como está: barra inalcançável + sem terminação =
+exaustão de orçamento garantida. Logo, no hicode, **uma de duas condições é obrigatória**: a barra
+é *alcançável* (referência real e batível), **ou** o loop é limitado por teto de rodadas por parte.
+Não é preferência — é a diferença entre um loop que termina e um que só para quando o dinheiro
+acaba.
+
+Confirmação independente: a adaptação de produção mais detalhada que encontrei (Nil Ni, QuizGen.ai)
+adicionou exatamente **"round caps per surface to prevent infinite churning"** ao rodar o padrão
+num produto real.
+
+#### O que a adaptação de produção acrescenta
+
+- **Decompor por _superfície_, não por arquivo** (aquisição, signup, criação, uso central,
+  billing, conta). Casa com o card do hicode melhor que uma lista de arquivos.
+- **Referências por qualidade, não uma só**: Duolingo para *momentum*, NotebookLM para
+  *confiabilidade*, Linear para *precisão*. Cada dimensão tem a sua barra.
+- **Evidência casada ao tipo de risco**: UI → screenshots claro/escuro, mobile/desktop; API →
+  testes de contrato; conteúdo → verificação de citação.
+- **Regras duras como invariantes**: "sem números falsos, depoimentos fabricados, alegações sem
+  suporte" — é o bloco `invariants` do contrato (§4.5).
+- **Barra dolorosamente concreta**: dimensões exatas de screenshot (1440 desktop, 390 mobile),
+  dados de produção e não fixtures, tokens de design inegociáveis.
+- **Formato de veredito explícito**: FAIL com correções específicas, ou "SHIP IT".
+
+#### Os dez modos de falha vs. o hicode
+
+A literatura de loop engineering lista dez. Quatro o motor já resolve **por desenho**; seis são
+exatamente o que este documento corrige:
+
+| Modo de falha | Estado no hicode |
+|---|---|
+| Progresso auto-reportado em vez de teste observável | **já resolvido** — gate lê exit code em disco |
+| Colisão de agentes por isolamento ruim | **já resolvido** — worktree por card |
+| Humano abdicando do julgamento | **já resolvido** — merge humano, perguntas anti-rendição |
+| Objetivo subjetivo sem evidência inspecionável | **já parcial** — preview + screenshot |
+| Builder como único juiz | §8.1 — revisor de família cruzada |
+| Sem fronteira de orçamento → loop infinito | §2.2 (custo cego) + §10.6 |
+| Repetição sem adaptação | §2.2 — o retry repete a mesma receita |
+| Contexto apodrecendo | §7.6 — curadoria |
+| Métrica gameável | guarda anti-clone, abaixo |
+| Permissão larga demais | §13.2 — `opencode --auto` |
+
+#### Onde entra
+
+Substitui o estágio SCORE (§3), não se soma. Em card visual roda também no LAYOUT, onde a barra já
+existe: o motor já baixa as imagens de referência (`refs.ts`) e já tira screenshot do preview
+(`inspectPreview`) — **a maquinaria do A/B cego visual está no repo e nunca foi usada como juiz**.
+Opt-in por `effort: max` (§7.3); é a forma mais cara do desenho.
+
+Convergência: "partes julgáveis independentemente" é critério de decomposição melhor que "partes
+construíveis independentemente" — e é o mesmo que faz uma fatia boa de pilha (§14: cada fatia
+compila sozinha).
+
+**Por que substitui a rubrica.** A rubrica de §8.1 tem problema de calibração (entre 8 e 9 é ruído)
+que mitigamos com detector de platô. O A/B cego contra artefato concreto **não tem calibração para
+derivar** — resolve na raiz o mesmo problema. E responde melhor ao objetivo "resultado que
+impressiona revisor": nota absoluta não impressiona; vencer referência nomeada, sim.
+
+#### Adições do motor, que a técnica crua não cobre
+
+1. **Gate de validação da barra**, determinístico e barato: nomeada? o motor consegue de fato
+   buscá-la/rodá-la/screenshotá-la? comparáveis? **alcançável ou com teto de rodadas?** Se não
+   valida, não entra em modo gauntlet — cai na rubrica. Mata o modo de falha nº1 (barra vaga →
+   crítico inventa a comparação e aprova tudo) antes de gastar token.
+2. **Cegar mecanicamente, não por instrução.** "Compare às cegas" no prompt é teatro: os artefatos
+   vazam qual é qual (caminhos, nomes de arquivo, impressão digital do framework, nossos tokens).
+   Cegar de verdade = randomizar a ordem A/B por comparação, remover caminhos/nomes, normalizar
+   dimensão dos screenshots.
+3. **Guarda anti-clone.** Crítico obrigado a escolher é gamificável por um builder que copia a
+   referência. O diff continua tendo que cumprir o objetivo do card e os invariantes; se a
+   referência é página de terceiro, vencer não pode significar clonar.
+
+#### Quando NÃO usar
+
+A própria literatura: *"faça a tarefa à mão primeiro quando você ainda não consegue descrever o
+sucesso"*; evite autonomia ampla quando o erro é caro ou irreversível, quando o agente não observa
+o resultado real, ou quando **uma passada humana cuidadosa é mais barata que construir e revisar o
+loop**. A adaptação de produção é explícita: não serve para correção pequena, onde montar "uma
+corte de design em miniatura" é puro overhead.
+
+No hicode isso mapeia direto: card de perfil **`micro`** (§6) **nunca** entra em modo gauntlet.
+
+#### Caveat de generalização
+
+A cobertura do "Claude of Duty" registra suspeita de **contaminação de dados**: o modelo
+provavelmente se apoiou em milhares de exemplos documentados de FPS em Three.js. Isso não invalida
+a capacidade de montagem do agente, mas impede extrapolar o resultado do demo para domínio
+proprietário — onde não existe corpus equivalente. Motivo a mais para a barra ser *alcançável* e
+medida, não aspiracional.
+
+Fontes: [robonuggets/gauntlet-loop](https://github.com/robonuggets/gauntlet-loop) ·
+[duolahypercho/gauntlet-loop](https://github.com/duolahypercho/gauntlet-loop) ·
+[AI Loop Engineering & Gauntlet Loops (2026)](https://www.thepromptindex.com/ai-loop-engineering-gauntlet-loop-guide.html) ·
+[Decrypt — Claude of Duty](https://decrypt.co/374560/dumbest-ai-prompt-claude-beat-careful-game-design) ·
+[Nil Ni — Gauntlet Loop no Claude Code](https://www.nilni.com/blog/gauntlet-loop-claude-code-prompt) ·
+[Enterprise DNA — repercussão](https://enterprisedna.co/resources/ai-pulse/ai-pulse-2026-07-28-matt-shumer-s-single-prompt-three-js-fps-claude-of-duty-trig/)
+
 ---
 
 ## 9. Peça 6 — E2E com Playwright
@@ -586,6 +727,9 @@ repositório, e modelos novos recebem prompt que mente sobre o alvo.
 | D11 | Durabilidade comprada (DBOS-TS embarcado), com o card como projeção humana e o estado de execução no engine | não reescrever `reconcile`/retry/resume à mão; mas sem a separação viram duas fontes de verdade |
 | D12 | Curadoria de contexto e cache do prefixo estável como alavanca primária de custo | trata a causa (contexto recomprado por card) e não só o sintoma (compressão no transporte) |
 | D13 | Sem reescrita de linguagem (Go/Rust) | motor é I/O-bound: por Amdahl o ganho é ~0, e congelaria feature por semanas |
+| D14 | Gauntlet Loop adotado como **mecanismo de julgamento**, com o freio vindo do motor | a técnica é "pure prompt, no harness, no state machine" e assume vigília humana; o hicode é exatamente o harness que falta |
+| D15 | Barra **alcançável** ou **teto de rodadas por parte** — obrigatório | barra inalcançável (o design original) + sem terminação = exaustão de orçamento garantida; a adaptação de produção chegou à mesma conclusão |
+| D16 | Modo gauntlet é opt-in por `effort: max` e **proibido** em perfil `micro` | é a forma mais cara do desenho; em mudança pontual, montar "corte de design em miniatura" é overhead puro |
 
 ### Descartados
 
