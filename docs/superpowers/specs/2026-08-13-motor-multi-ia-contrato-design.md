@@ -69,6 +69,23 @@ E o repositório tem um `.codefox.yaml` completo — `tools` com `command`/`path
 - Diff cortado em 60k chars no meio do patch (`config.ts:17`) sem o revisor saber que é parcial.
 - `eval` produz score 0–5 e é ignorado (`execute.ts:210-216`).
 
+### 2.3.1 Gate final falha-aberto (crítico)
+
+`finish.ts:237` decide **só** pelo `gate.verdict` e ignora o `gate.ok`. Mas
+`codefox-gate.ts:135,139` retornam `{ok:false, verdict:'CONDITIONAL'}` tanto para falha de infra
+(timeout/erro) quanto para saída não-parseável. Resultado: **gate que não rodou deixa o PR abrir.**
+
+A assimetria prova que é defeito, não design: o gate por-step (`gated.ts:38`) faz
+`if (gate.ok && verdict !== 'BLOCKED')` — fail-closed. O gate final, que é a porta
+anti-rendição-cognitiva, é fail-open.
+
+Correção: discriminar pelo `ok` primeiro (`!ok` → HALT "gate não concluiu"), depois pelo verdict.
+O gate roda antes do `push` (`:244`), então o HALT não deixa meio-estado. `CONDITIONAL` continua
+abrindo PR — isso é design (as perguntas vão no corpo do PR), não o bug.
+
+Sem esta correção, todo o §8 (painel, ancoragem, quorum) é decorativo: a saída do gate não é
+consultada quando ele falha.
+
 ### 2.4 Integridade e retomada
 
 - `queue.ts:17-22`: no restart do daemon, card em `REFINED/TESTS_GREEN/...` volta a `PREVIEW_OK` e
@@ -76,6 +93,16 @@ E o repositório tem um `.codefox.yaml` completo — `tools` com `command`/`path
 - `card-store.ts:31-39`: `patchCard` é read-modify-write, `writeFileSync` direto, **sem lock e sem
   atomicidade**, com dois escritores (motor + painel `card-mutations.ts`). Corrida perde log;
   crash trunca o card — que é a única fonte de verdade.
+- **Dois daemons são possíveis.** A trava de instância mora só no shell: `runner-daemon.sh:28`
+  lê o pidfile e o `start` (`:36`) recusa duplicata, mas `hii run` (`bin/hii.ts:97`) chama
+  `bun runner.ts` **direto**, sem passar pelo wrapper. `hii start` + `hii run` = dois motores nos
+  mesmos cards, correndo no `patchCard` não-atômico. O lock precisa estar dentro do `runner.ts`.
+- **SSRF por redirect** (`refs.ts:69`): `curl -sL --max-redirs 3` valida **só o host inicial**
+  (`safeHttpUrl`, `:18-27`). A blocklist de `:6-16` cobre loopback, RFC1918, link-local, CGNAT e
+  ULA — mas roda uma vez, antes do primeiro salto; um redirect para `169.254.169.254` passa. Hoje
+  atinge imagens de referência; com §4.3 passa a atingir a **ingestão do contrato**. Sem teste.
+- `queue.ts:50-53` chama `cardsByStatus` 4×, e cada chamada relê e parseia **todos** os cards, a
+  cada `POLL_MS` (5s). Com 19 cards são 76 leituras+parses por tick, indefinidamente.
 - Timeout único de 900s (`agent.ts:142`) para uma feature e para remover comentários.
 - `config.ts:18` tem `VISUAL_AI` default `off`; o README diz `on`.
 
@@ -293,6 +320,45 @@ Mesmos campos no painel Nuxt, com defaults por env.
 
 ---
 
+### 7.5 Roteamento ciente de capacidade (restrição dos plugins)
+
+Plugins, skills e MCP são features do **Claude Code**: só disparam quando o papel roda no adapter
+`claude` (`supportsAgents=true`). Com `codex`, `opencode` ou `ollama`, **nada disso ativa**.
+
+Isso colide com §7.3: rotear `implement` para um modelo barato via opencode desliga, em silêncio,
+o context7 (docs atuais da lib), o superpowers (método: plan → TDD → debugging sistemático) e o
+impeccable (piso visual). A economia por token seria paga em alucinação de API e retrabalho — o
+custo que o roteamento tentava cortar.
+
+Regra: cada classe de tarefa declara o que exige (`needs: [agents, mcp, vision, tools]`) e o router
+só considera candidatos que satisfaçam. Classe dependente de plugin é elegível apenas a `claude`.
+
+E **nunca fingir que rodou**: se o provedor escolhido não ativa um plugin previsto, isso vai
+explícito para o log do card e para a trilha de auditoria (§13.2).
+
+### 7.6 Contexto e cache — a maior alavanca de custo
+
+**Curadoria de contexto.** `correct.ts:57-61` monta o histórico de *todas* as tentativas anteriores
+(cada uma cortada em 200 chars) e prefixa no prompt do redo; e todo `implement()` reenvia regras +
+memória de projeto + brief de design + refs. Cresce a cada rejeição, sem seleção. Selecionar /
+resumir / descartar ataca a causa; comprimir no transporte (RTK, §7.1) trata o sintoma. Os dois
+valem — a curadoria primeiro.
+
+**Overhead da CLI.** `claude -p` e `codex exec` injetam o próprio system prompt, os schemas de
+tools e fazem turnos internos que são cobrados. Para papéis sem tool loop — gate, eval, classify,
+verify, clarify — a chamada HTTP direta (ou via gateway) elimina esse overhead inteiro,
+independentemente do modelo escolhido. É um argumento de custo mais forte que a diversidade de
+modelo para justificar a rota de julgamento pelo gateway.
+
+**O contrato é o que habilita o prompt caching.** O contrato de criação + regras + code-map formam
+um **prefixo estável, idêntico em todos os cards do mesmo repo**. Com chamada direta e prompt
+caching (e a estratégia `cache-optimized` do gateway, que fixa prefixos reutilizáveis na mesma
+conta), esse prefixo passa a ser cacheado em vez de recomprado por card. Hoje é impossível: o
+prompt é montado ad-hoc em `agent.ts:42-56` e varia a cada chamada.
+
+O contrato deixa de ser só correção e vira a peça que habilita a maior economia estrutural do
+motor — o que reforça a ordem dos incrementos (§16).
+
 ## 8. Peça 5 — revisores
 
 1. **Quem revisa nunca é da família de quem escreveu.** Um `if` no router; é o ganho de qualidade
@@ -337,13 +403,24 @@ Requer contrato: existe Playwright no alvo? qual comando? qual porta?
 
 ## 10. Peça 7 — integridade, retomada e event stream
 
-1. **`patchCard` atômico com lock** (tmp + rename, `.lock` com `O_EXCL`). O card é a única fonte de
-   verdade e hoje tem dois escritores sem proteção. É a correção que não pode ser postergada: as
-   outras desperdiçam tokens, esta corrompe estado.
-2. **Checkpoint por nó do DAG** em `runs/<id>.steps.json` com hash do diff. `resume_from` passa a
-   ser **derivado**, não manual, e `reconcileStranded` (`queue.ts:17-22`) deixa de descartar
-   polimento pago.
-3. **Event stream normalizado** — `runs/<id>.events.jsonl`, append-only:
+1. **`patchCard` atômico com lock** (tmp + rename, `.lock` com `O_EXCL`) **e lock de instância
+   dentro do `runner.ts`**, não só no shell. O card é a única fonte de verdade e hoje tem dois
+   escritores sem proteção, e dois motores são possíveis via `hii run`. É a correção que não pode
+   ser postergada: as outras desperdiçam tokens, esta corrompe estado.
+2. **Execução durável — comprar, não escrever.** Card = workflow durável (DBOS-TS embarcado,
+   SQLite): fases = *activities*; aprovação de preview e porta do PR = *signals*; HALT, retry,
+   timeout, heartbeat e resume pós-crash nativos. Substitui o `reconcileStranded`, o `resume_from`
+   manual e o checkpoint por nó escritos à mão.
+
+   **Ressalva que a decisão exige:** mesmo com engine durável, o card continua sendo o artefato
+   **humano e editável** (o painel escreve nele; você edita à mão). A divisão é: o engine durável
+   é dono do **estado de execução**; o card é a **projeção humana**, derivada e sincronizada. Sem
+   essa separação viram duas fontes de verdade — pior que uma frágil. E a escrita atômica do item
+   1 continua necessária.
+
+   Temporal (servidor, ops próprio) fica para quando houver multi-node real.
+3. **Cache de `allCards()` por tick**, invalidado em escrita (`queue.ts:50-53`).
+4. **Event stream normalizado** — `runs/<id>.events.jsonl`, append-only:
    `{ts, card, phase, step, agent, provider, model, kind, payload}`. Os três adapters podem emitir
    (`claude-stream.ts` já parseia stream-json; codex `--json`; opencode `--format json`). Uma fonte
    consumida por TUI, painel Nuxt e Slack, em vez de três verdades sobrepostas.
@@ -352,10 +429,13 @@ Requer contrato: existe Playwright no alvo? qual comando? qual porta?
    `patchCard`, reescrevendo o arquivo inteiro — o card cresce sem limite e é justamente o arquivo
    com risco de corrupção. Eventos de alta frequência migram para o jsonl; no card ficam só as
    transições de estado.
-4. **Timeout por classe de step**, não global.
-5. **Orçamento cortando antes de gastar** (estimativa pelo tamanho do prompt), por card e por dia.
+
+   Enquadramento: o Log de Estado do card **já é** um event stream. Com o engine durável (item 2),
+   o jsonl deixa de ser observabilidade e vira a **fonte**; card e dashboard são projeções.
+5. **Timeout por classe de step**, não global.
+6. **Orçamento cortando antes de gastar** (estimativa pelo tamanho do prompt), por card e por dia.
    `x-omniroute-budget-usd` dá um segundo teto independente no gateway.
-6. **Taxonomia de HALT** — precisa-de-humano vs retomável — para o loop saber o que pode tentar
+7. **Taxonomia de HALT** — precisa-de-humano vs retomável — para o loop saber o que pode tentar
    sozinho.
 
 ---
@@ -462,9 +542,17 @@ rebase/`restack` quando o card faz parte de uma.
 
 ## 16. Incrementos
 
-**1 — Integridade (isolado, primeiro).** `patchCard` atômico com lock. Não faz parte do escopo de
-desenho de D1: é correção pontual de integridade, independe de todo o resto e protege a espinha.
-Cabe entregar antes de qualquer coisa maior.
+**0 — Os quatro críticos (antes de tudo).** Não fazem parte do escopo de desenho de D1: são
+correções pontuais, independem do resto, e três delas são pré-condição de segurança para deixar o
+motor mais autônomo.
+
+- gate final fail-closed (§2.3.1) — sem isso o §8 inteiro é decorativo;
+- custo cego (§2.2) — orçamento cego é orçamento inexistente;
+- `patchCard` atômico + lock de instância no `runner.ts` (§2.4);
+- SSRF por redirect em `refs.ts` (§2.4), com teste — a defesa hoje não tem cobertura.
+
+**1 — Curadoria de contexto + cache do prefixo.** §7.6. Depende do contrato para o prefixo estável,
+mas a curadoria do histórico de tentativas (`correct.ts:57-61`) já rende sozinha e é barata.
 
 **2 — Contrato + de-hardcode.** §4 e §5. Sem isso, tudo o resto otimiza um motor que só serve a um
 repositório, e modelos novos recebem prompt que mente sobre o alvo.
@@ -494,3 +582,24 @@ repositório, e modelos novos recebem prompt que mente sobre o alvo.
 | D7 | Fato do repo vence prosa externa | doc desatualizado quebraria o comando de build de todos os cards |
 | D8 | Fatiamento preferencialmente em cards filhos (antes), não reescrita de histórico (depois) | respeita "o card é a espinha"; evita cirurgia de histórico |
 | D9 | Contrato em duas projeções (criação fina, revisão grossa) | `.shared/memory/feedback_contract_two_moments_local.md` — construção não cobra padrão |
+| D10 | Roteamento ciente de capacidade; classe que depende de plugin só vai para `claude`; plugin inativo é logado, nunca silencioso | skills/MCP só disparam sob `supportsAgents`; rotear barato desligaria context7/superpowers/impeccable e pagaria em alucinação |
+| D11 | Durabilidade comprada (DBOS-TS embarcado), com o card como projeção humana e o estado de execução no engine | não reescrever `reconcile`/retry/resume à mão; mas sem a separação viram duas fontes de verdade |
+| D12 | Curadoria de contexto e cache do prefixo estável como alavanca primária de custo | trata a causa (contexto recomprado por card) e não só o sintoma (compressão no transporte) |
+| D13 | Sem reescrita de linguagem (Go/Rust) | motor é I/O-bound: por Amdahl o ganho é ~0, e congelaria feature por semanas |
+
+### Descartados
+
+| Item | Razão |
+|---|---|
+| Reescrita em Go / Rust | ver D13; os próprios artefatos admitem TS como ponte legítima |
+| Temporal (servidor) agora | ops próprio sem multi-node real; DBOS embarcado cobre o que dói |
+| polyfail como step | o artefato de plugins já marca "reavaliar": só agrega com fuzzer/fault-injection real; como prompt, duplica o qa-tester |
+
+### Nota sobre os artefatos de origem
+
+O plano de plugins (2026-07-28) projeta a fase context7 sobre um `lib/runner/stack.ts` que **não
+existe no repositório**. Esse módulo é o ancestral do `contract.json` (§4) — o que confirma a ordem
+dos incrementos, mas significa que aquela fase não é plug-and-play como está escrita.
+
+O mesmo artefato afirma que `.runner.pid` "nunca é lido"; não procede — `runner-daemon.sh:28` o lê.
+O furo real é outro e está registrado em §2.4.
