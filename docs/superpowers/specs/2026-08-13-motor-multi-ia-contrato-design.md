@@ -715,7 +715,8 @@ repositório, e modelos novos recebem prompt que mente sobre o alvo.
 | # | Decisão | Razão |
 |---|---|---|
 | D1 | Escopo do primeiro desenho: contrato + de-hardcode | tudo o mais depende do contrato |
-| D2 | Meta 9/10 com platô e entrega anotada; bloqueio duro só em severidade *blocker* | calibração entre 8 e 9 é ruído; meta literal queima o orçamento para terminar em HALTED |
+| D2 | Meta 9/10 com platô e entrega anotada; bloqueio duro só em severidade *blocker*. **É a política default**, aplicada a todo card que não entra em modo gauntlet | calibração entre 8 e 9 é ruído; meta literal queima o orçamento para terminar em HALTED |
+| D2b | Os dois mecanismos coexistem: gauntlet em `effort: max` **com barra válida**; rubrica no resto | o gauntlet custa caro e depende de barra concreta — sem ela degrada para "crítico inventa a comparação e aprova tudo"; e para refactor/backend/deps muitas vezes não existe referência nomeada |
 | D3 | OmniRoute como default de roteamento, com claude direto na Anthropic | preserva `supportsAgents`; separa domínios de falha e de billing |
 | D4 | Combo pinado por classe + modelo resolvido registrado; nunca `auto` puro | reprodutibilidade e auditoria |
 | D5 | Compressão por classe; `off` em gate/review | evidência comprimida invalida a ancoragem em `file:line` |
