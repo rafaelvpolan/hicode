@@ -37,3 +37,29 @@ test('HICODE_ROOT tem precedencia sobre a deteccao', async () => {
   if (prev === undefined) delete process.env.HICODE_ROOT
   else process.env.HICODE_ROOT = prev
 })
+
+test('listRepos devolve vazio quando o registro nao existe — sem lancar', async () => {
+  const prev = process.env.HICODE_REPOS_FILE
+  process.env.HICODE_REPOS_FILE = '/tmp/hicode-repos-inexistente.json'
+  const { listRepos, repoRegistered } = await import('../lib/runner/card-store')
+  expect(listRepos()).toEqual([])
+  expect(repoRegistered('owner/x')).toBe(false)
+  if (prev === undefined) delete process.env.HICODE_REPOS_FILE
+  else process.env.HICODE_REPOS_FILE = prev
+})
+
+test('repoRegistered distingue registrado de nao registrado', async () => {
+  const { writeFileSync, mkdtempSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const dir = mkdtempSync(join(tmpdir(), 'hicode-repos-'))
+  const f = join(dir, 'repos.json')
+  writeFileSync(f, JSON.stringify([{ name: 'owner/alvo', path: '/tmp/alvo', branch: 'main' }]))
+  const prev = process.env.HICODE_REPOS_FILE
+  process.env.HICODE_REPOS_FILE = f
+  const { listRepos, repoRegistered } = await import('../lib/runner/card-store')
+  expect(listRepos().length).toBe(1)
+  expect(repoRegistered('owner/alvo')).toBe(true)
+  expect(repoRegistered('owner/outro')).toBe(false)
+  if (prev === undefined) delete process.env.HICODE_REPOS_FILE
+  else process.env.HICODE_REPOS_FILE = prev
+})

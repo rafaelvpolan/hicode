@@ -2,8 +2,8 @@ import { createInterface } from 'node:readline'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { ROOT } from '../lib/runner/config'
-import { allCards, readCard, repoPath } from '../lib/runner/card-store'
+import { ROOT, reposFile } from '../lib/runner/config'
+import { allCards, listRepos, readCard, repoPath, repoRegistered } from '../lib/runner/card-store'
 import { hasBuildScript } from '../lib/runner/preview'
 import * as core from '../lib/core/actions'
 import { buildPlan } from '../lib/core/plan'
@@ -28,8 +28,33 @@ function dim(s: string): string {
 }
 
 function defaultRepo(): string {
+  const registrados = listRepos()
+  if (registrados.length === 1) return registrados[0]?.name ?? ''
   const recent = allCards().filter(c => c.repo).sort((a, b) => String(b.updated ?? '').localeCompare(String(a.updated ?? '')))
-  return recent[0]?.repo ?? ''
+  const escolhido = recent[0]?.repo ?? ''
+  return registrados.some(r => r.name === escolhido) ? escolhido : (registrados[0]?.name ?? escolhido)
+}
+
+function avisoRepos(state: SessionState): void {
+  const registrados = listRepos()
+  if (!registrados.length) {
+    say(dim(`  nenhum repo-alvo registrado em ${reposFile()}`))
+    say(dim('  copie o modelo e ajuste o `path` para o clone local:'))
+    say(dim('    cp config/repos.example.json config/repos.json'))
+    return
+  }
+  if (state.repo && !repoRegistered(state.repo)) {
+    say(dim(`  atencao: "${state.repo}" nao esta em ${reposFile()} — o card vai parar em HALTED`))
+    return
+  }
+  const alvo = registrados.find(r => r.name === state.repo)
+  const caminho = alvo?.path ?? ''
+  if (caminho && !existsSync(caminho)) {
+    say(dim(`  atencao: o clone de "${state.repo}" nao existe em ${caminho}`))
+  } else if (!caminho && !existsSync(repoPath(state.repo))) {
+    say(dim(`  atencao: sem "path" no registro e sem clone irmao em ${repoPath(state.repo)}`))
+    say(dim('  o card vai parar em HALTED com "repo nao encontrado"'))
+  }
 }
 
 function fleet(state: SessionState): void {
@@ -125,6 +150,7 @@ async function main(): Promise<void> {
   say('')
   say(`  ${color ? ACC : ''}hicode${color ? RESET : ''} — motor de tarefas   ${dim('/help para os comandos')}`)
   await ensureDaemon(ask)
+  avisoRepos(state)
   fleet(state)
 
   for (;;) {

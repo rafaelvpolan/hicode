@@ -22,3 +22,7 @@ node_modules/
 .env
 .env.*
 cards/refs/
+
+# Configuração local da máquina (caminhos do clone-alvo) — nunca versionar.
+# Template versionado: config/repos.example.json
+config/repos.json

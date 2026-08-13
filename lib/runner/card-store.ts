@@ -92,6 +92,14 @@ function loadRepos(): RepoConfig[] {
   }
 }
 
+export function listRepos(): RepoConfig[] {
+  return loadRepos()
+}
+
+export function repoRegistered(repoName: string): boolean {
+  return loadRepos().some(r => r.name === repoName)
+}
+
 export function repoPath(repoName: string): string {
   const r = loadRepos().find(x => x.name === repoName)
   if (r && r.path) return r.path

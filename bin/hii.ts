@@ -25,7 +25,11 @@ function usage(): void {
   process.stdout.write([
     'hii — plano de controle autonomo do hicode',
     '',
-    'Uso: hii <comando> [opcoes]',
+    'Uso: hii                  abre a sessao interativa (porta canonica)',
+    '     hii <comando>        modo script/CI',
+    '',
+    'Na sessao: escreva a tarefa em linguagem natural, leia o plano e tecle enter',
+    'para aprovar. /help lista os comandos; /quit sai sem derrubar os cards.',
     '',
     'Motor (daemon):',
     '  start                    inicia o motor em background (daemon)',

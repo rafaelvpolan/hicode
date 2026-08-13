@@ -119,13 +119,18 @@ cada card.
 
 ### Passo 2 — Registrar o repo-alvo no motor
 
-O motor precisa achar o clone local do alvo. Adicione uma entrada em **`config/repos.json`**:
+O motor precisa achar o clone local do alvo. O registro é **configuração de máquina** e por isso
+**não é versionado** — `config/repos.json` está no `.gitignore`. O que vai no git é o modelo:
+
+```bash
+cp config/repos.example.json config/repos.json   # e ajuste o `path`
+```
 
 ```json
 [
   {
     "name": "owner/repo-alvo",
-    "path": "/caminho/do/repo-alvo",
+    "path": "/caminho/absoluto/do/clone-local",
     "branch": "main"
   }
 ]
@@ -137,6 +142,11 @@ O motor precisa achar o clone local do alvo. Adicione uma entrada em **`config/r
 - `branch` — base branch do alvo (default `main`).
 
 > Sem um `path` válido (nem irmão), o card vai para `HALTED` com `repo nao encontrado`.
+> A sessão `hii` **avisa na abertura** quando o registro está vazio, quando o repo da sessão não
+> está registrado, ou quando o `path` aponta para um clone que não existe — antes de você gastar
+> uma execução para descobrir.
+
+Para apontar o registro para outro lugar (ex.: perfis por máquina), use `HICODE_REPOS_FILE`.
 
 ### Passo 3 — Subir o motor
 
@@ -456,7 +466,8 @@ lib/spec/openspec.ts   wrapper do OpenSpec (init/validate como gate determiníst
 lib/tasks/             plugin de sync de tarefas (interface + registry + adapters/github-issues)
 lib/card/              domínio do card (frontmatter, tipos, helpers puros)
 config/pipeline.json   steps default com `needs` (editável, 0 token)
-config/repos.json      repos-alvo geridos
+config/repos.example.json  modelo do registro de alvos (versionado)
+config/repos.json      registro local da maquina — NAO versionado (.gitignore)
 cards/                 cards (<NNN>.md) + runs/*.json + previews/  — dados
 scripts/               runner-daemon.sh (daemonização/PID) · check-no-any.mjs
   hooks/pre-push       gate de pre-push determinístico e portátil (versionado)
