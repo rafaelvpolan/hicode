@@ -8,7 +8,7 @@ import { renderPergunta, renderRespondidas } from './render/clarify'
 import { instruir } from './instruir'
 import { renderHelp } from './render/help'
 import { esperandoVoce } from './render/rodape'
-import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo } from './session'
+import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao } from './session'
 import type { Effect, SessionState } from './session'
 
 export interface DispatchIO {
@@ -171,6 +171,22 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       }
       io.log(`projeto agora e ${alvo}`)
       return { ...state, repo: alvo, seguindo: '', perguntando: '', removendo: '', retomando: '' }
+    }
+    case 'aprovacao': {
+      if (texto === '1') return aplicar({ kind: 'approve-preview', id }, semAprovacao(state), io)
+      if (texto === '2') return aplicar({ kind: 'reject-preview', id, text: '' }, semAprovacao(state), io)
+      io.log('escreva o que precisa ajustar')
+      return comentando(state, id)
+    }
+    case 'acao-tarefa': {
+      const card = readCard(id)
+      if (!card) { io.log(`card #${id} nao encontrado`); return state }
+      const status = card.fm.status ?? ''
+      if (status === 'PREVIEW') return aplicar({ kind: 'approve-preview', id }, semAprovacao(state), io)
+      if (status === 'HALTED' || status === 'PAUSED') return aplicar({ kind: 'resume', id }, state, io)
+      if (core.canApprovePlan(status)) return aplicar({ kind: 'approve-plan', id }, state, io)
+      io.log(`#${id} esta em ${status} — nada para aprovar agora`)
+      return state
     }
     case 'resume': {
       const card = readCard(id)

@@ -297,3 +297,70 @@ test('sem projeto registrado, ensina a registrar', async () => {
   await digitar(['/repo'])
   expect(saida.join(' ')).toContain('nenhum projeto registrado')
 })
+
+test('FLUXO: aprovar pelo numero 1 aprova o preview', async () => {
+  const { aprovando, seguir } = await import('../lib/core/session')
+  const { readCard } = await import('../lib/runner/card-store')
+  card('022', { status: 'PREVIEW' })
+  const inicial = aprovando(seguir(newSession('org/app'), '022'), '022')
+  const state = await digitar(['1'], inicial)
+  expect(readCard('022')?.fm.status).toBe('PREVIEW_OK')
+  expect(state.aprovando).toBe('')
+})
+
+test('FLUXO: recusar pelo 2 manda refazer', async () => {
+  const { aprovando, seguir } = await import('../lib/core/session')
+  const { readCard } = await import('../lib/runner/card-store')
+  card('022', { status: 'PREVIEW' })
+  await digitar(['2'], aprovando(seguir(newSession('org/app'), '022'), '022'))
+  expect(readCard('022')?.fm.status).not.toBe('PREVIEW_OK')
+})
+
+test('FLUXO: recusar pelo 3 pede o comentario, e o texto vira o motivo', async () => {
+  const { aprovando, seguir } = await import('../lib/core/session')
+  const { readCard } = await import('../lib/runner/card-store')
+  card('022', { status: 'PREVIEW', worktree: dir })
+  let state = aprovando(seguir(newSession('org/app'), '022'), '022')
+  state = await digitar(['3'], state)
+  expect(state.comentando).toBe('022')
+  expect(saida.join(' ')).toContain('escreva o que precisa ajustar')
+  state = await digitar(['o selo ficou desalinhado'], state)
+  expect(state.comentando).toBe('')
+  const c = readCard('022')
+  const guardou = String(c?.fm.correction ?? '') + (c?.body ?? '')
+  expect(guardou).toContain('desalinhado')
+})
+
+test('FLUXO: enter vazio desiste do comentario sem recusar', async () => {
+  const { comentando, seguir } = await import('../lib/core/session')
+  const { readCard } = await import('../lib/runner/card-store')
+  card('022', { status: 'PREVIEW' })
+  const state = await digitar([''], comentando(seguir(newSession('org/app'), '022'), '022'))
+  expect(state.comentando).toBe('')
+  expect(readCard('022')?.fm.status).toBe('PREVIEW')
+})
+
+test('FLUXO: enter dentro da tarefa faz a acao obvia de cada estado', async () => {
+  const { seguir } = await import('../lib/core/session')
+  const { readCard } = await import('../lib/runner/card-store')
+  card('030', { status: 'PREVIEW' })
+  await digitar([''], seguir(newSession('org/app'), '030'))
+  expect(readCard('030')?.fm.status).toBe('PREVIEW_OK')
+
+  card('031', { status: 'HALTED' })
+  await digitar([''], seguir(newSession('org/app'), '031'))
+  expect(readCard('031')?.fm.status).toBe('EXECUTING')
+
+  card('032', { status: 'READY' })
+  await digitar([''], seguir(newSession('org/app'), '032'))
+  expect(readCard('032')?.fm.status).not.toBe('READY')
+})
+
+test('FLUXO: enter em tarefa rodando nao mexe em nada', async () => {
+  const { seguir } = await import('../lib/core/session')
+  const { readCard } = await import('../lib/runner/card-store')
+  card('022', { status: 'EXECUTING' })
+  await digitar([''], seguir(newSession('org/app'), '022'))
+  expect(readCard('022')?.fm.status).toBe('EXECUTING')
+  expect(saida.join(' ')).toContain('nada para aprovar agora')
+})

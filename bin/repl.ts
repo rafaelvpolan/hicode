@@ -21,7 +21,7 @@ import { planSteps } from '../lib/runner/analyze'
 import { extractObjetivo } from '../lib/card'
 import type { Fields } from '../lib/card'
 import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daemon'
-import { handle, newSession, planShown, respondido, seguir, perguntando, retomando } from '../lib/core/session'
+import { handle, newSession, planShown, respondido, seguir, perguntando, retomando, aprovando } from '../lib/core/session'
 import { dispatch } from '../lib/core/dispatch'
 import type { DispatchIO } from '../lib/core/dispatch'
 import { cardsPerguntando, pendencia } from '../lib/core/responder'
@@ -33,6 +33,8 @@ import { etiquetaDoProjeto, corDoProjeto, nomeCurto } from '../lib/core/render/p
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { renderCabecalhoTarefa, renderParada } from '../lib/core/render/tarefa'
 import { renderProcessos } from '../lib/core/render/processos'
+import { renderPendencia } from '../lib/core/render/pendencia'
+import { renderAprovacao } from '../lib/core/render/aprovacao'
 import { idadeDe } from '../lib/core/render/board'
 import { subPrompts } from '../lib/core/instruir'
 import { complete } from '../lib/core/complete'
@@ -150,10 +152,15 @@ function cabecalhoDaTarefa(state: SessionState): string[] {
     temDevServer: temDev,
     vivo: previewVivo.get(state.seguindo) ?? false,
   })
-  const passos = passosDe(card.fm)
-  if (!passos.length) return cab
-  const at = atividadeDe(state.seguindo)
   const status = String(card.fm.status ?? '')
+  const pend = renderPendencia(status, state.seguindo, {
+    color,
+    width: Math.max(40, (Number(process.stdout.columns) || 78) - 6),
+    detalhe: status === 'PR_OPEN' ? String(card.fm.pr_url ?? '') : '',
+  })
+  const passos = passosDe(card.fm)
+  if (!passos.length) return [...cab, ...pend]
+  const at = atividadeDe(state.seguindo)
   const processos = renderProcessos(passos, {
     color,
     width: Math.max(40, (Number(process.stdout.columns) || 78) - 6),
@@ -163,7 +170,7 @@ function cabecalhoDaTarefa(state: SessionState): string[] {
     desde: idadeDe(card.fm.updated, Date.now()),
     parado: ['HALTED', 'PAUSED', 'CLARIFY'].includes(status),
   })
-  return [...cab, ...processos, '']
+  return [...cab, ...pend, ...processos, '']
 }
 
 function seguimento(state: SessionState): string[] {
@@ -233,7 +240,9 @@ function pintarComando(linha: string): string {
 function dicaDa(state: SessionState, sugerindo = false): string {
   if (sugerindo) return '↑↓ escolhe  tab completa  enter usa'
   if (selecionado) return 'setas movem  enter entra  esc sai'
-  if (state.escolhendo) return 'numero ou nome escolhe o projeto'
+    if (state.comentando) return 'escreva o ajuste · enter vazio desiste'
+    if (state.aprovando) return '↑/↓ para escolher · 1 aprova · 2 refaz · 3 comenta'
+    if (state.escolhendo) return 'numero ou nome do projeto · enter desiste'
   if (state.retomando) return 'enter retoma  ctrl+c sai'
   if (state.removendo) return 'enter confirma  n cancela'
   if (state.perguntando) return '↓ escolhe  numero responde  enter confirma'
@@ -246,7 +255,12 @@ function dicaDa(state: SessionState, sugerindo = false): string {
 
 let selecionado = ''
 
+function larguraUtil(): number {
+  return Math.max(40, (Number(process.stdout.columns) || 78) - 6)
+}
+
 function ordemDoRodape(state: SessionState): string[] {
+  if (state.aprovando) return ['op:1', 'op:2', 'op:3']
   if (state.perguntando) {
     const p = pendencia(state.perguntando)
     if (p) return p.atual.options.map((_, i) => `op:${i + 1}`)
@@ -543,6 +557,17 @@ async function tui(state0: SessionState): Promise<void> {
     },
     fixo: (ctx) => (state.seguindo && ctx.navegando !== 'board' ? cabecalhoDaTarefa(state) : []),
     logPrimeiro: () => !!state.seguindo,
+    acima: () => {
+      if (state.comentando) return renderAprovacao(state.comentando, { color, comentando: true, width: larguraUtil() })
+      if (!state.aprovando) return []
+      const card = readCard(state.aprovando)
+      return renderAprovacao(state.aprovando, {
+        color,
+        width: larguraUtil(),
+        selecionado,
+        url: String(card?.fm.preview_url ?? ''),
+      })
+    },
     dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · ← board' : dicaDa(state, ctx.sugerindo)),
     prompt: () => '› ',
     legenda: () => etiquetaDoProjeto(state.repo, {
@@ -602,6 +627,7 @@ async function tui(state0: SessionState): Promise<void> {
       selecionado = ''
       state = seguir(state, alvo)
       if (pendencia(alvo)) state = perguntando(state, alvo)
+      if (readCard(alvo)?.fm.status === 'PREVIEW') state = aprovando(state, alvo)
       app.limparLog()
       void httpOk(`http://localhost:${previewPort(alvo)}`).then(v => previewVivo.set(alvo, v))
     },

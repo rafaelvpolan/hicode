@@ -31,6 +31,7 @@ export interface AppHooks {
   onAba?: (dir: -1 | 1) => void
   podeLimpar?: () => string
   logPrimeiro?: (ctx: CorpoContexto) => boolean
+  acima?: (ctx: CorpoContexto) => string[]
   intervalMs: number
 }
 
@@ -48,6 +49,7 @@ const PADRAO = {
   prefixoComum: (): string => '',
   podeLimpar: (): string => '',
   logPrimeiro: (): boolean => false,
+  acima: (): string[] => [],
   onNav: (): boolean => false,
   onEntrar: (): void => {},
   onAba: (): void => {},
@@ -94,6 +96,7 @@ export function createApp(term: Terminal, dados: AppHooks): App {
       altura: Math.max(4, term.rows() - 6 - rodape.length - sugestoes.length),
       sugerindo: sugestoes.length > 0,
     }
+    const acima = hooks.acima(ctx)
     screen.draw({
       header: hooks.header(),
       corpo: [...quadro.fixo, ...quadro.corpo],
@@ -102,7 +105,7 @@ export function createApp(term: Terminal, dados: AppHooks): App {
       dica: hooks.dica(ctx),
       prompt: hooks.prompt(),
       corInput: hooks.corInput,
-      sugestoes: hooks.sugestoes(sugestoes, sugIdx),
+      sugestoes: [...acima, ...hooks.sugestoes(sugestoes, sugIdx)],
       legenda: hooks.legenda(),
       rodape,
     })

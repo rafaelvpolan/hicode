@@ -2,7 +2,7 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao'
 
 export interface SessionState {
   repo: string
@@ -12,6 +12,8 @@ export interface SessionState {
   removendo: string
   retomando: string
   escolhendo: boolean
+  aprovando: string
+  comentando: string
 }
 
 export interface Effect {
@@ -28,7 +30,7 @@ export interface Reply {
 export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/project', '/exit', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false }
+  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '' }
 }
 
 export function perguntando(state: SessionState, id: string): SessionState {
@@ -37,6 +39,18 @@ export function perguntando(state: SessionState, id: string): SessionState {
 
 export function respondido(state: SessionState): SessionState {
   return { ...state, perguntando: '' }
+}
+
+export function aprovando(state: SessionState, id: string): SessionState {
+  return { ...state, aprovando: id, comentando: '', pendingPlan: '' }
+}
+
+export function comentando(state: SessionState, id: string): SessionState {
+  return { ...state, aprovando: '', comentando: id }
+}
+
+export function semAprovacao(state: SessionState): SessionState {
+  return { ...state, aprovando: '', comentando: '' }
 }
 
 export function escolhendoRepo(state: SessionState): SessionState {
@@ -133,15 +147,22 @@ function command(line: string, state: SessionState): Reply {
 export function handle(raw: string, state: SessionState): Reply {
   const line = raw.trim()
   if (!line) {
+    if (state.comentando) return reply({ kind: 'none' }, semAprovacao(state))
     if (state.escolhendo) return reply({ kind: 'none' }, { ...state, escolhendo: false })
     if (state.retomando) return reply({ kind: 'resume', id: state.retomando }, { ...state, retomando: '' })
     if (state.removendo) return reply({ kind: 'confirm-rm', id: state.removendo, text: 'sim' }, { ...state, removendo: '' })
     if (state.perguntando) return reply({ kind: 'answer', id: state.perguntando, text: '' }, state)
-    return state.pendingPlan
-      ? reply({ kind: 'approve-plan', id: state.pendingPlan }, { ...state, pendingPlan: '' })
-      : reply({ kind: 'none' }, state)
+    if (state.pendingPlan) return reply({ kind: 'approve-plan', id: state.pendingPlan }, { ...state, pendingPlan: '' })
+    if (state.seguindo) return reply({ kind: 'acao-tarefa', id: state.seguindo }, state)
+    return reply({ kind: 'none' }, state)
   }
   if (line.startsWith('/')) return command(line, state)
+  if (state.comentando) {
+    return reply({ kind: 'reject-preview', id: state.comentando, text: line }, semAprovacao(state))
+  }
+  if (state.aprovando && /^[123]$/.test(line)) {
+    return reply({ kind: 'aprovacao', id: state.aprovando, text: line }, state)
+  }
   if (state.escolhendo) {
     return reply({ kind: 'pick-repo', text: line }, { ...state, escolhendo: false })
   }
