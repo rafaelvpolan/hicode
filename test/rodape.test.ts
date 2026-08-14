@@ -123,28 +123,43 @@ test('faixa sem cor nao emite escape ANSI', () => {
   expect(linhas.join('')).not.toContain('\x1b[')
 })
 
-test('linha selecionada do rodape ganha marca', () => {
+test('linha selecionada do rodape ganha barra na margem', () => {
   const lista = esperandoVoce([c({ id: '22', status: 'CLARIFY' }), c({ id: '23', status: 'PREVIEW' })], 'org/app')
   const linhas = linhasEspera(lista, { selecionado: '23' })
-  expect(linhas[0]?.startsWith('›')).toBe(false)
-  expect(linhas[1]?.startsWith('›')).toBe(true)
+  expect(linhas[0]?.startsWith('▌')).toBe(false)
+  expect(linhas[1]?.startsWith('▌')).toBe(true)
+})
+
+test('a linha selecionada diz que e a que esta aberta', () => {
+  const lista = esperandoVoce([c({ id: '22', status: 'CLARIFY' })], 'org/app')
+  expect(linhasEspera(lista, { selecionado: '22' })[0]).toContain('← aberta')
+  expect(linhasEspera(lista, { selecionado: '' })[0]).not.toContain('aberta')
+})
+
+test('com cor, so a selecionada fica em negrito', () => {
+  const lista = esperandoVoce([c({ id: '22', status: 'CLARIFY', title: 'alvo' }), c({ id: '23', status: 'PREVIEW', title: 'outra' })], 'org/app')
+  const linhas = linhasEspera(lista, { selecionado: '22', color: true })
+  expect(linhas[0]).toContain('\x1b[1malvo')
+  expect(linhas[1]).not.toContain('\x1b[1m')
 })
 
 test('sem selecao, nenhuma linha do rodape leva marca', () => {
   const lista = esperandoVoce([c({ id: '22', status: 'CLARIFY' })], 'org/app')
-  expect(linhasEspera(lista)[0]?.startsWith('›')).toBe(false)
+  expect(linhasEspera(lista)[0]?.startsWith('▌')).toBe(false)
 })
 
-test('marca nao desalinha as colunas do rodape', () => {
+test('a marca ocupa a mesma coluna, marcada ou nao', () => {
   const lista = esperandoVoce([c({ id: '22', status: 'CLARIFY' })], 'org/app')
   const sem = linhasEspera(lista)[0] ?? ''
   const com = linhasEspera(lista, { selecionado: '22' })[0] ?? ''
-  expect(com.length).toBe(sem.length)
+  expect(com.indexOf('#022')).toBe(sem.indexOf('#022'))
 })
 
-test('execucao selecionada tambem ganha marca', () => {
+test('execucao selecionada tambem ganha barra e o aviso de aberta', () => {
   const lista = emExecucao([c({ id: '31', status: 'EXECUTING' })], 'org/app', 0, () => 'vitro')
-  expect(linhasExecucao(lista, { selecionado: '31' })[0]?.startsWith('›')).toBe(true)
+  const linha = linhasExecucao(lista, { selecionado: '31' })[0] ?? ''
+  expect(linha.startsWith('▌')).toBe(true)
+  expect(linha).toContain('← aberta')
 })
 
 import { janelaDaLista } from '../lib/core/render/rodape'

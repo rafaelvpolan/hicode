@@ -6,6 +6,7 @@ const RESET = '\x1b[0m'
 const DIM = '\x1b[2m'
 const CYAN = '\x1b[36m'
 const YELLOW = '\x1b[33m'
+const BOLD = '\x1b[1m'
 
 export const GIRO = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
@@ -28,8 +29,23 @@ export interface RodapeOptions {
 
 const PADRAO: RodapeOptions = { color: false, now: 0, width: 80, selecionado: '', maxLinhas: 3 }
 
+const BARRA = '▌'
+
+function selecionada(id: string, o: RodapeOptions): boolean {
+  return !!o.selecionado && o.selecionado === id
+}
+
 function marca(id: string, o: RodapeOptions): string {
-  return o.selecionado && o.selecionado === id ? paint('›', CYAN, o) : ' '
+  return selecionada(id, o) ? paint(BARRA, CYAN, o) : ' '
+}
+
+function realce(texto: string, id: string, o: RodapeOptions): string {
+  if (!selecionada(id, o) || !o.color) return texto
+  return `${BOLD}${texto}${RESET}`
+}
+
+function aberta(id: string, o: RodapeOptions): string {
+  return selecionada(id, o) ? paint('  ← aberta', CYAN, o) : ''
 }
 
 function paint(s: string, code: string, o: RodapeOptions): string {
@@ -101,8 +117,10 @@ export function linhasEspera(lista: Espera[], opts: Partial<RodapeOptions> = {})
   if (!lista.length) return []
   const mostrar = janelaDaLista(lista, o.selecionado, o.maxLinhas)
   const linhas = mostrar.map(e => {
-    const titulo = e.titulo.slice(0, Math.max(10, o.width - 46))
-    return `${marca(e.id, o)}${paint('●', YELLOW, o)} ${paint(`#${e.id.padStart(3, '0')}`, DIM, o)} ${titulo} ${paint(`${e.motivo} → ${e.comando}`, DIM, o)}`
+    const titulo = e.titulo.slice(0, Math.max(10, o.width - 52))
+    const id = paint(`#${e.id.padStart(3, '0')}`, DIM, o)
+    const cauda = paint(`${e.motivo} → ${e.comando}`, DIM, o)
+    return `${marca(e.id, o)}${paint('●', YELLOW, o)} ${id} ${realce(titulo, e.id, o)} ${cauda}${aberta(e.id, o)}`
   })
   const resto = lista.length - mostrar.length
   if (resto > 0) linhas.push(paint(`  e mais ${resto} esperando voce`, DIM, o))
@@ -129,7 +147,8 @@ export function linhasExecucao(lista: EmExecucao[], opts: Partial<RodapeOptions>
   const visiveis = janelaDaLista(lista, o.selecionado, o.maxLinhas)
   return [...visiveis.map((e) => {
     const meio = [e.estado.toLowerCase(), e.agente, e.desde].filter(Boolean).join(' · ')
-    const titulo = e.titulo.slice(0, Math.max(10, o.width - 40))
-    return `${marca(e.id, o)}${paint(giro, CYAN, o)} ${paint(`#${e.id.padStart(3, '0')}`, DIM, o)} ${titulo} ${paint(meio, DIM, o)}`
+    const titulo = e.titulo.slice(0, Math.max(10, o.width - 46))
+    const id = paint(`#${e.id.padStart(3, '0')}`, DIM, o)
+    return `${marca(e.id, o)}${paint(giro, CYAN, o)} ${id} ${realce(titulo, e.id, o)} ${paint(meio, DIM, o)}${aberta(e.id, o)}`
   }), ...contador(lista.length, visiveis.length, o)]
 }
