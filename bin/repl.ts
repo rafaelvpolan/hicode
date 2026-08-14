@@ -9,7 +9,16 @@ import * as core from '../lib/core/actions'
 import { buildPlan } from '../lib/core/plan'
 import { renderPlan } from '../lib/core/render/plan'
 import { renderFleet } from '../lib/core/render/fleet'
-import { renderProgress } from '../lib/runner/progress'
+import { renderBoard, renderProjetos, resumirProjetos } from '../lib/core/render/board'
+import { startLive } from '../lib/core/watch'
+import { cardsDir } from '../lib/runner/config'
+import { repoStatus } from '../lib/core/repos'
+import { passosDoCard } from '../lib/core/progresso'
+import { readRunSteps } from '../lib/runner/runs'
+import { activeSteps } from '../lib/runner/pipeline/config'
+import { planSteps } from '../lib/runner/analyze'
+import { extractObjetivo } from '../lib/card'
+import type { Fields } from '../lib/card'
 import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daemon'
 import { handle, newSession, planShown } from '../lib/core/session'
 import { complete } from '../lib/core/complete'
@@ -29,12 +38,46 @@ function dim(s: string): string {
   return color ? `${DIM}${s}${RESET}` : s
 }
 
-function defaultRepo(): string {
-  const registrados = listRepos()
-  if (registrados.length === 1) return registrados[0]?.name ?? ''
-  const recent = allCards().filter(c => c.repo).sort((a, b) => String(b.updated ?? '').localeCompare(String(a.updated ?? '')))
-  const escolhido = recent[0]?.repo ?? ''
-  return registrados.some(r => r.name === escolhido) ? escolhido : (registrados[0]?.name ?? escolhido)
+function projetos(): ReturnType<typeof resumirProjetos> {
+  return resumirProjetos(repoStatus().map(r => ({ name: r.name, cloneOk: r.cloneOk })), allCards())
+}
+
+async function escolherProjeto(ask: (q: string) => Promise<string | null>): Promise<string> {
+  const lista = projetos()
+  if (!lista.length) return ''
+  if (lista.length === 1) return lista[0]?.name ?? ''
+  say('')
+  say(renderProjetos(lista, { color }))
+  say('')
+  for (;;) {
+    const r = await ask(color ? `${ACC}projeto› ${RESET}` : 'projeto› ')
+    if (r === null) return lista[0]?.name ?? ''
+    const t = r.trim()
+    if (!t) return lista[0]?.name ?? ''
+    const porNumero = lista[Number(t) - 1]
+    if (porNumero) return porNumero.name
+    const porNome = lista.find(p => p.name === t) ?? lista.find(p => p.name.includes(t))
+    if (porNome) return porNome.name
+    say(dim('  nao achei esse projeto — numero da lista ou parte do nome'))
+  }
+}
+
+function passosDe(c: Fields): ReturnType<typeof passosDoCard> {
+  const card = readCard(String(c.id ?? ''))
+  if (!card) return []
+  const objetivo = extractObjetivo(card.body) || card.fm.title
+  const plano = planSteps(
+    { title: card.fm.title, objetivo, risk: card.fm.risk, surface: card.fm.surface, override: card.fm.steps },
+    activeSteps(),
+  )
+  return passosDoCard(c, plano.steps, readRunSteps(String(c.id ?? '')))
+}
+
+function board(state: SessionState): string {
+  return renderBoard(allCards(), {
+    color, repo: state.repo, daemon: daemonStatus(), passosDe,
+    now: Date.now(), width: Number(process.stdout.columns) || 78,
+  })
 }
 
 function avisoRepos(state: SessionState): void {
@@ -69,7 +112,7 @@ function completer(line: string): [string[], string] {
 
 function fleet(state: SessionState): void {
   say('')
-  say(renderFleet(allCards(), { color, repo: state.repo, daemon: daemonStatus() }))
+  say(renderFleet(allCards().filter(c => !state.repo || c.repo === state.repo), { color, repo: state.repo, daemon: daemonStatus() }))
   say('')
 }
 
@@ -93,27 +136,57 @@ function showPlan(id: string, state: SessionState): SessionState {
   return planShown(state, id)
 }
 
-function listCards(filtro: string): void {
+function listCards(filtro: string, repo: string): void {
   const wanted = filtro.trim().toUpperCase()
-  const cards = allCards().filter(c => !wanted || String(c.status ?? '') === wanted)
+  const cards = allCards()
+    .filter(c => !repo || c.repo === repo)
+    .filter(c => !wanted || String(c.status ?? '') === wanted)
   if (!cards.length) return say(dim(wanted ? `nenhum card em ${wanted}` : 'nenhum card'))
   for (const c of cards.sort((a, b) => Number(a.id) - Number(b.id))) {
     say(`  ${dim(`#${String(c.id).padStart(3, '0')}`)} ${String(c.status ?? '').padEnd(12)} ${String(c.title ?? '').slice(0, 52)}`)
   }
 }
 
+async function boardAoVivo(state: SessionState): Promise<void> {
+  if (!color) {
+    say('\n' + board(state) + '\n')
+    return
+  }
+  await new Promise<void>((resolve) => {
+    const sessao = startLive({
+      dir: cardsDir(),
+      intervalMs: 1000,
+      render: () => `${board(state)}\n\n  ${DIM}q ou esc volta ao prompt · atualiza sozinho${RESET}`,
+      write: (s) => process.stdout.write(s),
+    }, resolve)
+    const stdin = process.stdin
+    const antes = stdin.isRaw === true
+    stdin.setRawMode?.(true)
+    stdin.resume()
+    const onKey = (buf: Buffer): void => {
+      const k = buf.toString()
+      if (k === 'q' || k === '\x1b' || k === '\x03') {
+        stdin.off('data', onKey)
+        stdin.setRawMode?.(antes)
+        sessao.stop()
+      }
+    }
+    stdin.on('data', onKey)
+  })
+}
+
 function help(): void {
   say('')
   say('  escreva a tarefa em linguagem natural para criar um card')
   say('')
-  say(`  ${'/board'.padEnd(20)} ${dim('quadro completo da frota')}`)
+  say(`  ${'/board'.padEnd(20)} ${dim('quadro do projeto AO VIVO (q volta)')}`)
   say(`  ${'/cards [STATUS]'.padEnd(20)} ${dim('lista, opcionalmente filtrando por estado')}`)
   say(`  ${'/plan <id>'.padEnd(20)} ${dim('reexibe o plano de um card')}`)
   say(`  ${'/watch <id>'.padEnd(20)} ${dim('mostra o log do card')}`)
   say(`  ${'/ok <id>'.padEnd(20)} ${dim('aprova o preview que voce viu no dev server')}`)
   say(`  ${'/no <id> [o que]'.padEnd(20)} ${dim('rejeita o preview; com motivo, pede correcao')}`)
   say(`  ${'/halt <id> [motivo]'.padEnd(20)} ${dim('para um card')}`)
-  say(`  ${'/repo [nome]'.padEnd(20)} ${dim('mostra ou troca o repo-alvo')}`)
+  say(`  ${'/repo'.padEnd(20)} ${dim('troca de projeto (reabre a lista)')}`)
   say(`  ${'/quit'.padEnd(20)} ${dim('sai (nao derruba o daemon nem os cards)')}`)
   say('')
 }
@@ -162,11 +235,10 @@ async function main(): Promise<void> {
     const { value, done } = await lines.next()
     return done ? null : String(value)
   }
-  let state = newSession(defaultRepo())
-
   say('')
   say(`  ${color ? ACC : ''}hicode${color ? RESET : ''} — motor de tarefas   ${dim('/help para os comandos')}`)
   await ensureDaemon(ask)
+  let state = newSession(await escolherProjeto(ask))
   avisoRepos(state)
   fleet(state)
 
@@ -177,11 +249,14 @@ async function main(): Promise<void> {
     state = next
     if (effect.kind === 'quit') break
     if (effect.kind === 'help') help()
-    else if (effect.kind === 'board') say('\n' + renderProgress() + '\n')
-    else if (effect.kind === 'cards') listCards(effect.text ?? '')
+    else if (effect.kind === 'board') await boardAoVivo(state)
+    else if (effect.kind === 'cards') listCards(effect.text ?? '', state.repo)
     else if (effect.kind === 'watch') watch(effect.id ?? '')
     else if (effect.kind === 'plan') state = showPlan(effect.id ?? '', state)
-    else if (effect.kind === 'error') say(dim('  ' + (effect.text ?? '')))
+    else if (effect.kind === 'reopen-repo') {
+      state = { ...state, repo: await escolherProjeto(ask) }
+      fleet(state)
+    } else if (effect.kind === 'error') say(dim('  ' + (effect.text ?? '')))
     else if (effect.kind === 'approve-preview') {
       const r = core.approvePreview(effect.id ?? '')
       say(dim(r.ok ? `  #${effect.id} preview aprovado — segue para o polimento` : `  ${r.reason}`))

@@ -57,3 +57,16 @@ export function updateRunSteps(id: string, fsteps: StepMap): { tokens: number; c
   writeFileSync(p, JSON.stringify(r, null, 2))
   return { tokens: r.tokens_total, cost: r.cost_usd }
 }
+
+export function readRunSteps(id: string): StepMap | null {
+  const dir = join(cardsDir(), 'runs')
+  if (!existsSync(dir)) return null
+  const files = readdirSync(dir).filter(f => f.startsWith(`${id}-`) && f.endsWith('.json')).sort()
+  const last = files[files.length - 1]
+  if (!last) return null
+  try {
+    return (JSON.parse(readFileSync(join(dir, last), 'utf8')) as Run).steps ?? null
+  } catch {
+    return null
+  }
+}

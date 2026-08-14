@@ -59,11 +59,13 @@ test('/halt sem motivo usa texto padrao', () => {
   expect(handle('/halt 42', base).effect.text).toBe('parado pelo humano')
 })
 
-test('/repo troca o alvo; sem argumento apenas informa', () => {
+test('/repo com nome troca o alvo direto', () => {
   expect(handle('/repo org/outro', base).state.repo).toBe('org/outro')
-  const info = handle('/repo', base)
-  expect(info.effect.kind).toBe('error')
-  expect(info.effect.text).toContain('org/app')
+})
+
+test('/repo sem argumento reabre a lista de projetos', () => {
+  expect(handle('/repo', base).effect.kind).toBe('reopen-repo')
+  expect(handle('/projeto', base).effect.kind).toBe('reopen-repo')
 })
 
 test('/quit e aliases', () => {
@@ -164,4 +166,21 @@ test('REGRESSAO canApprovePlan: so estado pre-execucao', () => {
   for (const s of ['EXECUTING', 'EXECUTED', 'PREVIEW', 'PREVIEW_OK', 'REVIEWED', 'PR_OPEN', 'MERGED', 'HALTED']) {
     expect(canApprovePlan(s)).toBe(false)
   }
+})
+
+test('REGRESSAO numero puro MOSTRA o card, nao cria tarefa chamada "20"', () => {
+  for (const entrada of ['20', '020', '#20', '7']) {
+    const r = handle(entrada, base)
+    expect(r.effect.kind).toBe('plan')
+    expect(r.effect.id).toBe(entrada.replace('#', ''))
+  }
+})
+
+test('texto que so comeca com numero ainda cria tarefa', () => {
+  const r = handle('2 selos no hero', base)
+  expect(r.effect.kind).toBe('submit')
+})
+
+test('numero longo demais para ser id vira tarefa', () => {
+  expect(handle('12345', base).effect.kind).toBe('submit')
 })

@@ -1,7 +1,7 @@
 export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'discard-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
-  | 'approve-preview' | 'reject-preview'
+  | 'approve-preview' | 'reject-preview' | 'reopen-repo'
 
 export interface SessionState {
   repo: string
@@ -62,9 +62,10 @@ function command(line: string, state: SessionState): Reply {
         ? reply({ kind: 'reject-preview', id: rest[0], text: rest.slice(1).join(' ') }, cleared)
         : reply({ kind: 'error', text: 'uso: /no <id> [o que corrigir]' }, state)
     case 'repo':
+    case 'projeto':
       return arg
         ? reply({ kind: 'none' }, { ...state, repo: arg })
-        : reply({ kind: 'error', text: `repo atual: ${state.repo || '(nenhum)'}` }, state)
+        : reply({ kind: 'reopen-repo' }, state)
     case 'quit':
     case 'exit':
     case 'q':
@@ -82,6 +83,9 @@ export function handle(raw: string, state: SessionState): Reply {
       : reply({ kind: 'none' }, state)
   }
   if (line.startsWith('/')) return command(line, state)
+  if (/^#?\d{1,4}$/.test(line)) {
+    return reply({ kind: 'plan', id: line.replace('#', '') }, state)
+  }
   if (state.pendingPlan) {
     return reply({ kind: 'submit', text: line }, { ...state, pendingPlan: '' })
   }

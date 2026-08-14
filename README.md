@@ -46,15 +46,20 @@ hicode · org/app   daemon online (pid 48213)
 |---|---|
 | *texto livre* | cria o card e **mostra o plano**; nada executa antes da aprovação |
 | `⏎` (enter) | aprova o plano pendente e enfileira |
-| `/board` | quadro completo da frota |
+| `/board` | **quadro do projeto AO VIVO** — tela cheia, atualiza sozinho, `q` volta |
 | `/cards [STATUS]` | lista, opcionalmente filtrando (`/cards HALTED`) |
 | `/plan <id>` | reexibe o plano de um card |
 | `/watch <id>` | últimas linhas do log do card + link do preview |
 | **`/ok <id>`** | **aprova o preview que você viu no dev server** |
 | **`/no <id> [o que]`** | rejeita o preview; com motivo, pede correção em vez de refazer |
 | `/halt <id> [motivo]` | para um card |
-| `/repo [nome]` | mostra ou troca o repo-alvo da sessão |
+| `/repo` | troca de projeto (reabre a lista); `/repo <nome>` vai direto |
+| `20` ou `#20` | mostra o plano do card 20 — **número puro consulta, não cria tarefa** |
 | `/quit` | sai — **não** derruba o daemon nem os cards |
+
+Com mais de um projeto registrado, a sessão **abre pela lista de projetos** — com quantos cards
+cada um tem, quantos esperam você, quantos rodam e quantos pararam. Você entra em um e tudo depois
+disso é **escopado a ele**: board, `/cards`, a faixa da frota. Com um projeto só, entra direto.
 
 Duas garantias de desenho:
 
