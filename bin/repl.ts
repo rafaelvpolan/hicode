@@ -527,6 +527,7 @@ async function tui(state0: SessionState): Promise<void> {
       return state.seguindo ? seguimento(state) : board(state).split('\n')
     },
     fixo: (ctx) => (state.seguindo && ctx.navegando !== 'board' ? cabecalhoDaTarefa(state) : []),
+    logPrimeiro: () => !!state.seguindo,
     dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · ← board' : dicaDa(state, ctx.sugerindo)),
     prompt: () => '› ',
     legenda: () => etiquetaDoProjeto(state.repo, {

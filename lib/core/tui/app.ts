@@ -30,6 +30,7 @@ export interface AppHooks {
   onEntrar?: (modo: ModoNavegacao) => void
   onAba?: (dir: -1 | 1) => void
   podeLimpar?: () => string
+  logPrimeiro?: (ctx: CorpoContexto) => boolean
   intervalMs: number
 }
 
@@ -46,6 +47,7 @@ const PADRAO = {
   sugestoes: (): string[] => [],
   prefixoComum: (): string => '',
   podeLimpar: (): string => '',
+  logPrimeiro: (): boolean => false,
   onNav: (): boolean => false,
   onEntrar: (): void => {},
   onAba: (): void => {},
@@ -78,7 +80,10 @@ export function createApp(term: Terminal, dados: AppHooks): App {
         sugerindo: sugestoes.length > 0,
       }
       const fixo = hooks.fixo(ctx)
-      const rolante = ctx.navegando === 'board' ? hooks.corpo(ctx) : [...hooks.corpo(ctx), ...extras]
+      const corpo = hooks.corpo(ctx)
+      const rolante = ctx.navegando === 'board'
+        ? corpo
+        : hooks.logPrimeiro(ctx) ? [...extras, ...corpo] : [...corpo, ...extras]
       const sobra = Math.max(1, ctx.altura - fixo.length)
       quadro = { fixo, corpo: rolante.slice(-sobra), rodape }
       sujo = false

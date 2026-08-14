@@ -240,3 +240,56 @@ test('cabecalho fixo nao rola para fora quando o log e longo', async () => {
   expect(tela).toContain('linha de log 59')
   expect(tela).not.toContain('linha de log 0\n')
 })
+
+test('dentro da tarefa, as instrucoes ficam ACIMA da execucao', async () => {
+  const term = fakeTerminal()
+  const execucao = ['  vitro: editando App.vue', '  vitro: rodando build']
+  const app = createApp(term, {
+    header: () => 'hii', corpo: () => execucao, dica: () => '', prompt: () => '› ',
+    rodape: () => [], intervalMs: 100000, onComplete: () => [], onInterrupt: () => true,
+    onLine: () => {}, logPrimeiro: () => true,
+  })
+  const rodando = app.run()
+  app.log('  instrucao 12 anotada em #022')
+  await new Promise(r => setTimeout(r, 10))
+  const tela = stripAnsi(term.saida.join('').split('\x1b[H').pop() ?? '')
+  term.tecla('\x03')
+  await rodando
+  expect(tela.indexOf('instrucao 12')).toBeLessThan(tela.indexOf('vitro: editando'))
+})
+
+test('fora da tarefa, o log continua abaixo do board', async () => {
+  const term = fakeTerminal()
+  const app = createApp(term, {
+    header: () => 'hii', corpo: () => ['  board do projeto'], dica: () => '', prompt: () => '› ',
+    rodape: () => [], intervalMs: 100000, onComplete: () => [], onInterrupt: () => true,
+    onLine: () => {}, logPrimeiro: () => false,
+  })
+  const rodando = app.run()
+  app.log('  card #023 criado')
+  await new Promise(r => setTimeout(r, 10))
+  const tela = stripAnsi(term.saida.join('').split('\x1b[H').pop() ?? '')
+  term.tecla('\x03')
+  await rodando
+  expect(tela.indexOf('board do projeto')).toBeLessThan(tela.indexOf('card #023'))
+})
+
+test('instrucoes antigas saem de cena conforme a execucao cresce', async () => {
+  const term = fakeTerminal()
+  let execucao: string[] = []
+  const app = createApp(term, {
+    header: () => 'hii', corpo: () => execucao, dica: () => '', prompt: () => '› ',
+    rodape: () => [], intervalMs: 100000, onComplete: () => [], onInterrupt: () => true,
+    onLine: () => {}, logPrimeiro: () => true,
+  })
+  const rodando = app.run()
+  app.log('  instrucao 1 anotada')
+  execucao = Array.from({ length: 40 }, (_, i) => `  passo ${i}`)
+  app.log('  instrucao 2 anotada')
+  await new Promise(r => setTimeout(r, 10))
+  const tela = stripAnsi(term.saida.join('').split('\x1b[H').pop() ?? '')
+  term.tecla('\x03')
+  await rodando
+  expect(tela).not.toContain('instrucao 1 anotada')
+  expect(tela).toContain('passo 39')
+})
