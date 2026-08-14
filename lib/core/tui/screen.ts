@@ -1,5 +1,5 @@
 import { renderFrame } from './layout'
-import { PASTE_ON, PASTE_OFF } from './keys'
+import { PASTE_ON, PASTE_OFF, TECLAS_ON, TECLAS_OFF } from './keys'
 import type { FrameInput } from './layout'
 
 const ALT_ON = '\x1b[?1049h'
@@ -55,7 +55,7 @@ export interface Screen {
 
 export function openScreen(term: Terminal): Screen {
   let aberto = true
-  term.write(ALT_ON + PASTE_ON)
+  term.write(ALT_ON + PASTE_ON + TECLAS_ON)
   term.setRaw(true)
   let ultimo: Omit<FrameInput, 'rows' | 'cols'> | null = null
   const draw = (conteudo: Omit<FrameInput, 'rows' | 'cols'>): void => {
@@ -74,7 +74,7 @@ export function openScreen(term: Terminal): Screen {
       aberto = false
       term.offResize(redesenhar)
       term.setRaw(false)
-      term.write(SHOW + PASTE_OFF + ALT_OFF)
+      term.write(SHOW + TECLAS_OFF + PASTE_OFF + ALT_OFF)
     },
   }
 }

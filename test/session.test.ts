@@ -197,3 +197,42 @@ test('texto que so comeca com numero ainda cria tarefa', () => {
 test('numero longo demais para ser id vira tarefa', () => {
   expect(handle('12345', base).effect.kind).toBe('submit')
 })
+
+import { perguntando, respondido } from '../lib/core/session'
+
+test('/ask sem id pega o card que estiver perguntando', () => {
+  expect(handle('/ask', base).effect.kind).toBe('ask')
+  expect(handle('/ask 22', base).effect.id).toBe('22')
+})
+
+test('com pergunta aberta, numero RESPONDE e nao abre plano', () => {
+  const s = perguntando(base, '022')
+  const r = handle('2', s)
+  expect(r.effect.kind).toBe('answer')
+  expect(r.effect.id).toBe('022')
+  expect(r.effect.text).toBe('2')
+})
+
+test('com pergunta aberta, enter vazio responde com o sugerido', () => {
+  const r = handle('', perguntando(base, '022'))
+  expect(r.effect.kind).toBe('answer')
+  expect(r.effect.text).toBe('')
+})
+
+test('com pergunta aberta, texto livre vira resposta e nao cria card', () => {
+  const r = handle('nenhum dos dois', perguntando(base, '022'))
+  expect(r.effect.kind).toBe('answer')
+  expect(r.effect.text).toBe('nenhum dos dois')
+})
+
+test('comando continua funcionando durante a pergunta', () => {
+  expect(handle('/board', perguntando(base, '022')).effect.kind).toBe('board')
+})
+
+test('abrir pergunta descarta plano pendente para nao aprovar por engano', () => {
+  expect(perguntando(planShown(base, '042'), '022').pendingPlan).toBe('')
+})
+
+test('respondido limpa o estado de pergunta', () => {
+  expect(respondido(perguntando(base, '022')).perguntando).toBe('')
+})

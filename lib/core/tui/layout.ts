@@ -1,6 +1,7 @@
 const RESET = '\x1b[0m'
 const CSI = /\x1b\[[0-9;?]*[A-Za-z]/g
 const OSC = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g
+const OSC_SPLIT = /(\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)[^\x1b]*\x1b\][^\x07\x1b]*(?:\x07|\x1b\\))/
 
 export function stripAnsi(s: string): string {
   return s.replace(OSC, '').replace(CSI, '')
@@ -8,12 +9,28 @@ export function stripAnsi(s: string): string {
 
 const RE_URL = /https?:\/\/[^\s<>"')\]]+/g
 
+export function suportaLink(env: Record<string, string | undefined> = process.env): boolean {
+  const forcado = env.HICODE_HYPERLINKS
+  if (forcado === 'on') return true
+  if (forcado === 'off') return false
+  if (env.WT_SESSION) return true
+  if (env.KITTY_WINDOW_ID || env.GHOSTTY_RESOURCES_DIR) return true
+  if (env.VTE_VERSION && Number(env.VTE_VERSION) >= 5000) return true
+  const prog = env.TERM_PROGRAM ?? ''
+  return ['iTerm.app', 'WezTerm', 'vscode', 'Hyper', 'Rio'].includes(prog)
+}
+
 export function link(url: string, texto = url): string {
+  if (!suportaLink()) return texto
   return `\x1b]8;;${url}\x1b\\${texto}\x1b]8;;\x1b\\`
 }
 
 export function linkificar(texto: string): string {
-  return texto.replace(RE_URL, (u) => link(u))
+  if (!suportaLink()) return texto
+  const partes = texto.split(OSC_SPLIT)
+  return partes
+    .map((p, i) => (i % 2 === 1 ? p : p.replace(RE_URL, u => link(u))))
+    .join('')
 }
 
 export function visibleLen(s: string): number {

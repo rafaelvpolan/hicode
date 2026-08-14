@@ -158,3 +158,48 @@ test('rodape longo e truncado dentro da largura', () => {
   const f = quadro({ cols: 40, rodape: ['x'.repeat(200)] })
   expect(visibleLen(f.lines[f.lines.length - 1] ?? '')).toBe(40)
 })
+
+import { suportaLink } from '../lib/core/tui/layout'
+
+test('REGRESSAO linkificar NAO embrulha url que ja esta dentro de um link', () => {
+  process.env.HICODE_HYPERLINKS = 'on'
+  const uma = link('http://localhost:5222')
+  const duas = linkificar(uma)
+  expect(duas).toBe(uma)
+  expect(stripAnsi(duas)).toBe('http://localhost:5222')
+  delete process.env.HICODE_HYPERLINKS
+})
+
+test('REGRESSAO linha do plano com link nao repete a url', () => {
+  process.env.HICODE_HYPERLINKS = 'on'
+  const linha = `    Preview    ${link('http://localhost:5222')}  sobe quando executar`
+  const visivel = stripAnsi(linkificar(linha))
+  expect(visivel.match(/localhost:5222/g)?.length).toBe(1)
+  expect(visivel).not.toContain(']8;;')
+  delete process.env.HICODE_HYPERLINKS
+})
+
+test('terminal sem suporte recebe texto puro, sem escape de link', () => {
+  process.env.HICODE_HYPERLINKS = 'off'
+  expect(link('http://x', 'texto')).toBe('texto')
+  expect(linkificar('veja http://x aqui')).toBe('veja http://x aqui')
+  delete process.env.HICODE_HYPERLINKS
+})
+
+test('deteccao por variavel de ambiente do terminal', () => {
+  expect(suportaLink({ WT_SESSION: '1' })).toBe(true)
+  expect(suportaLink({ TERM_PROGRAM: 'iTerm.app' })).toBe(true)
+  expect(suportaLink({ TERM_PROGRAM: 'vscode' })).toBe(true)
+  expect(suportaLink({ VTE_VERSION: '6003' })).toBe(true)
+  expect(suportaLink({ VTE_VERSION: '4000' })).toBe(false)
+  expect(suportaLink({})).toBe(false)
+  expect(suportaLink({ HICODE_HYPERLINKS: 'off', WT_SESSION: '1' })).toBe(false)
+})
+
+test('url no meio de texto ainda vira link quando suportado', () => {
+  process.env.HICODE_HYPERLINKS = 'on'
+  const t = linkificar('preview → http://localhost:5222 agora')
+  expect(t).toContain('\x1b]8;;http://localhost:5222')
+  expect(visibleLen(t)).toBe('preview → http://localhost:5222 agora'.length)
+  delete process.env.HICODE_HYPERLINKS
+})

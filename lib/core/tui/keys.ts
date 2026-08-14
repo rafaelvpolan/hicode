@@ -1,6 +1,9 @@
 export const PASTE_ON = '\x1b[?2004h'
 export const PASTE_OFF = '\x1b[?2004l'
 
+export const TECLAS_ON = '\x1b[>4;2m\x1b[>1u'
+export const TECLAS_OFF = '\x1b[<u\x1b[>4;0m'
+
 const INICIO_COLA = '\x1b[200~'
 const FIM_COLA = '\x1b[201~'
 export const PREFIXO_COLA = '\x00paste:'
@@ -42,7 +45,8 @@ export function tokenizeParcial(chunk: string, pendenteAnterior = ''): Parcial {
   return { tokens: tokenize(bruto), pendente: '' }
 }
 
-export function tokenize(chunk: string): string[] {
+export function tokenize(entrada: string): string[] {
+  const chunk = entrada.replace(/\r\n/g, '\r')
   const out: string[] = []
   let i = 0
   let solto = ''

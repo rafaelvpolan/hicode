@@ -49,7 +49,7 @@ export function expandir(state: InputState, linha: string): string {
   return linha.replace(RE_MARCADOR, (m, n: string) => state.pastes[Number(n) - 1] ?? m)
 }
 
-const ENTER = ['\r', '\n']
+const ENTER = ['\r']
 const BACKSPACE = ['\x7f']
 const UP = '\x1b[A'
 const DOWN = '\x1b[B'
@@ -64,7 +64,7 @@ const APAGA_PALAVRA_ESQ = ['\x17', '\x08', '\x1b\x7f', '\x1b[3;5~']
 const APAGA_PALAVRA_DIR = ['\x1bd', '\x1b[3;3~']
 const APAGA_ATE_FIM = '\x0b'
 const APAGA_ATE_INICIO = '\x15'
-const QUEBRA_LINHA = ['\x1b\r', '\x1b\n', '\x1b[13;2u', '\x1b[13;5u', '\x1bOM']
+const QUEBRA_LINHA = ['\n', '\x1b\r', '\x1b\n', '\x1b[13;2u', '\x1b[13;5u', '\x1b[13;2;13u', '\x1bOM']
 
 function limpo(state: InputState, buffer: string, cursor: number): InputState {
   return { ...state, buffer, cursor: Math.max(0, Math.min(cursor, buffer.length)) }

@@ -2,11 +2,13 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'discard-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
+  | 'ask' | 'answer'
 
 export interface SessionState {
   repo: string
   pendingPlan: string
   seguindo: string
+  perguntando: string
 }
 
 export interface Effect {
@@ -20,10 +22,18 @@ export interface Reply {
   state: SessionState
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/watch', '/agents', '/halt', '/plan', '/repo', '/quit'] as const
+export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/watch', '/agents', '/halt', '/plan', '/repo', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '', seguindo: '' }
+  return { repo, pendingPlan: '', seguindo: '', perguntando: '' }
+}
+
+export function perguntando(state: SessionState, id: string): SessionState {
+  return { ...state, perguntando: id, pendingPlan: '' }
+}
+
+export function respondido(state: SessionState): SessionState {
+  return { ...state, perguntando: '' }
 }
 
 export function seguir(state: SessionState, id: string): SessionState {
@@ -59,6 +69,11 @@ function command(line: string, state: SessionState): Reply {
         : reply({ kind: 'error', text: 'uso: /halt <id> [motivo]' }, state)
     case 'plan':
       return arg ? reply({ kind: 'plan', id: arg }, state) : reply({ kind: 'error', text: 'uso: /plan <id>' }, state)
+    case 'ask':
+    case 'responder':
+      return arg
+        ? reply({ kind: 'ask', id: rest[0], text: rest.slice(1).join(' ') }, state)
+        : reply({ kind: 'ask' }, state)
     case 'agents':
     case 'agentes':
       return arg
@@ -91,11 +106,15 @@ function command(line: string, state: SessionState): Reply {
 export function handle(raw: string, state: SessionState): Reply {
   const line = raw.trim()
   if (!line) {
+    if (state.perguntando) return reply({ kind: 'answer', id: state.perguntando, text: '' }, state)
     return state.pendingPlan
       ? reply({ kind: 'approve-plan', id: state.pendingPlan }, { ...state, pendingPlan: '' })
       : reply({ kind: 'none' }, state)
   }
   if (line.startsWith('/')) return command(line, state)
+  if (state.perguntando) {
+    return reply({ kind: 'answer', id: state.perguntando, text: line }, state)
+  }
   if (/^#?\d{1,4}$/.test(line)) {
     return reply({ kind: 'plan', id: line.replace('#', '') }, state)
   }

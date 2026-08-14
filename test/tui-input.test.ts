@@ -306,3 +306,30 @@ test('REGRESSAO \\x7f e backspace simples; \\x08 e ctrl+backspace (apaga palavra
   expect(keypress(digitar('abc'), '\x7f').state.buffer).toBe('ab')
   expect(keypress(digitar('selo beta'), '\x08').state.buffer).toBe('selo ')
 })
+
+test('ctrl+j quebra a linha em qualquer terminal', () => {
+  const r = keypress(digitar('ab'), '\n')
+  expect(r.action.kind).toBe('redraw')
+  expect(r.state.buffer).toBe('ab\n')
+})
+
+test('enter continua sendo \\r e submete', () => {
+  expect(keypress(digitar('ab'), '\r').action.kind).toBe('submit')
+})
+
+test('shift+enter do protocolo estendido quebra a linha', () => {
+  for (const seq of ['\x1b[13;2u', '\x1b\r', '\x1b[13;2;13u']) {
+    expect(keypress(digitar('ab'), seq).state.buffer).toBe('ab\n')
+  }
+})
+
+test('REGRESSAO \\r\\n do terminal conta como UM enter, nao enter + quebra', () => {
+  expect(tokenize('\r\n')).toEqual(['\r'])
+  expect(tokenize('oi\r\n')).toEqual(['o', 'i', '\r'])
+})
+
+test('colagem multilinha nao vira submit por causa do \\n', () => {
+  const tokens = tokenize('\x1b[200~um\ndois\x1b[201~')
+  expect(tokens.length).toBe(1)
+  expect(ehCola(tokens[0] ?? '')).toBe(true)
+})

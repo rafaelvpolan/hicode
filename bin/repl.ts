@@ -20,7 +20,9 @@ import { planSteps } from '../lib/runner/analyze'
 import { extractObjetivo } from '../lib/card'
 import type { Fields } from '../lib/card'
 import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daemon'
-import { handle, newSession, planShown, seguir } from '../lib/core/session'
+import { handle, newSession, planShown, seguir, perguntando, respondido } from '../lib/core/session'
+import { pendencia, responder, cardsPerguntando } from '../lib/core/responder'
+import { renderPergunta } from '../lib/core/render/clarify'
 import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
@@ -146,6 +148,14 @@ function rodapeDa(state: SessionState): string[] {
   }, { color, width: largura })
   const rodando = emExecucao(allCards(), state.repo, Date.now(), id => ultimoAgente(atividadeDe(id)))
   return [props, ...linhasExecucao(rodando, { color, now: Date.now(), width: largura })]
+}
+
+function dicaDa(state: SessionState): string {
+  if (state.perguntando) return 'numero responde  ctrl+j quebra linha'
+  const esperando = cardsPerguntando(allCards(), state.repo)
+  if (esperando.length) return `/ask responde #${esperando[0]}  ctrl+c sai`
+  if (state.seguindo) return '/board volta  ctrl+c sai'
+  return '/help  ctrl+j quebra linha  ctrl+c sai'
 }
 
 function board(state: SessionState): string {
@@ -309,7 +319,7 @@ async function tui(state0: SessionState): Promise<void> {
   const app = createApp(term, {
     header: () => `hii · ${state.repo || '(sem projeto)'}${state.seguindo ? ` · seguindo #${state.seguindo}` : ''}   daemon ${daemonStatus()}`,
     corpo: () => (state.seguindo ? seguimento(state) : board(state).split('\n')),
-    dica: () => (state.seguindo ? '/board volta  ctrl+c sai' : '/help  ctrl+c sai'),
+    dica: () => dicaDa(state),
     prompt: () => '› ',
     rodape: () => rodapeDa(state),
     intervalMs: 400,
@@ -320,7 +330,7 @@ async function tui(state0: SessionState): Promise<void> {
       state = next
       const diga = (s: string): void => app.log('  ' + s)
       if (effect.kind === 'quit') { sairPedido = true; return }
-      if (effect.kind === 'help') { diga('escreva a tarefa · /board /cards /plan /watch /ok /no /halt /repo /quit'); return }
+      if (effect.kind === 'help') { diga('escreva a tarefa · /board /cards /plan /watch /ask /ok /no /halt /repo /quit'); return }
       if (effect.kind === 'error') return diga(effect.text ?? '')
       if (effect.kind === 'cards') {
         const alvo = (effect.text ?? '').trim().toUpperCase()
@@ -364,6 +374,28 @@ async function tui(state0: SessionState): Promise<void> {
         const r = core.approvePreview(effect.id ?? '')
         return diga(r.ok ? `#${effect.id} preview aprovado — segue para o polimento` : r.reason)
       }
+      if (effect.kind === 'ask') {
+        const alvo = effect.id || cardsPerguntando(allCards(), state.repo)[0] || ''
+        if (!alvo) return diga('nenhum card esperando resposta')
+        const p = pendencia(alvo)
+        if (!p) return diga(`#${alvo} nao tem pergunta aberta`)
+        for (const l of renderPergunta(p, { color })) app.log(l)
+        state = perguntando(state, alvo)
+        return
+      }
+      if (effect.kind === 'answer') {
+        const r = responder(effect.id ?? '', effect.text ?? '')
+        if (!r.ok) return diga(r.reason)
+        diga(`respondido: ${r.resposta}`)
+        if (r.restantes > 0) {
+          const proxima = pendencia(effect.id ?? '')
+          if (proxima) { for (const l of renderPergunta(proxima, { color })) app.log(l) }
+          return
+        }
+        state = seguir(respondido(state), effect.id ?? '')
+        diga(`#${effect.id} retomado — seguindo a execucao (/board volta)`)
+        return
+      }
       if (effect.kind === 'reject-preview') {
         const r = core.rejectPreview(effect.id ?? '', effect.text ?? '')
         return diga(r.ok ? `#${effect.id} ${effect.text ? 'vai corrigir' : 'vai refazer'}` : r.reason)
@@ -373,6 +405,7 @@ async function tui(state0: SessionState): Promise<void> {
         return diga(r ? `#${effect.id} parado` : `card #${effect.id} nao encontrado`)
       }
       if (effect.kind === 'submit') {
+        if (state.perguntando) state = respondido(state)
         if (!state.repo) return diga('sem projeto — /repo <owner/nome>')
         const id = core.submit({ title: effect.text ?? '', repo: state.repo })
         diga(`card #${id} criado`)
