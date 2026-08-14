@@ -62,6 +62,8 @@ async function sessao(teclas: string[]): Promise<{ saida: string; state: Session
     onEntrar: () => {},
     podeLimpar: () => '',
     fixo: () => [],
+    sugestoes: () => [],
+    prefixoComum: () => '',
     onLine: async (linha) => {
       const r = handle(linha, state)
       state = r.state
@@ -134,6 +136,8 @@ test('FLUXO TUI: erro dentro do onLine aparece na tela', async () => {
     onEntrar: () => {},
     podeLimpar: () => '',
     fixo: () => [],
+    sugestoes: () => [],
+    prefixoComum: () => '',
     onLine: async () => { throw new Error('explodiu de proposito') },
   })
   const rodando = app.run()
@@ -171,6 +175,8 @@ test('ctrl+l limpa a area quando nada roda', async () => {
     onNav: () => false, onEntrar: () => {}, onLine: () => {},
     podeLimpar: () => '',
     fixo: () => [],
+    sugestoes: () => [],
+    prefixoComum: () => '',
   })
   const rodando = app.run()
   app.log('  linha antiga que deve sumir')
@@ -194,6 +200,8 @@ test('ctrl+l NAO limpa enquanto uma tarefa executa, e explica', async () => {
     onNav: () => false, onEntrar: () => {}, onLine: () => {},
     podeLimpar: () => '#031 em execucao — a area so limpa quando terminar',
     fixo: () => [],
+    sugestoes: () => [],
+    prefixoComum: () => '',
   })
   const rodando = app.run()
   app.log('  linha antiga que deve ficar')
@@ -214,6 +222,8 @@ test('cabecalho fixo nao rola para fora quando o log e longo', async () => {
     rodape: () => [], intervalMs: 100000, onComplete: () => [], onInterrupt: () => true,
     onNav: () => false, onEntrar: () => {}, onLine: () => {}, podeLimpar: () => '',
     fixo: () => cabecalho,
+    sugestoes: () => [],
+    prefixoComum: () => '',
   })
   const rodando = app.run()
   for (let i = 0; i < 60; i++) app.log(`  linha de log ${i}`)

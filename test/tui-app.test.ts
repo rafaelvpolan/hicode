@@ -47,6 +47,8 @@ function app(term: Fake, over: Partial<Parameters<typeof createApp>[1]> = {}): R
     onEntrar: () => {},
     podeLimpar: () => '',
     fixo: () => [],
+    sugestoes: () => [],
+    prefixoComum: () => '',
     rodape: () => [],
     intervalMs: 100000,
     ...over,
@@ -129,14 +131,50 @@ test('tab com uma opcao completa a linha', () => {
   expect(t.tela()).toContain('/repo')
 })
 
-test('tab com varias opcoes lista em vez de completar', () => {
+test('tab com varias opcoes completa ate o prefixo comum', () => {
   const t = fakeTerminal()
-  void app(t, { onComplete: () => ['/repo', '/reject'] }).run()
+  void app(t, {
+    onComplete: () => ['/repo', '/reject'],
+    prefixoComum: () => '/re',
+  }).run()
   t.tecla('/')
   t.tecla('\t')
+  expect(t.tela()).toContain('/re')
+})
+
+test('tab de novo, ja no prefixo comum, cicla entre as opcoes', () => {
+  const t = fakeTerminal()
+  void app(t, {
+    onComplete: () => ['/repo', '/reject'],
+    prefixoComum: () => '/re',
+  }).run()
+  for (const c of '/re') t.tecla(c)
+  t.tecla('\t')
+  expect(t.tela()).toContain('/repo')
+  t.tecla('\t')
+  expect(t.tela()).toContain('/reject')
+})
+
+test('opcoes aparecem sozinhas ao digitar a barra, sem apertar tab', () => {
+  const t = fakeTerminal()
+  void app(t, {
+    onComplete: () => ['/board', '/rm'],
+    sugestoes: (opcoes) => opcoes.map(o => `  ${o}`),
+  }).run()
+  t.tecla('/')
   const tela = t.tela()
-  expect(tela).toContain('/repo')
-  expect(tela).toContain('/reject')
+  expect(tela).toContain('/board')
+  expect(tela).toContain('/rm')
+})
+
+test('texto que nao comeca com barra nao mostra sugestao', () => {
+  const t = fakeTerminal()
+  void app(t, {
+    onComplete: () => ['/board'],
+    sugestoes: (opcoes) => opcoes.map(o => `  ${o}`),
+  }).run()
+  for (const c of 'tarefa') t.tecla(c)
+  expect(t.tela()).not.toContain('/board')
 })
 
 test('corpo longo nao estoura: mostra o fim', () => {

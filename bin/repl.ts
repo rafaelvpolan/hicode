@@ -26,6 +26,7 @@ import { dispatch } from '../lib/core/dispatch'
 import type { DispatchIO } from '../lib/core/dispatch'
 import { cardsPerguntando, pendencia } from '../lib/core/responder'
 import { renderOpcoesRodape } from '../lib/core/render/clarify'
+import { renderSugestoes, prefixoComum } from '../lib/core/render/sugestoes'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { renderCabecalhoTarefa } from '../lib/core/render/tarefa'
 import { subPrompts } from '../lib/core/instruir'
@@ -179,6 +180,14 @@ function rodapeDa(state: SessionState, noRodape = false): string[] {
   }
   const espera = linhasEspera(esperandoVoce(cards, state.repo), marcado)
   return [props, ...linhasExecucao(rodando, marcado), ...espera]
+}
+
+function pintarComando(linha: string): string {
+  if (!color || !linha.startsWith('/')) return linha
+  const m = linha.match(/^(\/[a-zA-Z-]*)(.*)$/s)
+  if (!m) return linha
+  const [, comando, resto] = m
+  return `${ACC}${comando}${RESET}${resto ?? ''}`
 }
 
 function dicaDa(state: SessionState): string {
@@ -489,6 +498,11 @@ async function tui(state0: SessionState): Promise<void> {
     rodape: () => rodapeDa(state, modoAtual === 'rodape'),
     intervalMs: 400,
     onComplete: (linha) => completer(linha)[0],
+    sugestoes: (opcoes, selecionado) => renderSugestoes(opcoes, {
+      color, selecionado, width: Math.max(40, (Number(process.stdout.columns) || 78) - 6),
+    }),
+    prefixoComum,
+    corInput: (linha) => pintarComando(linha),
     onInterrupt: () => { sairPedido = true; return true },
     onNav: (dir, modo) => navegar(state, dir, modo),
     podeLimpar: () => {

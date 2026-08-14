@@ -71,6 +71,8 @@ export interface FrameInput {
   header: string
   corpo: string[]
   input: string
+  corInput?: (linha: string) => string
+  sugestoes?: string[]
   cursor: number
   dica: string
   prompt: string
@@ -97,7 +99,8 @@ export function renderFrame(f: FrameInput): Frame {
   const entrada = f.input.split('\n')
   const alturaEntrada = entrada.length
   const rodape = f.rodape ?? []
-  const alturaCorpo = Math.max(MIN_CORPO, f.rows - 3 - alturaEntrada - rodape.length)
+  const sugestoes = f.sugestoes ?? []
+  const alturaCorpo = Math.max(MIN_CORPO, f.rows - 3 - alturaEntrada - rodape.length - sugestoes.length)
   const visiveis = f.corpo.slice(-alturaCorpo)
   const lines: string[] = []
   lines.push(padVisible('  ' + truncVisible(f.header, largura - 2), largura))
@@ -107,6 +110,7 @@ export function renderFrame(f: FrameInput): Frame {
     lines.push('  │' + padVisible(truncVisible(conteudo, interno), interno) + '│')
   }
   lines.push('  └' + '─'.repeat(interno) + '┘')
+  for (const sg of sugestoes) lines.push(padVisible('  ' + truncVisible(sg, largura - 2), largura))
   const recuo = ' '.repeat(visibleLen(f.prompt))
   const primeira = lines.length + 1
   entrada.forEach((linha, i) => {
@@ -114,7 +118,8 @@ export function renderFrame(f: FrameInput): Frame {
     const dica = i === entrada.length - 1 && f.dica
       ? padVisible('', Math.max(0, largura - 4 - visibleLen(prefixo) - visibleLen(linha) - visibleLen(f.dica))) + f.dica
       : ''
-    lines.push(padVisible('  ' + prefixo + linha + dica, largura))
+    const pintada = f.corInput ? f.corInput(linha) : linha
+    lines.push(padVisible('  ' + prefixo + pintada + dica, largura))
   })
   for (const r of rodape) lines.push(padVisible('  ' + truncVisible(r, largura - 2), largura))
   const pos = posicaoNoTexto(f.input, f.cursor)

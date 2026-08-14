@@ -20,6 +20,9 @@ export interface AppHooks {
   rodape: () => string[]
   onLine: (linha: string) => Promise<void> | void
   onComplete: (linha: string) => string[]
+  sugestoes: (opcoes: string[], selecionado: number) => string[]
+  prefixoComum: (opcoes: string[]) => string
+  corInput?: (linha: string) => string
   onInterrupt: () => boolean
   onNav: (dir: -1 | 1, modo: ModoNavegacao) => boolean
   onEntrar: (modo: ModoNavegacao) => void
@@ -34,6 +37,8 @@ export interface App {
 
 export function createApp(term: Terminal, hooks: AppHooks): App {
   const extras: string[] = []
+  let sugestoes: string[] = []
+  let sugIdx = -1
   let input: InputState = newInput()
   let sair = false
   let resolver: (() => void) | null = null
@@ -45,6 +50,10 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
       navegando: input.navegando,
       altura: Math.max(4, term.rows() - 6 - rodape.length),
     }
+    sugestoes = input.buffer.startsWith('/') && !input.buffer.includes('\n')
+      ? hooks.onComplete(input.buffer)
+      : []
+    if (!sugestoes.length) sugIdx = -1
     const fixo = hooks.fixo(ctx)
     const rolante = ctx.navegando === 'board' ? hooks.corpo(ctx) : [...hooks.corpo(ctx), ...extras]
     const sobra = Math.max(1, ctx.altura - fixo.length)
@@ -55,6 +64,8 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
       cursor: ctx.navegando === 'board' ? 0 : input.cursor,
       dica: hooks.dica(ctx),
       prompt: hooks.prompt(),
+      corInput: hooks.corInput,
+      sugestoes: hooks.sugestoes(sugestoes, sugIdx),
       rodape,
     })
   }
@@ -138,8 +149,21 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
     if (a.kind === 'eof') { finalizar(); return false }
     if (a.kind === 'complete') {
       const opcoes = hooks.onComplete(a.line)
-      if (opcoes.length === 1 && opcoes[0]) input = aplicarCompletar(input, opcoes[0])
-      else if (opcoes.length > 1) log('  ' + opcoes.join('  '))
+      if (!opcoes.length) return true
+      if (opcoes.length === 1 && opcoes[0]) {
+        input = aplicarCompletar(input, opcoes[0])
+        sugIdx = -1
+        return true
+      }
+      const comum = hooks.prefixoComum(opcoes)
+      const atual = a.line.split(/\s+/).pop() ?? ''
+      if (comum && comum.length > atual.length) {
+        input = aplicarCompletar(input, comum)
+        return true
+      }
+      sugIdx = (sugIdx + 1) % opcoes.length
+      const escolha = opcoes[sugIdx]
+      if (escolha) input = aplicarCompletar(input, escolha)
       return true
     }
     return a.kind === 'redraw'
