@@ -127,7 +127,7 @@ test('historico vazio nao faz nada com as setas', () => {
 
 test('escape solto e sequencia desconhecida nao sujam o buffer', () => {
   let s = digitar('limpo')
-  for (const k of ['\x1b', '\x1b[Z', '\x00', '\x1b[200~']) s = keypress(s, k).state
+  for (const k of ['\x1b', '\x1b[Z', '\x1c', '\x1b[200~']) s = keypress(s, k).state
   expect(s.buffer).toBe('limpo')
 })
 
@@ -400,4 +400,15 @@ test('tokenizer nao parte as sequencias novas ao meio', () => {
   expect(tokenize('\x1b[27;2;13~')).toEqual(['\x1b[27;2;13~'])
   expect(tokenize('\x1b[13u')).toEqual(['\x1b[13u'])
   expect(tokenize('\x1b[99;5u')).toEqual(['\x1b[99;5u'])
+})
+
+test('ctrl+backspace apaga palavra em cada byte que os terminais mandam', () => {
+  for (const k of ['\x08', '\x00', '\x17', '\x1b\x7f', '\x1b[27;5;8~', '\x1b[8;5u']) {
+    expect(keypress(digitar('remova o selo beta'), k).state.buffer).toBe('remova o selo ')
+  }
+})
+
+test('apagar palavra nao mexe no que esta depois do cursor', () => {
+  const s = { ...digitar('um dois tres'), cursor: 7 }
+  expect(keypress(s, '\x00').state.buffer).toBe('um  tres')
 })
