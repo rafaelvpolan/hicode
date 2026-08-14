@@ -173,3 +173,45 @@ test('FLUXO REAL: nenhuma tarefa nova nasce de uma instrucao', async () => {
   await digitar(['muda mais isso', 'e aquilo'], seguir(newSession('org/app'), '022'))
   expect(allCards().length).toBe(antes)
 })
+
+test('apagar a tarefa aberta tira voce de dentro dela', async () => {
+  const { seguir } = await import('../lib/core/session')
+  card('022')
+  const state = await digitar(['/rm 22', ''], seguir(newSession('org/app'), '022'))
+  expect(state.seguindo).toBe('')
+  expect(saida.join(' ')).toContain('voltando ao board')
+})
+
+test('apagar OUTRA tarefa nao tira voce da que esta aberta', async () => {
+  const { seguir } = await import('../lib/core/session')
+  card('022'); card('023')
+  const state = await digitar(['/rm 23', ''], seguir(newSession('org/app'), '022'))
+  expect(state.seguindo).toBe('022')
+})
+
+test('instrucao em tarefa que sumiu vira tarefa nova, sem perder o texto', async () => {
+  const { seguir } = await import('../lib/core/session')
+  const { allCards } = await import('../lib/runner/card-store')
+  const state = await digitar(['tira tambem o do hero'], seguir(newSession('org/app'), '099'))
+  const novos = allCards()
+  expect(novos.length).toBe(1)
+  expect(novos[0]?.title).toBe('tira tambem o do hero')
+  expect(state.seguindo).toBe(novos[0]?.id)
+  expect(saida.join(' ')).toContain('virou tarefa nova')
+})
+
+test('a tarefa nova nasce parada, esperando aprovacao', async () => {
+  const { seguir } = await import('../lib/core/session')
+  const { allCards } = await import('../lib/runner/card-store')
+  await digitar(['qualquer coisa'], seguir(newSession('org/app'), '099'))
+  expect(allCards()[0]?.status).toBe('READY')
+  expect(saida.join(' ')).toContain('enter aprova')
+})
+
+test('sem projeto, instrucao orfa nao cria nada', async () => {
+  const { seguir } = await import('../lib/core/session')
+  const { allCards } = await import('../lib/runner/card-store')
+  await digitar(['texto solto'], seguir(newSession(''), '099'))
+  expect(allCards().length).toBe(0)
+  expect(saida.join(' ')).toContain('sem projeto')
+})

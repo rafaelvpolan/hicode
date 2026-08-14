@@ -1,4 +1,4 @@
-import { readCard, allCards } from '../runner/card-store'
+import { readCard, allCards, normalizeId } from '../runner/card-store'
 import { readClarify } from '../runner/clarify'
 import * as core from './actions'
 import { planejarLote, removerLote } from './remover'
@@ -109,9 +109,22 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       if (texto !== 'sim') { io.log('cancelado — nada foi apagado'); return state }
       const r = await removerLote(id.split(/\s+/), true)
       for (const l of renderResultado(r.apagados, r.falhas, { color: io.color, width: io.largura() })) io.log(l)
+      if (state.seguindo && r.apagados.includes(normalizeId(state.seguindo))) {
+        io.log(`#${state.seguindo} era a tarefa aberta — voltando ao board`)
+        return { ...state, seguindo: '', perguntando: '' }
+      }
       return state
     }
     case 'instruct': {
+      if (!readCard(id)) {
+        if (!state.repo) { io.log('sem projeto — /repo <owner/nome>'); return state }
+        io.log(`#${id} nao existe mais — virou tarefa nova`)
+        const novoId = core.submit({ title: texto, repo: state.repo })
+        io.log(`card #${novoId} criado`)
+        for (const l of await io.plano(novoId)) io.log(l)
+        io.log('enter aprova e enfileira')
+        return seguir(planShown({ ...state, seguindo: '' }, novoId), novoId)
+      }
       const r = instruir(id, texto)
       if (!r.ok) { io.log(r.reason); return state }
       io.log(`instrucao ${r.numero} anotada em #${id}${r.reexecuta ? ' — a tarefa vai reexecutar com ela' : ''}`)
