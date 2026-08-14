@@ -42,16 +42,48 @@ test('card sem instrucoes devolve lista vazia', () => {
   expect(subPrompts('## Objetivo\nfazer\n')).toEqual([])
 })
 
-test('instrucao em tarefa executando manda reexecutar', async () => {
+test('instrucao em tarefa com worktree vivo vira correcao', async () => {
   const { instruir } = await import('../lib/core/instruir')
   const { readCard } = await import('../lib/runner/card-store')
-  card('022', { status: 'EXECUTED' })
+  card('022', { status: 'EXECUTED', worktree: dir })
   const r = instruir('022', 'tira tambem o do hero')
   expect(r.ok).toBe(true)
   expect(r.reexecuta).toBe(true)
+  expect(r.refaz).toBe(false)
   const c = readCard('022')
   expect(c?.fm.status).toBe('CORRECTING')
   expect(c?.fm.correction).toBe('tira tambem o do hero')
+})
+
+test('REGRESSAO sem worktree, instrucao REFAZ em vez de virar correcao morta', async () => {
+  const { instruir } = await import('../lib/core/instruir')
+  const { readCard } = await import('../lib/runner/card-store')
+  card('022', { status: 'HALTED', worktree: '/caminho/que/nao/existe' })
+  const r = instruir('022', 'retome e me mostre o preview')
+  expect(r.refaz).toBe(true)
+  const c = readCard('022')
+  expect(c?.fm.status).toBe('EXECUTING')
+  expect(c?.fm.correction ?? '').toBe('')
+  expect(c?.body).toContain('sem worktree — refazendo do zero')
+})
+
+test('card sem campo de worktree tambem refaz', async () => {
+  const { instruir } = await import('../lib/core/instruir')
+  const { readCard } = await import('../lib/runner/card-store')
+  card('022', { status: 'HALTED' })
+  expect(instruir('022', 'continue').refaz).toBe(true)
+  expect(readCard('022')?.fm.status).toBe('EXECUTING')
+})
+
+test('REGRESSAO paste multilinha vira UMA instrucao, nao sete', async () => {
+  const { instruir, subPrompts } = await import('../lib/core/instruir')
+  const { readCard } = await import('../lib/runner/card-store')
+  card('022', { status: 'HALTED' })
+  instruir('022', 'deu erro:\nApp.vue:97:7\n95 |\n96 |  <EngineConsole />\n   |   ^')
+  const subs = subPrompts(readCard('022')?.body ?? '')
+  expect(subs.length).toBe(1)
+  expect(subs[0]).toContain('App.vue:97:7')
+  expect(subs[0]).toContain('EngineConsole')
 })
 
 test('instrucao antes de executar so anota, sem forcar correcao', async () => {
@@ -90,7 +122,14 @@ test('card inexistente nao explode', async () => {
 test('cada instrucao entra no log de estado do card', async () => {
   const { instruir } = await import('../lib/core/instruir')
   const { readCard } = await import('../lib/runner/card-store')
-  card('022')
+  card('022', { worktree: dir })
   instruir('022', 'primeira coisa')
   expect(readCard('022')?.body).toContain('instrucao 1: primeira coisa')
+})
+
+test('umaLinha preserva o conteudo e marca as quebras', async () => {
+  const { umaLinha } = await import('../lib/core/instruir')
+  expect(umaLinha('linha um\nlinha dois')).toBe('linha um ⏎ linha dois')
+  expect(umaLinha('  espacos   demais  ')).toBe('espacos demais')
+  expect(umaLinha('so uma')).toBe('so uma')
 })

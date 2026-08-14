@@ -37,6 +37,7 @@ export interface App {
   run: () => Promise<void>
   log: (linha: string) => void
   abrirBoard: () => void
+  limparLog: () => void
 }
 
 const PADRAO = {
@@ -231,6 +232,11 @@ export function createApp(term: Terminal, dados: AppHooks): App {
 
   return {
     log,
+    limparLog: (): void => {
+      extras.length = 0
+      sujo = true
+      desenhar()
+    },
     abrirBoard: (): void => {
       input = { ...input, navegando: 'board' }
       sujo = true

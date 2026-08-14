@@ -106,3 +106,19 @@ test('painel de parada cabe na largura', () => {
     }
   }
 })
+
+test('muitas instrucoes nao inundam o cabecalho', () => {
+  const subs = Array.from({ length: 11 }, (_, i) => `instrucao ${i + 1}`)
+  const t = renderCabecalhoTarefa(card(), { width: 78, subs }).join('\n')
+  expect(t).toContain('(8 instrucao(oes) anterior(es))')
+  expect(t).toContain('9. instrucao 9')
+  expect(t).toContain('11. instrucao 11')
+  expect(t).not.toContain('1. instrucao 1\n')
+})
+
+test('ate tres instrucoes aparecem inteiras', () => {
+  const t = renderCabecalhoTarefa(card(), { width: 78, subs: ['a', 'b', 'c'] }).join('\n')
+  expect(t).toContain('1. a')
+  expect(t).toContain('3. c')
+  expect(t).not.toContain('anterior(es)')
+})

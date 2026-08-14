@@ -157,7 +157,7 @@ test('FLUXO REAL: instrucao dentro da tarefa entra como sub-prompt, sem confirma
   const { subPrompts } = await import('../lib/core/instruir')
   const { readCard } = await import('../lib/runner/card-store')
   const { seguir } = await import('../lib/core/session')
-  card('022', { status: 'EXECUTED' })
+  card('022', { status: 'EXECUTED', worktree: dir })
   await digitar(['tira tambem o do hero'], seguir(newSession('org/app'), '022'))
   const c = readCard('022')
   expect(subPrompts(c?.body ?? '')).toEqual(['tira tambem o do hero'])

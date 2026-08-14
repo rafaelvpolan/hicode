@@ -41,7 +41,11 @@ export function renderCabecalhoTarefa(card: Card, opts: Partial<TarefaOptions> =
   out.push(`  ${paint(`#${id}`, BOLD, o)} ${paint(status.toLowerCase(), CYAN, o)}  ${truncVisible(String(fm.title ?? ''), o.width - 20)}`)
   out.push(paint(`  ${'─'.repeat(Math.max(10, o.width - 4))}`, DIM, o))
   if (o.objetivo) out.push(campo('prompt', o.objetivo, o))
-  o.subs.forEach((s, i) => out.push(campo(i === 0 ? 'depois' : '', `${i + 1}. ${s}`, o)))
+  const total = o.subs.length
+  const mostrar = total > 3 ? o.subs.slice(-3) : o.subs
+  const base = total - mostrar.length
+  if (base > 0) out.push(campo('depois', paint(`(${base} instrucao(oes) anterior(es))`, DIM, o), o))
+  mostrar.forEach((s, i) => out.push(campo(base === 0 && i === 0 ? 'depois' : '', `${base + i + 1}. ${s}`, o)))
 
   const preview = estadoDoPreview({
     status, worktree: String(fm.worktree ?? ''), url: o.previewUrl,

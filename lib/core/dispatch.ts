@@ -127,7 +127,10 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       }
       const r = instruir(id, texto)
       if (!r.ok) { io.log(r.reason); return state }
-      io.log(`instrucao ${r.numero} anotada em #${id}${r.reexecuta ? ' — a tarefa vai reexecutar com ela' : ''}`)
+      const nota = r.refaz
+        ? ' — o worktree tinha sumido, entao a tarefa vai refazer do zero com ela'
+        : r.reexecuta ? ' — a tarefa vai reexecutar com ela' : ''
+      io.log(`instrucao ${r.numero} anotada em #${id}${nota}`)
       return state
     }
     case 'resume': {

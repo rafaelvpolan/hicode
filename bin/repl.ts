@@ -152,8 +152,14 @@ function cabecalhoDaTarefa(state: SessionState): string[] {
 }
 
 function seguimento(state: SessionState): string[] {
+  const card = readCard(state.seguindo)
   const at = atividadeDe(state.seguindo)
-  return at.length ? at.slice(-200).map(formatar) : ['  aguardando a IA…']
+  if (at.length) return at.slice(-200).map(formatar)
+  const status = String(card?.fm.status ?? '')
+  if (['EXECUTING', 'CORRECTING'].includes(status)) return ['  aguardando a IA…']
+  if (status === 'HALTED') return ['  tarefa parada — escreva uma instrucao ou aperte enter para retomar']
+  if (status === 'CLARIFY') return ['  esperando a sua resposta abaixo']
+  return ['  nada em execucao nesta tarefa']
 }
 
 function custoDoDia(repo: string): string {
@@ -579,17 +585,8 @@ async function tui(state0: SessionState): Promise<void> {
       selecionado = ''
       state = seguir(state, alvo)
       if (pendencia(alvo)) state = perguntando(state, alvo)
+      app.limparLog()
       void httpOk(`http://localhost:${previewPort(alvo)}`).then(v => previewVivo.set(alvo, v))
-      if (modo === 'rodape') {
-        app.log(`  seguindo a execucao de #${alvo} — /board volta`)
-        return
-      }
-      void (async () => {
-        const card = readCard(alvo)
-        const vivo = card?.fm.preview_url ? await httpOk(card.fm.preview_url) : false
-        for (const l of planoDe(alvo, vivo).split('\n')) app.log(l)
-        app.log(`  seguindo a execucao de #${alvo} — /board volta`)
-      })()
     },
     onLine: processar,
   })
