@@ -4,6 +4,8 @@ import { extractObjetivo } from '../card'
 import type { Card, ClarifyQuestion } from '../card'
 import { cardsDir, ROOT } from './config'
 import { providerFor, modelFor } from '../ai/registry'
+import { preflight, comoOpcoes } from '../core/ideate'
+import { idear } from './ideate-run'
 import { sumTokens } from '../ai/usage'
 
 export interface ClarifyResult {
@@ -57,6 +59,34 @@ function parseQuestions(text: string): ClarifyQuestion[] {
   } catch {
     return []
   }
+}
+
+export interface IdeacaoNoClarify {
+  perguntas: ClarifyQuestion[]
+  cost: number
+  tokens: number
+  motivo: string
+}
+
+export async function clarifyPorIdeacao(card: Card, perfil: string): Promise<IdeacaoNoClarify> {
+  const objetivo = extractObjetivo(card.body) || card.fm.title || ''
+  const gate = preflight({ titulo: card.fm.title ?? '', objetivo, perfil, override: card.fm.ideate ?? '' })
+  if (!gate.vale) return { perguntas: [], cost: 0, tokens: 0, motivo: gate.motivo }
+  const r = await idear(objetivo, card.fm.id ?? '')
+  if (!r.ok || !r.convergencia) {
+    return { perguntas: [], cost: r.cost, tokens: r.tokens, motivo: `ideacao nao concluiu: ${r.motivo}` }
+  }
+  const opcoes = comoOpcoes(r.convergencia, 4)
+  if (opcoes.length < 2) {
+    return { perguntas: [], cost: r.cost, tokens: r.tokens, motivo: 'ideacao rendeu menos de duas opcoes' }
+  }
+  const armadilha = r.convergencia.armadilhas[0]
+  const pergunta: ClarifyQuestion = {
+    q: `Qual abordagem seguir?${armadilha ? ` (evitar: ${armadilha.ideia.slice(0, 60)} — ${armadilha.porque.slice(0, 80)})` : ''}`,
+    options: opcoes,
+    recommended: opcoes[0] ?? '',
+  }
+  return { perguntas: [pergunta], cost: r.cost, tokens: r.tokens, motivo: r.motivo }
 }
 
 export async function clarify(card: Card): Promise<ClarifyResult> {

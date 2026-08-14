@@ -308,6 +308,36 @@ hii                                   # 4. sessão: escreva a tarefa
 
 ---
 
+## Ideação divergente na clareza da tarefa
+
+Quando o pedido é **de abordagem** ("como estruturar o cache", "melhor arquitetura para X"), o
+clarify deixa de só perguntar e passa a **gerar as opções**: N ramos isolados, cada um sob uma
+**lente cognitiva** diferente (inversão, atacante, 3h da manhã, US$0/1h, orçamento infinito,
+remoção de premissa, criança de 10 anos, regulador, speedrunner, logística), sem se enxergarem —
+o isolamento é o que evita ancoragem. Depois um **crítico que não gerou nenhuma delas** pontua
+novidade / viabilidade / aderência, marca uma **não-óbvia-mas-viável** e lista as **armadilhas**.
+
+A shortlist vira as opções da pergunta, e a armadilha entra no enunciado:
+
+```
+Qual abordagem seguir? (evitar: cache no cliente — invalida errado sob deploy)
+  › [inversão] pré-computar no build e servir estático   ← recomendado
+    [3h da manhã] TTL curto com fallback para o último bom
+    [US$0/1h] cabeçalho de cache no proxy que já existe
+```
+
+**Portão determinístico, antes de gastar token:** só roda em pedido aberto. Perfil `micro`/`enxuto`,
+resposta canônica (typo, renomear, bump) ou pedido que já diz "rápido/simples" **não ideiam** — e
+o motivo fica no log. Override no card: `ideate: on|off`.
+
+> **Custo:** são N+1 chamadas (padrão: 5). Adaptado de
+> [UditAkhourii/adhd](https://github.com/uditakhourii/adhd), implementado nativo em vez de instalar
+> a skill — assim funciona com qualquer provedor, entra na contabilidade de custo do card e obedece
+> ao portão do analisador. Os ganhos que o repositório original publica são auto-reportados,
+> julgados por LLM sobre 6 problemas: trate como promissor, não como medido.
+
+---
+
 ## Acompanhar a execução
 
 **`/agents <id>`** lê o log de streaming da IA e mostra o que de fato rodou:
@@ -563,6 +593,7 @@ não do protocolo.
 | `HICODE_OLLAMA_URL` | `http://localhost:11434` | endpoint do Ollama |
 | `HICODE_VISUAL_AI` | `off` | `on` liga o check visual por IA (default: só screenshot + humano) |
 | `HICODE_CLARIFY` | `on` | `off` desliga a fase de perguntas |
+| `HICODE_IDEATE_FRAMES` / `_IDEAS` / `_TOPK` | `4`/`5`/`3` | lentes, ideias por lente e tamanho da shortlist |
 | `HICODE_EVAL` | `on` | `off` desliga a nota de qualidade pós-preview |
 | `HICODE_PROJECT_MEMORY` | `on` | `off` não injeta nem grava `.hii/memory` |
 | `HICODE_TASK_SYNC` | `none` | plugin de sync de tarefas (`github-issues`) |

@@ -3,7 +3,9 @@ import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { Card, ImplementResult, StepMap, StepMetric, Usage } from '../card'
 import { cardsDir, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
-import { clarify, writeClarify } from './clarify'
+import { clarify, clarifyPorIdeacao, writeClarify } from './clarify'
+import { planSteps } from './analyze'
+import { activeSteps } from './pipeline/config'
 import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, refreshFromBase, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
@@ -93,6 +95,20 @@ export async function handleExecute(id: string): Promise<void> {
     patchCard(id, { surface: surface.surface }, `${isoNow()} classificacao previa: tarefa ${surface.surface === 'visual' ? 'VISUAL' : 'NAO-VISUAL'} (${surface.reason})`)
   }
   if (CLARIFY && card.fm.clarified !== 'true') {
+    const perfilPrevio = planSteps(
+      { title: card.fm.title, objetivo: extractObjetivo(card.body), risk: card.fm.risk, surface: surface.surface, override: card.fm.steps },
+      activeSteps(),
+    ).profile
+    const ide = await clarifyPorIdeacao(card, perfilPrevio)
+    auxCost += ide.cost
+    auxTokens += ide.tokens
+    if (ide.perguntas.length) {
+      writeClarify(id, ide.perguntas)
+      patchCard(id, { status: 'CLARIFY', cost_usd: auxCost.toFixed(4), tokens_total: String(auxTokens) }, `${isoNow()} EXECUTING->CLARIFY ideacao divergente (${ide.motivo}) — escolha a abordagem`)
+      process.stdout.write(`[runner] #${id}: CLARIFY por ideacao (${ide.motivo})\n`)
+      return
+    }
+    if (ide.motivo) patchCard(id, {}, `${isoNow()} ideacao: pulada — ${ide.motivo}`)
     const c = await clarify(card)
     auxCost += c.cost || 0
     auxTokens += c.tokens || 0
