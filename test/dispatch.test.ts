@@ -94,11 +94,12 @@ test('efeito desconhecido grita em vez de sumir', async () => {
   expect(saida.join(' ')).toContain('bug do hii')
 })
 
-test('quit, board e reopen-repo ficam para quem chamou', async () => {
+test('quit e board ficam para quem chamou; o resto o despachante trata', async () => {
   const { dispatch } = await import('../lib/core/dispatch')
-  for (const kind of ['quit', 'board', 'reopen-repo']) {
+  for (const kind of ['quit', 'board']) {
     expect((await dispatch({ kind } as never, newSession(''), io)).tratado).toBe(false)
   }
+  expect((await dispatch({ kind: 'reopen-repo' } as never, newSession(''), io)).tratado).toBe(true)
 })
 
 test('LOTE: /rm com varios ids apaga todos', async () => {
@@ -237,4 +238,62 @@ test('retomar card inexistente avisa', async () => {
   const { retomando } = await import('../lib/core/session')
   await digitar([''], retomando(newSession('org/app'), '099'))
   expect(saida.join(' ')).toContain('nao encontrado')
+})
+
+const REGISTRO = [{ name: 'acme/site', path: '/tmp/site' }, { name: 'acme/api', path: '/tmp/api' }]
+
+function comRepos(): void {
+  writeFileSync(join(dir, '..', 'repos-teste.json'), JSON.stringify(REGISTRO))
+  process.env.HICODE_REPOS_FILE = join(dir, '..', 'repos-teste.json')
+}
+
+test('escolher projeto por numero muda o alvo', async () => {
+  comRepos()
+  const state = await digitar(['/repo', '2'])
+  expect(state.repo).toBe('acme/api')
+  expect(saida.join(' ')).toContain('projeto agora e acme/api')
+})
+
+test('escolher projeto por nome parcial funciona quando e unico', async () => {
+  comRepos()
+  expect((await digitar(['/repo api'])).repo).toBe('acme/api')
+})
+
+test('nome que combina com varios pede desempate em vez de chutar', async () => {
+  comRepos()
+  const state = await digitar(['/repo acme'])
+  expect(state.repo).toBe('org/app')
+  expect(saida.join(' ')).toContain('combina com 2 projetos')
+})
+
+test('projeto nao registrado e RECUSADO, com a lista do que existe', async () => {
+  comRepos()
+  const state = await digitar(['/repo qualquer/coisa'])
+  expect(state.repo).toBe('org/app')
+  expect(saida.join(' ')).toContain('nao esta registrado')
+  expect(saida.join(' ')).toContain('acme/site')
+  expect(saida.join(' ')).toContain('hii repo add')
+})
+
+test('trocar de projeto solta a tarefa aberta do projeto anterior', async () => {
+  comRepos()
+  const { seguir } = await import('../lib/core/session')
+  const state = await digitar(['/repo 1'], seguir(newSession('org/app'), '022'))
+  expect(state.repo).toBe('acme/site')
+  expect(state.seguindo).toBe('')
+})
+
+test('/repo sem argumento lista os projetos registrados', async () => {
+  comRepos()
+  const state = await digitar(['/repo'])
+  expect(state.escolhendo).toBe(true)
+  expect(saida.join(' ')).toContain('acme/site')
+  expect(saida.join(' ')).toContain('acme/api')
+})
+
+test('sem projeto registrado, ensina a registrar', async () => {
+  writeFileSync(join(dir, '..', 'repos-vazio.json'), '[]')
+  process.env.HICODE_REPOS_FILE = join(dir, '..', 'repos-vazio.json')
+  await digitar(['/repo'])
+  expect(saida.join(' ')).toContain('nenhum projeto registrado')
 })

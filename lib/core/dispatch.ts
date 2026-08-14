@@ -1,4 +1,4 @@
-import { readCard, allCards, normalizeId } from '../runner/card-store'
+import { readCard, allCards, normalizeId, listRepos } from '../runner/card-store'
 import { readClarify } from '../runner/clarify'
 import * as core from './actions'
 import { planejarLote, removerLote } from './remover'
@@ -8,7 +8,7 @@ import { renderPergunta, renderRespondidas } from './render/clarify'
 import { instruir } from './instruir'
 import { renderHelp } from './render/help'
 import { esperandoVoce } from './render/rodape'
-import { seguir, planShown, perguntando, removendo, respondido } from './session'
+import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo } from './session'
 import type { Effect, SessionState } from './session'
 
 export interface DispatchIO {
@@ -27,7 +27,7 @@ export interface DispatchResult {
   tratado: boolean
 }
 
-const FORA = ['quit', 'board', 'reopen-repo', 'none']
+const FORA = ['quit', 'board', 'none']
 
 async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Promise<SessionState> {
   const id = effect.id ?? ''
@@ -133,6 +133,45 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       io.log(`instrucao ${r.numero} anotada em #${id}${nota}`)
       return state
     }
+    case 'reopen-repo': {
+      const repos = listRepos()
+      if (!repos.length) {
+        io.log('nenhum projeto registrado — use: hii repo add <owner/nome>')
+        return state
+      }
+      io.log('')
+      repos.forEach((r, i) => {
+        const atual = r.name === state.repo ? '  ← atual' : ''
+        io.log(`  ${paintNumero(i + 1, io)}  ${r.name}${io.dim(atual)}`)
+      })
+      io.log('')
+      io.log('digite o numero ou o nome do projeto')
+      return escolhendoRepo(state)
+    }
+    case 'pick-repo': {
+      const repos = listRepos()
+      const nomes = repos.map(r => r.name)
+      const escolha = texto.trim()
+      const porNumero = /^\d+$/.test(escolha) ? nomes[Number(escolha) - 1] : undefined
+      const exato = nomes.find(n => n === escolha)
+      const porNome = nomes.filter(n => n.toLowerCase().includes(escolha.toLowerCase()))
+      const alvo = porNumero ?? exato ?? (porNome.length === 1 ? porNome[0] : undefined)
+      if (!alvo) {
+        if (porNome.length > 1) {
+          io.log(`"${escolha}" combina com ${porNome.length} projetos: ${porNome.join(', ')}`)
+          return state
+        }
+        io.log(`"${escolha}" nao esta registrado — os projetos sao: ${nomes.join(', ')}`)
+        io.log('para adicionar: hii repo add <owner/nome>')
+        return state
+      }
+      if (alvo === state.repo) {
+        io.log(`ja esta em ${alvo}`)
+        return state
+      }
+      io.log(`projeto agora e ${alvo}`)
+      return { ...state, repo: alvo, seguindo: '', perguntando: '', removendo: '', retomando: '' }
+    }
     case 'resume': {
       const card = readCard(id)
       if (!card) { io.log(`card #${id} nao encontrado`); return state }
@@ -182,4 +221,8 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
 export async function dispatch(effect: Effect, state: SessionState, io: DispatchIO): Promise<DispatchResult> {
   if (FORA.includes(effect.kind)) return { state, tratado: false }
   return { state: await aplicar(effect, state, io), tratado: true }
+}
+
+function paintNumero(n: number, io: DispatchIO): string {
+  return io.color ? `\x1b[36m${n}\x1b[0m` : String(n)
 }

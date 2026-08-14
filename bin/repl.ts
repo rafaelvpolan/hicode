@@ -218,6 +218,7 @@ function pintarComando(linha: string): string {
 function dicaDa(state: SessionState, sugerindo = false): string {
   if (sugerindo) return '↑↓ escolhe  tab completa  enter usa'
   if (selecionado) return 'setas movem  enter entra  esc sai'
+  if (state.escolhendo) return 'numero ou nome escolhe o projeto'
   if (state.retomando) return 'enter retoma  ctrl+c sai'
   if (state.removendo) return 'enter confirma  n cancela'
   if (state.perguntando) return '↓ escolhe  numero responde  enter confirma'

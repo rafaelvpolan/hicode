@@ -2,7 +2,7 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo'
 
 export interface SessionState {
   repo: string
@@ -11,6 +11,7 @@ export interface SessionState {
   perguntando: string
   removendo: string
   retomando: string
+  escolhendo: boolean
 }
 
 export interface Effect {
@@ -27,7 +28,7 @@ export interface Reply {
 export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/project', '/exit', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '' }
+  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false }
 }
 
 export function perguntando(state: SessionState, id: string): SessionState {
@@ -36,6 +37,10 @@ export function perguntando(state: SessionState, id: string): SessionState {
 
 export function respondido(state: SessionState): SessionState {
   return { ...state, perguntando: '' }
+}
+
+export function escolhendoRepo(state: SessionState): SessionState {
+  return { ...state, escolhendo: true, pendingPlan: '', perguntando: '', removendo: '', retomando: '' }
 }
 
 export function retomando(state: SessionState, id: string): SessionState {
@@ -114,7 +119,7 @@ function command(line: string, state: SessionState): Reply {
     case 'project':
     case 'projeto':
       return arg
-        ? reply({ kind: 'none' }, { ...state, repo: arg })
+        ? reply({ kind: 'pick-repo', text: arg }, { ...state, escolhendo: false })
         : reply({ kind: 'reopen-repo' }, state)
     case 'quit':
     case 'exit':
@@ -128,6 +133,7 @@ function command(line: string, state: SessionState): Reply {
 export function handle(raw: string, state: SessionState): Reply {
   const line = raw.trim()
   if (!line) {
+    if (state.escolhendo) return reply({ kind: 'none' }, { ...state, escolhendo: false })
     if (state.retomando) return reply({ kind: 'resume', id: state.retomando }, { ...state, retomando: '' })
     if (state.removendo) return reply({ kind: 'confirm-rm', id: state.removendo, text: 'sim' }, { ...state, removendo: '' })
     if (state.perguntando) return reply({ kind: 'answer', id: state.perguntando, text: '' }, state)
@@ -136,6 +142,9 @@ export function handle(raw: string, state: SessionState): Reply {
       : reply({ kind: 'none' }, state)
   }
   if (line.startsWith('/')) return command(line, state)
+  if (state.escolhendo) {
+    return reply({ kind: 'pick-repo', text: line }, { ...state, escolhendo: false })
+  }
   if (state.retomando) return handle(line, { ...state, retomando: '' })
   if (state.removendo) {
     const nao = /^(n|nao|não|no|c|cancel\w*)$/i.test(line)

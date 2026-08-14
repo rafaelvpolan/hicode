@@ -72,8 +72,10 @@ test('/halt sem motivo usa texto padrao', () => {
   expect(handle('/halt 42', base).effect.text).toBe('parado pelo humano')
 })
 
-test('/repo com nome troca o alvo direto', () => {
-  expect(handle('/repo org/outro', base).state.repo).toBe('org/outro')
+test('/repo com nome pede validacao antes de trocar', () => {
+  const r = handle('/repo org/outro', base)
+  expect(r.effect.kind).toBe('pick-repo')
+  expect(r.effect.text).toBe('org/outro')
 })
 
 test('/repo sem argumento reabre a lista de projetos', () => {
@@ -374,4 +376,39 @@ test('/exit aparece no catalogo de comandos', async () => {
 test('/exit sai mesmo com algo pendente', () => {
   const cheio = { ...planShown(base, '9'), perguntando: '9', removendo: '9', retomando: '9', seguindo: '9' }
   expect(handle('/exit', cheio).effect.kind).toBe('quit')
+})
+
+import { escolhendoRepo } from '../lib/core/session'
+
+test('/repo e /project levam ao mesmo caminho', () => {
+  expect(handle('/repo', base).effect.kind).toBe('reopen-repo')
+  expect(handle('/project', base).effect.kind).toBe('reopen-repo')
+  expect(handle('/repo acme/site', base).effect.kind).toBe('pick-repo')
+  expect(handle('/project acme/site', base).effect.kind).toBe('pick-repo')
+})
+
+test('/repo com nome NAO troca direto — passa pela validacao', () => {
+  const r = handle('/repo qualquer/coisa', base)
+  expect(r.effect.kind).toBe('pick-repo')
+  expect(r.state.repo).toBe(base.repo)
+})
+
+test('escolhendo projeto, numero e nome viram escolha', () => {
+  const s = escolhendoRepo(base)
+  expect(handle('2', s).effect).toMatchObject({ kind: 'pick-repo', text: '2' })
+  expect(handle('acme/api', s).effect).toMatchObject({ kind: 'pick-repo', text: 'acme/api' })
+})
+
+test('escolhendo projeto, numero nao abre plano por engano', () => {
+  expect(handle('20', escolhendoRepo(base)).effect.kind).toBe('pick-repo')
+})
+
+test('enter vazio desiste de escolher projeto', () => {
+  const r = handle('', escolhendoRepo(base))
+  expect(r.effect.kind).toBe('none')
+  expect(r.state.escolhendo).toBe(false)
+})
+
+test('comando durante a escolha continua sendo comando', () => {
+  expect(handle('/board', escolhendoRepo(base)).effect.kind).toBe('board')
 })
