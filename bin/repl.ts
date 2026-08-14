@@ -21,10 +21,11 @@ import { planSteps } from '../lib/runner/analyze'
 import { extractObjetivo } from '../lib/card'
 import type { Fields } from '../lib/card'
 import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daemon'
-import { handle, newSession, planShown, respondido, seguir } from '../lib/core/session'
+import { handle, newSession, planShown, respondido, seguir, perguntando } from '../lib/core/session'
 import { dispatch } from '../lib/core/dispatch'
 import type { DispatchIO } from '../lib/core/dispatch'
-import { cardsPerguntando } from '../lib/core/responder'
+import { cardsPerguntando, pendencia } from '../lib/core/responder'
+import { renderOpcoesRodape } from '../lib/core/render/clarify'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { renderCabecalhoTarefa } from '../lib/core/render/tarefa'
 import { subPrompts } from '../lib/core/instruir'
@@ -172,6 +173,10 @@ function rodapeDa(state: SessionState, noRodape = false): string[] {
     selecionado: noRodape ? selecionado : '',
     maxLinhas: noRodape ? 6 : 3,
   }
+  if (state.perguntando) {
+    const p = pendencia(state.perguntando)
+    if (p) return [props, ...renderOpcoesRodape(p, { color, width: largura, selecionado: noRodape ? selecionado : '' })]
+  }
   const espera = linhasEspera(esperandoVoce(cards, state.repo), marcado)
   return [props, ...linhasExecucao(rodando, marcado), ...espera]
 }
@@ -179,6 +184,7 @@ function rodapeDa(state: SessionState, noRodape = false): string[] {
 function dicaDa(state: SessionState): string {
   if (selecionado) return 'setas movem  enter entra  esc sai'
   if (state.removendo) return 'enter confirma  n cancela'
+  if (state.perguntando) return '↓ escolhe  numero responde  enter confirma'
   if (state.perguntando) return 'numero responde  ctrl+j quebra linha'
   const esperando = cardsPerguntando(allCards(), state.repo)
   if (esperando.length) return `/ask responde #${esperando[0]}  ctrl+c sai`
@@ -189,6 +195,10 @@ function dicaDa(state: SessionState): string {
 let selecionado = ''
 
 function ordemDoRodape(state: SessionState): string[] {
+  if (state.perguntando) {
+    const p = pendencia(state.perguntando)
+    if (p) return p.atual.options.map((_, i) => `op:${i + 1}`)
+  }
   const cards = allCards()
   const rodando = emExecucao(cards, state.repo, Date.now(), () => '').map(e => e.id)
   const espera = esperandoVoce(cards, state.repo).map(e => e.id)
@@ -446,6 +456,26 @@ async function tui(state0: SessionState): Promise<void> {
   let modoAtual: ModoNavegacao = ''
   const term = nodeTerminal()
   let sairPedido = false
+  async function processar(linha: string): Promise<void> {
+    const { effect, state: next } = handle(linha, state)
+    state = next
+    const diga = (s: string): void => app.log('  ' + s)
+    if (effect.kind === 'quit') { sairPedido = true; return }
+    if (effect.kind === 'submit') {
+      if (state.perguntando) state = respondido(state)
+      if (!state.repo) return diga('sem projeto — /repo <owner/nome>')
+      const novoId = core.submit({ title: effect.text ?? '', repo: state.repo })
+      diga(`card #${novoId} criado`)
+      for (const l of planoDe(novoId).split('\n')) app.log(l)
+      state = planShown(state, novoId)
+      diga('enter aprova e enfileira · outra tarefa descarta')
+      return
+    }
+    const r = await dispatch(effect, state, ioDo(app, diga))
+    state = r.state
+    if (!r.tratado && effect.kind === 'board') state = { ...state, seguindo: '' }
+  }
+
   const app = createApp(term, {
     header: () => `hii · ${state.repo || '(sem projeto)'}${state.seguindo ? ` · seguindo #${state.seguindo}` : ''}   daemon ${daemonStatus()}`,
     corpo: (ctx) => {
@@ -468,10 +498,17 @@ async function tui(state0: SessionState): Promise<void> {
       return `${ids} em execucao — a area so limpa quando terminar`
     },
     onEntrar: (modo) => {
+      if (selecionado.startsWith('op:')) {
+        const escolha = selecionado.slice(3)
+        selecionado = ''
+        void processar(escolha)
+        return
+      }
       if (!selecionado) return
       const alvo = selecionado
       selecionado = ''
       state = seguir(state, alvo)
+      if (pendencia(alvo)) state = perguntando(state, alvo)
       void httpOk(`http://localhost:${previewPort(alvo)}`).then(v => previewVivo.set(alvo, v))
       if (modo === 'rodape') {
         app.log(`  seguindo a execucao de #${alvo} — /board volta`)
@@ -484,25 +521,7 @@ async function tui(state0: SessionState): Promise<void> {
         app.log(`  seguindo a execucao de #${alvo} — /board volta`)
       })()
     },
-    onLine: async (linha) => {
-      const { effect, state: next } = handle(linha, state)
-      state = next
-      const diga = (s: string): void => app.log('  ' + s)
-      if (effect.kind === 'quit') { sairPedido = true; return }
-      if (effect.kind === 'submit') {
-        if (state.perguntando) state = respondido(state)
-        if (!state.repo) return diga('sem projeto — /repo <owner/nome>')
-        const novoId = core.submit({ title: effect.text ?? '', repo: state.repo })
-        diga(`card #${novoId} criado`)
-        for (const l of planoDe(novoId).split('\n')) app.log(l)
-        state = planShown(state, novoId)
-        diga('enter aprova e enfileira · outra tarefa descarta')
-        return
-      }
-      const r = await dispatch(effect, state, ioDo(app, diga))
-      state = r.state
-      if (!r.tratado && effect.kind === 'board') state = { ...state, seguindo: '' }
-    },
+    onLine: processar,
   })
   await app.run()
   if (sairPedido) say(dim('  sessao encerrada — os cards seguem rodando'))

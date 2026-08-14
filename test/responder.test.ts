@@ -88,3 +88,34 @@ test('mostra as decisoes ja tomadas, pergunta e resposta', () => {
 test('card sem pergunta nem resposta diz isso', () => {
   expect(renderRespondidas('030', []).join('')).toContain('nao tem pergunta nem resposta')
 })
+
+import { renderOpcoesRodape } from '../lib/core/render/clarify'
+
+const pend = { id: '022', titulo: 'x', perguntas: [pergunta], indice: 0, atual: pergunta }
+
+test('rodape numera as opcoes e marca a escolhida pela seta', () => {
+  const linhas = renderOpcoesRodape(pend, { selecionado: 'op:2', width: 78 })
+  expect(linhas[0]).toContain('#022 pergunta')
+  expect(linhas[1]?.startsWith('›')).toBe(false)
+  expect(linhas[2]?.startsWith('›')).toBe(true)
+  expect(linhas[2]).toContain('2')
+})
+
+test('rodape aponta a opcao sugerida', () => {
+  expect(renderOpcoesRodape(pend, { selecionado: '', width: 78 }).join('\n')).toContain('sugerido')
+})
+
+test('rodape mostra o passo quando ha mais de uma pergunta', () => {
+  const dois = { ...pend, perguntas: [pergunta, pergunta], indice: 1 }
+  expect(renderOpcoesRodape(dois, { selecionado: '', width: 78 })[0]).toContain('(2/2)')
+})
+
+test('pergunta longa e recortada para caber no rodape', () => {
+  const longa = { ...pergunta, q: 'q'.repeat(300) }
+  const linhas = renderOpcoesRodape({ ...pend, atual: longa }, { selecionado: '', width: 60 })
+  for (const l of linhas) expect(l.length).toBeLessThanOrEqual(70)
+})
+
+test('sem cor nao emite escape ANSI', () => {
+  expect(renderOpcoesRodape(pend, { selecionado: 'op:1', color: false }).join('')).not.toContain('\x1b[')
+})

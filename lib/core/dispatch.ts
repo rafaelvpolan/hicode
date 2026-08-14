@@ -59,7 +59,7 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       const card = readCard(id)
       if (!card) { io.log(`card #${id} nao encontrado`); return { ...state, seguindo: '' } }
       if (card.fm.preview_url) io.log(`preview → ${card.fm.preview_url}`)
-      return state
+      return pendencia(id) ? perguntando(state, id) : state
     }
     case 'activity': {
       const linhas = io.atividade(id)

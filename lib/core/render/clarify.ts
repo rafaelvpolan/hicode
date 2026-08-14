@@ -40,6 +40,33 @@ export function renderRespondidas(id: string, perguntas: { q: string; answer?: s
   return out
 }
 
+export interface OpcoesRodape {
+  color?: boolean
+  width?: number
+  selecionado: string
+}
+
+export function renderOpcoesRodape(p: Pendencia, o: OpcoesRodape): string[] {
+  const largura = o.width ?? 78
+  const cor = { color: o.color }
+  const total = p.perguntas.length
+  const passo = total > 1 ? ` (${p.indice + 1}/${total})` : ''
+  const cabecalho = `  ${paint('?', ACC, cor)} ${paint(`#${p.id} pergunta${passo}`, BOLD, cor)}  ${paint(recorte(p.atual.q, largura - 24), DIM, cor)}`
+  const linhas = p.atual.options.map((opcao, i) => {
+    const alvo = o.selecionado === `op:${i + 1}`
+    const marca = alvo ? paint('›', ACC, cor) : ' '
+    const numero = paint(String(i + 1), ACC, cor)
+    const sugerido = opcao === p.atual.recommended ? paint('  sugerido', DIM, cor) : ''
+    return `${marca} ${numero}  ${recorte(opcao, largura - 18)}${sugerido}`
+  })
+  return [cabecalho, ...linhas]
+}
+
+function recorte(texto: string, largura: number): string {
+  const limpo = texto.replace(/\s+/g, ' ').trim()
+  return limpo.length > largura ? `${limpo.slice(0, Math.max(4, largura - 1))}…` : limpo
+}
+
 export function quebrar(texto: string, largura: number): string[] {
   const palavras = texto.split(/\s+/).filter(Boolean)
   const linhas: string[] = []
