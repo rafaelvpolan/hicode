@@ -46,6 +46,12 @@ function usage(): void {
     '  status                   estado do daemon + progresso dos cards',
     '  watch                    progresso dos cards ao vivo (atualiza sozinho)',
     '',
+    'Portas humanas do card:',
+    '  approve <id>             aprova o preview (PREVIEW -> PREVIEW_OK)',
+    '  approve <id> --plan      aprova o plano e enfileira (READY -> EXECUTING)',
+    '  reject <id> [o que]      rejeita o preview; com motivo, pede correcao',
+    '  halt <id> [motivo]       para o card',
+    '',
     'Repo-alvo (deterministico, 0 token):',
     '  repo add <owner/nome>    registra o alvo, valida o clone, provisiona .hii/ e gera o contrato',
     '  repo rm <owner/nome>     remove do registro (nao toca no clone)',
@@ -126,6 +132,10 @@ async function main(): Promise<number> {
       return hooks()
     case 'repo':
       return script('repo', args.slice(1))
+    case 'approve':
+    case 'reject':
+    case 'halt':
+      return script('card', args)
     case 'contract':
       return script('contract', args.slice(1))
     case undefined:

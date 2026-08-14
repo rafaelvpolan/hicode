@@ -1,6 +1,7 @@
 export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'discard-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
+  | 'approve-preview' | 'reject-preview'
 
 export interface SessionState {
   repo: string
@@ -18,7 +19,7 @@ export interface Reply {
   state: SessionState
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/watch', '/halt', '/plan', '/repo', '/quit'] as const
+export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/watch', '/halt', '/plan', '/repo', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
   return { repo, pendingPlan: '' }
@@ -50,6 +51,16 @@ function command(line: string, state: SessionState): Reply {
         : reply({ kind: 'error', text: 'uso: /halt <id> [motivo]' }, state)
     case 'plan':
       return arg ? reply({ kind: 'plan', id: arg }, state) : reply({ kind: 'error', text: 'uso: /plan <id>' }, state)
+    case 'ok':
+    case 'aprovar':
+      return arg
+        ? reply({ kind: 'approve-preview', id: arg }, cleared)
+        : reply({ kind: 'error', text: 'uso: /ok <id> — aprova o preview visto no dev server' }, state)
+    case 'no':
+    case 'rejeitar':
+      return rest[0]
+        ? reply({ kind: 'reject-preview', id: rest[0], text: rest.slice(1).join(' ') }, cleared)
+        : reply({ kind: 'error', text: 'uso: /no <id> [o que corrigir]' }, state)
     case 'repo':
       return arg
         ? reply({ kind: 'none' }, { ...state, repo: arg })

@@ -58,16 +58,39 @@ export function resumeFrom(id: string, step: string): ActionResult {
   })
 }
 
-export function approvePreview(id: string): ActionResult {
-  return transition(id, 'PREVIEW_OK', 'aprovado pelo humano')
-}
-
 export const PRE_EXECUCAO = ['INBOX', 'READY', 'CLARIFY', 'SPECCED', 'PLAN_APPROVED', 'PAUSED']
 
 export interface GuardedResult {
   ok: boolean
   reason: string
   card?: Fields
+}
+
+export function approvePreview(id: string): GuardedResult {
+  const card = readCard(id)
+  if (!card) return { ok: false, reason: `card #${id} nao encontrado` }
+  const status = card.fm.status ?? 'INBOX'
+  if (status !== 'PREVIEW') {
+    return { ok: false, reason: `#${id} esta em ${status} — so da para aprovar preview de card em PREVIEW` }
+  }
+  const r = transition(id, 'PREVIEW_OK', 'preview aprovado pelo humano')
+  return r ? { ok: true, reason: '', card: r } : { ok: false, reason: `card #${id} nao encontrado` }
+}
+
+export function rejectPreview(id: string, motivo: string): GuardedResult {
+  const card = readCard(id)
+  if (!card) return { ok: false, reason: `card #${id} nao encontrado` }
+  const status = card.fm.status ?? 'INBOX'
+  if (status !== 'PREVIEW') {
+    return { ok: false, reason: `#${id} esta em ${status} — so da para rejeitar preview de card em PREVIEW` }
+  }
+  const wt = card.fm.worktree ?? ''
+  const temWorktree = !!wt && existsSync(join(wt, '.git'))
+  const razao = motivo.trim()
+  const r = razao && temWorktree
+    ? requestCorrection(id, '', razao)
+    : transition(id, 'EXECUTING', razao ? `preview rejeitado: ${razao} — reexecutando` : 'preview rejeitado — reexecutando')
+  return r ? { ok: true, reason: '', card: r } : { ok: false, reason: `nao foi possivel rejeitar #${id}` }
 }
 
 export function canApprovePlan(status: string): boolean {

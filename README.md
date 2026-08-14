@@ -50,6 +50,8 @@ hicode · org/app   daemon online (pid 48213)
 | `/cards [STATUS]` | lista, opcionalmente filtrando (`/cards HALTED`) |
 | `/plan <id>` | reexibe o plano de um card |
 | `/watch <id>` | últimas linhas do log do card + link do preview |
+| **`/ok <id>`** | **aprova o preview que você viu no dev server** |
+| **`/no <id> [o que]`** | rejeita o preview; com motivo, pede correção em vez de refazer |
 | `/halt <id> [motivo]` | para um card |
 | `/repo [nome]` | mostra ou troca o repo-alvo da sessão |
 | `/quit` | sai — **não** derruba o daemon nem os cards |
@@ -76,6 +78,10 @@ hii stop | restart
 hii run              # motor em foreground (não daemoniza)
 hii once             # processa a fila uma vez e sai
 hii sync             # sincroniza tarefas externas (ver Pluggabilidade)
+hii approve <id>     # aprova o preview (PREVIEW -> PREVIEW_OK)
+hii approve <id> --plan   # aprova o plano e enfileira (READY -> EXECUTING)
+hii reject <id> [o que]   # rejeita o preview; com motivo, pede correção
+hii halt <id> [motivo]    # para o card
 hii init [caminho]   # provisiona .hii/ num repo-alvo (default: cwd)
 hii hooks install [caminho]   # instala o gate de pre-push num repo (default: cwd)
 hii hooks uninstall [caminho] # remove o pre-push
@@ -223,8 +229,26 @@ Três formas de promover:
 - **Painel** — botão **iniciar** no card.
 - **Manual** — trocar o `status:` do card para `EXECUTING`.
 
-A partir daí o motor roda o pipeline (executar → preview → aprovar → polir) e **para em
-`PR_OPEN`** — o merge é sempre humano.
+A partir daí o motor roda o pipeline e **para no `PREVIEW`**, esperando você.
+
+### Passo 5b — Aprovar o preview (a porta humana do meio)
+
+O motor deixa o **dev server vivo** e o link no card. Você abre, olha, e decide:
+
+| Onde | Aprovar | Rejeitar |
+|---|---|---|
+| **REPL** | `/ok <id>` | `/no <id> [o que corrigir]` |
+| **CLI** | `hii approve <id>` | `hii reject <id> [o que]` |
+| **Painel** | botão aprovar | botão recusar |
+
+**Aprovar e rejeitar são guardados por estado:** só valem para card em `PREVIEW`. Aprovar um
+card que já passou dessa fase é recusado com o motivo — antes isso reexecutava o trabalho e
+pagava de novo.
+
+Rejeitar **com motivo** e worktree válido pede **correção pontual** (`CORRECTING`); sem motivo,
+refaz a implementação inteira. Dizer o que está errado é mais barato que só dizer "não".
+
+Depois do `PREVIEW_OK` vem o polimento, e o motor **para em `PR_OPEN`** — o merge é sempre humano.
 
 ### Passo 6 — Acompanhar
 

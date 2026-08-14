@@ -58,12 +58,6 @@ test('resumeFrom volta a PREVIEW_OK marcando o passo', () => {
   expect(readCard(id)?.body).toContain('HALTED->PREVIEW_OK replay a partir de Testes')
 })
 
-test('approvePreview leva a PREVIEW_OK', () => {
-  const id = novo()
-  A.transition(id, 'PREVIEW')
-  expect(A.approvePreview(id)?.status).toBe('PREVIEW_OK')
-})
-
 test('requestCorrection exige status PREVIEW', () => {
   const id = novo()
   expect(A.requestCorrection(id, 'src/a.vue', 'ajuste')).toBeNull()
@@ -140,4 +134,61 @@ test('acao em card inexistente devolve null, nunca lanca', () => {
   expect(A.edit('777', { title: 'x' })).toBeNull()
   expect(A.resumeFrom('777', 'Testes')).toBeNull()
   expect(A.setPreviewPid('777', 1)).toBeNull()
+})
+
+test('approvePreview so aceita card em PREVIEW', () => {
+  const id = novo()
+  expect(A.approvePreview(id).ok).toBe(false)
+  A.transition(id, 'PREVIEW')
+  const r = A.approvePreview(id)
+  expect(r.ok).toBe(true)
+  expect(r.card?.status).toBe('PREVIEW_OK')
+})
+
+test('REGRESSAO approvePreview recusa card ja aprovado, com motivo legivel', () => {
+  const id = novo()
+  A.transition(id, 'PREVIEW_OK')
+  const r = A.approvePreview(id)
+  expect(r.ok).toBe(false)
+  expect(r.reason).toContain('PREVIEW_OK')
+})
+
+test('REGRESSAO approvePlan recusa card que ja executou — nao descarta trabalho', () => {
+  const id = novo()
+  A.transition(id, 'PREVIEW')
+  const r = A.approvePlan(id)
+  expect(r.ok).toBe(false)
+  expect(r.reason).toContain('descartaria o trabalho')
+})
+
+test('approvePlan aceita card recem-criado', () => {
+  const r = A.approvePlan(novo())
+  expect(r.ok).toBe(true)
+  expect(r.card?.status).toBe('EXECUTING')
+})
+
+test('rejectPreview sem worktree reexecuta em vez de corrigir', () => {
+  const id = novo()
+  A.transition(id, 'PREVIEW')
+  const r = A.rejectPreview(id, 'nao gostei')
+  expect(r.ok).toBe(true)
+  expect(r.card?.status).toBe('EXECUTING')
+})
+
+test('rejectPreview com motivo e worktree valido pede correcao', () => {
+  const wt = join(CARDS, 'wt-reject')
+  mkdirSync(join(wt, '.git'), { recursive: true })
+  const id = novo()
+  A.transition(id, 'PREVIEW')
+  const { patchCard } = require('../lib/runner/card-store') as typeof import('../lib/runner/card-store')
+  patchCard(id, { worktree: wt })
+  const r = A.rejectPreview(id, 'o selo ficou torto')
+  expect(r.card?.status).toBe('CORRECTING')
+  expect(r.card?.correction).toBe('o selo ficou torto')
+})
+
+test('rejectPreview fora de PREVIEW recusa', () => {
+  const id = novo()
+  A.transition(id, 'HALTED')
+  expect(A.rejectPreview(id, 'x').ok).toBe(false)
 })

@@ -110,6 +110,8 @@ function help(): void {
   say(`  ${'/cards [STATUS]'.padEnd(20)} ${dim('lista, opcionalmente filtrando por estado')}`)
   say(`  ${'/plan <id>'.padEnd(20)} ${dim('reexibe o plano de um card')}`)
   say(`  ${'/watch <id>'.padEnd(20)} ${dim('mostra o log do card')}`)
+  say(`  ${'/ok <id>'.padEnd(20)} ${dim('aprova o preview que voce viu no dev server')}`)
+  say(`  ${'/no <id> [o que]'.padEnd(20)} ${dim('rejeita o preview; com motivo, pede correcao')}`)
   say(`  ${'/halt <id> [motivo]'.padEnd(20)} ${dim('para um card')}`)
   say(`  ${'/repo [nome]'.padEnd(20)} ${dim('mostra ou troca o repo-alvo')}`)
   say(`  ${'/quit'.padEnd(20)} ${dim('sai (nao derruba o daemon nem os cards)')}`)
@@ -180,7 +182,16 @@ async function main(): Promise<void> {
     else if (effect.kind === 'watch') watch(effect.id ?? '')
     else if (effect.kind === 'plan') state = showPlan(effect.id ?? '', state)
     else if (effect.kind === 'error') say(dim('  ' + (effect.text ?? '')))
-    else if (effect.kind === 'halt') {
+    else if (effect.kind === 'approve-preview') {
+      const r = core.approvePreview(effect.id ?? '')
+      say(dim(r.ok ? `  #${effect.id} preview aprovado — segue para o polimento` : `  ${r.reason}`))
+      if (r.ok) fleet(state)
+    } else if (effect.kind === 'reject-preview') {
+      const motivo = effect.text ?? ''
+      const r = core.rejectPreview(effect.id ?? '', motivo)
+      say(dim(r.ok ? `  #${effect.id} ${motivo ? 'vai corrigir: ' + motivo : 'vai refazer'}` : `  ${r.reason}`))
+      if (r.ok) fleet(state)
+    } else if (effect.kind === 'halt') {
       const r = core.halt(effect.id ?? '', effect.text ?? '')
       say(dim(r ? `  #${effect.id} parado` : `  card #${effect.id} nao encontrado`))
     } else if (effect.kind === 'submit') {
