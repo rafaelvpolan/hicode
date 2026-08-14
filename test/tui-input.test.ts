@@ -336,22 +336,22 @@ test('colagem multilinha nao vira submit por causa do \\n', () => {
 
 import { pararNavegacao } from '../lib/core/tui/input'
 
-test('seta para baixo com campo vazio entra em selecao', () => {
+test('seta para baixo com campo vazio vai para as tarefas do rodape', () => {
   const r = keypress(newInput(), '\x1b[B')
   expect(r.action.kind).toBe('nav')
-  expect(r.state.navegando).toBe(true)
+  expect(r.state.navegando).toBe('rodape')
 })
 
 test('seta para cima com campo vazio ainda recupera historico', () => {
   const r = keypress(newInput(['tarefa antiga']), '\x1b[A')
   expect(r.action.kind).toBe('redraw')
   expect(r.state.buffer).toBe('tarefa antiga')
-  expect(r.state.navegando).toBe(false)
+  expect(r.state.navegando).toBe('')
 })
 
 test('com texto digitado, seta para baixo continua sendo historico', () => {
   const s = digitar('meio escrito')
-  expect(keypress(s, '\x1b[B').state.navegando).toBe(false)
+  expect(keypress(s, '\x1b[B').state.navegando).toBe('')
 })
 
 test('navegando, as setas movem a selecao e enter entra', () => {
@@ -363,20 +363,20 @@ test('navegando, as setas movem a selecao e enter entra', () => {
 
 test('esc sai da selecao', () => {
   const nav = keypress(newInput(), '\x1b[B').state
-  expect(keypress(nav, '\x1b').state.navegando).toBe(false)
+  expect(keypress(nav, '\x1b').state.navegando).toBe('')
 })
 
 test('digitar sai da selecao e escreve a letra', () => {
   const nav = keypress(newInput(), '\x1b[B').state
   const r = keypress(nav, 'a')
-  expect(r.state.navegando).toBe(false)
+  expect(r.state.navegando).toBe('')
   expect(r.state.buffer).toBe('a')
 })
 
 test('pararNavegacao limpa o modo sem tocar no buffer', () => {
-  const nav = { ...digitar('x'), navegando: true }
+  const nav = { ...digitar('x'), navegando: 'board' as const }
   const s = pararNavegacao(nav)
-  expect(s.navegando).toBe(false)
+  expect(s.navegando).toBe('')
   expect(s.buffer).toBe('x')
 })
 
@@ -416,22 +416,57 @@ test('apagar palavra nao mexe no que esta depois do cursor', () => {
 test('seta esquerda com campo vazio abre o board', () => {
   const r = keypress(newInput(), '\x1b[D')
   expect(r.action.kind).toBe('nav')
-  expect(r.state.navegando).toBe(true)
+  expect(r.state.navegando).toBe('board')
 })
 
 test('seta esquerda com texto continua movendo o cursor', () => {
   const s = digitar('tarefa')
   const r = keypress(s, '\x1b[D')
-  expect(r.state.navegando).toBe(false)
+  expect(r.state.navegando).toBe('')
   expect(r.state.cursor).toBe(5)
 })
 
 test('seta direita fecha o board e volta a escrever', () => {
   const nav = keypress(newInput(), '\x1b[D').state
-  expect(keypress(nav, '\x1b[C').state.navegando).toBe(false)
+  expect(keypress(nav, '\x1b[C').state.navegando).toBe('')
 })
 
 test('no board, ctrl+c ainda interrompe', () => {
   const nav = keypress(newInput(), '\x1b[D').state
   expect(keypress(nav, '\x03').action.kind).toBe('interrupt')
+})
+
+test('baixo e esquerda vao para listas diferentes', () => {
+  expect(keypress(newInput(), '\x1b[B').state.navegando).toBe('rodape')
+  expect(keypress(newInput(), '\x1b[D').state.navegando).toBe('board')
+})
+
+test('a acao de nav e de entrar carregam o modo', () => {
+  const noRodape = keypress(newInput(), '\x1b[B')
+  expect(noRodape.action).toMatchObject({ kind: 'nav', modo: 'rodape' })
+  const entrar = keypress(noRodape.state, '\r')
+  expect(entrar.action).toMatchObject({ kind: 'entrar', modo: 'rodape' })
+})
+
+test('do rodape, seta esquerda troca para o board sem sair da navegacao', () => {
+  const noRodape = keypress(newInput(), '\x1b[B').state
+  const r = keypress(noRodape, '\x1b[D')
+  expect(r.state.navegando).toBe('board')
+  expect(r.action).toMatchObject({ kind: 'nav', modo: 'board' })
+})
+
+test('no board, seta esquerda fecha (nao vira um ciclo)', () => {
+  const noBoard = keypress(newInput(), '\x1b[D').state
+  expect(keypress(noBoard, '\x1b[D').state.navegando).toBe('')
+})
+
+test('seta direita sai de qualquer um dos dois modos', () => {
+  for (const abrir of ['\x1b[B', '\x1b[D']) {
+    const nav = keypress(newInput(), abrir).state
+    expect(keypress(nav, '\x1b[C').state.navegando).toBe('')
+  }
+})
+
+test('seta para cima nunca entra em navegacao, so historico', () => {
+  expect(keypress(newInput(['antiga']), '\x1b[A').state.navegando).toBe('')
 })

@@ -120,3 +120,27 @@ test('faixa sem cor nao emite escape ANSI', () => {
   const linhas = linhasEspera(esperandoVoce([c({ status: 'CLARIFY' })], 'org/app'), { color: false })
   expect(linhas.join('')).not.toContain('\x1b[')
 })
+
+test('linha selecionada do rodape ganha marca', () => {
+  const lista = esperandoVoce([c({ id: '22', status: 'CLARIFY' }), c({ id: '23', status: 'PREVIEW' })], 'org/app')
+  const linhas = linhasEspera(lista, { selecionado: '23' })
+  expect(linhas[0]?.startsWith('›')).toBe(false)
+  expect(linhas[1]?.startsWith('›')).toBe(true)
+})
+
+test('sem selecao, nenhuma linha do rodape leva marca', () => {
+  const lista = esperandoVoce([c({ id: '22', status: 'CLARIFY' })], 'org/app')
+  expect(linhasEspera(lista)[0]?.startsWith('›')).toBe(false)
+})
+
+test('marca nao desalinha as colunas do rodape', () => {
+  const lista = esperandoVoce([c({ id: '22', status: 'CLARIFY' })], 'org/app')
+  const sem = linhasEspera(lista)[0] ?? ''
+  const com = linhasEspera(lista, { selecionado: '22' })[0] ?? ''
+  expect(com.length).toBe(sem.length)
+})
+
+test('execucao selecionada tambem ganha marca', () => {
+  const lista = emExecucao([c({ id: '31', status: 'EXECUTING' })], 'org/app', 0, () => 'vitro')
+  expect(linhasExecucao(lista, { selecionado: '31' })[0]?.startsWith('›')).toBe(true)
+})

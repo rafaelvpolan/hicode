@@ -1,12 +1,13 @@
 import { openScreen } from './screen'
 import type { Terminal } from './screen'
 import { newInput, keypress, aplicarCompletar, pararNavegacao } from './input'
+import type { ModoNavegacao } from './input'
 import { tokenizeParcial, agruparColagem } from './keys'
 import { linkificar } from './layout'
 import type { InputState } from './input'
 
 export interface CorpoContexto {
-  navegando: boolean
+  navegando: ModoNavegacao
   altura: number
 }
 
@@ -19,8 +20,8 @@ export interface AppHooks {
   onLine: (linha: string) => Promise<void> | void
   onComplete: (linha: string) => string[]
   onInterrupt: () => boolean
-  onNav: (dir: -1 | 1) => boolean
-  onEntrar: () => void
+  onNav: (dir: -1 | 1, modo: ModoNavegacao) => boolean
+  onEntrar: (modo: ModoNavegacao) => void
   intervalMs: number
 }
 
@@ -45,9 +46,9 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
     const corpo = hooks.corpo(ctx)
     screen.draw({
       header: hooks.header(),
-      corpo: ctx.navegando ? corpo : [...corpo, ...extras],
-      input: ctx.navegando ? '' : input.buffer,
-      cursor: ctx.navegando ? 0 : input.cursor,
+      corpo: ctx.navegando === 'board' ? corpo : [...corpo, ...extras],
+      input: ctx.navegando === 'board' ? '' : input.buffer,
+      cursor: ctx.navegando === 'board' ? 0 : input.cursor,
       dica: hooks.dica(ctx),
       prompt: hooks.prompt(),
       rodape,
@@ -109,12 +110,13 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
       return true
     }
     if (a.kind === 'nav') {
-      if (!hooks.onNav(a.dir)) input = pararNavegacao(input)
+      if (!hooks.onNav(a.dir, a.modo)) input = pararNavegacao(input)
       return true
     }
     if (a.kind === 'entrar') {
+      const modo = a.modo
       input = pararNavegacao(input)
-      hooks.onEntrar()
+      hooks.onEntrar(modo)
       return true
     }
     if (a.kind === 'eof') { finalizar(); return false }

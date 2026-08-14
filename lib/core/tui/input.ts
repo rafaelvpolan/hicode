@@ -1,5 +1,7 @@
 import { ehCola, textoDaCola } from './keys'
 
+export type ModoNavegacao = '' | 'board' | 'rodape'
+
 export interface InputState {
   buffer: string
   cursor: number
@@ -7,7 +9,7 @@ export interface InputState {
   histIdx: number
   draft: string
   pastes: string[]
-  navegando: boolean
+  navegando: ModoNavegacao
 }
 
 export const LIMITE_COLA = Number(process.env.HICODE_PASTE_INLINE_MAX || 120)
@@ -20,8 +22,8 @@ export type InputAction =
   | { kind: 'interrupt' }
   | { kind: 'eof' }
   | { kind: 'complete'; line: string }
-  | { kind: 'nav'; dir: -1 | 1 }
-  | { kind: 'entrar' }
+  | { kind: 'nav'; dir: -1 | 1; modo: ModoNavegacao }
+  | { kind: 'entrar'; modo: ModoNavegacao }
 
 export interface KeyResult {
   state: InputState
@@ -29,7 +31,7 @@ export interface KeyResult {
 }
 
 export function newInput(history: string[] = []): InputState {
-  return { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [], navegando: false }
+  return { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [], navegando: '' }
 }
 
 function inserirTexto(state: InputState, texto: string): InputState {
@@ -117,15 +119,24 @@ function navegarHistorico(state: InputState, delta: number): KeyResult {
 }
 
 export function pararNavegacao(state: InputState): InputState {
-  return state.navegando ? { ...state, navegando: false } : state
+  return state.navegando ? { ...state, navegando: '' } : state
 }
 
 export function keypress(state: InputState, key: string): KeyResult {
   if (state.navegando) {
-    if (key === ESC || key === ESC_CSI) return { state: { ...state, navegando: false }, action: { kind: 'redraw' } }
-    if (ENTER.includes(key)) return { state, action: { kind: 'entrar' } }
-    if (key === RIGHT || key === LEFT) return { state: { ...state, navegando: false }, action: { kind: 'redraw' } }
-    if (key !== UP && key !== DOWN) return keypress({ ...state, navegando: false }, key)
+    if (key === ESC || key === ESC_CSI || key === RIGHT) {
+      return { state: { ...state, navegando: '' }, action: { kind: 'redraw' } }
+    }
+    if (ENTER.includes(key)) return { state, action: { kind: 'entrar', modo: state.navegando } }
+    if (key === LEFT) {
+      return state.navegando === 'board'
+        ? { state: { ...state, navegando: '' }, action: { kind: 'redraw' } }
+        : { state: { ...state, navegando: 'board' }, action: { kind: 'nav', dir: 1, modo: 'board' } }
+    }
+    if (key === UP || key === DOWN) {
+      return { state, action: { kind: 'nav', dir: key === UP ? -1 : 1, modo: state.navegando } }
+    }
+    return keypress({ ...state, navegando: '' }, key)
   }
   if (ENTER.includes(key) && state.buffer.endsWith('\\')) {
     const buffer = state.buffer.slice(0, -1) + '\n'
@@ -137,7 +148,7 @@ export function keypress(state: InputState, key: string): KeyResult {
       ? [...state.history, line]
       : state.history
     return {
-      state: { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [], navegando: false },
+      state: { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [], navegando: '' },
       action: { kind: 'submit', line: expandir(state, line) },
     }
   }
@@ -181,19 +192,15 @@ export function keypress(state: InputState, key: string): KeyResult {
     return { state: inserirTexto(state, '\n'), action: { kind: 'redraw' } }
   }
   if (key === LEFT) {
-    if (!state.buffer) return { state: { ...state, navegando: true }, action: { kind: 'nav', dir: 1 } }
+    if (!state.buffer) return { state: { ...state, navegando: 'board' }, action: { kind: 'nav', dir: 1, modo: 'board' } }
     return { state: limpo(state, state.buffer, state.cursor - 1), action: { kind: 'redraw' } }
   }
   if (key === RIGHT) return { state: limpo(state, state.buffer, state.cursor + 1), action: { kind: 'redraw' } }
   if (HOME.includes(key)) return { state: limpo(state, state.buffer, 0), action: { kind: 'redraw' } }
   if (END.includes(key)) return { state: limpo(state, state.buffer, state.buffer.length), action: { kind: 'redraw' } }
-  if (key === UP) {
-    if (state.navegando) return { state, action: { kind: 'nav', dir: -1 } }
-    return navegarHistorico(state, -1)
-  }
+  if (key === UP) return navegarHistorico(state, -1)
   if (key === DOWN) {
-    if (state.navegando) return { state, action: { kind: 'nav', dir: 1 } }
-    if (!state.buffer) return { state: { ...state, navegando: true }, action: { kind: 'nav', dir: 1 } }
+    if (!state.buffer) return { state: { ...state, navegando: 'rodape' }, action: { kind: 'nav', dir: 1, modo: 'rodape' } }
     return navegarHistorico(state, 1)
   }
   if (ehCola(key)) {

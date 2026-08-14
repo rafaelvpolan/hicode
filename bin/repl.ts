@@ -33,6 +33,7 @@ import { providerNameFor, modelFor } from '../lib/ai/registry'
 import { readFileSync } from 'node:fs'
 import { STATUSES } from '../lib/card'
 import type { SessionState } from '../lib/core/session'
+import type { ModoNavegacao } from '../lib/core/tui/input'
 
 const DIM = '\x1b[2m'
 const RESET = '\x1b[0m'
@@ -137,7 +138,7 @@ function papeisDivergentes(): string[] {
     .map(p => `${p}: ${providerNameFor(p)}`)
 }
 
-function rodapeDa(state: SessionState): string[] {
+function rodapeDa(state: SessionState, noRodape = false): string[] {
   const largura = Number(process.stdout.columns) || 80
   const props = linhaPropriedades({
     provedor: providerNameFor('implement'),
@@ -149,8 +150,9 @@ function rodapeDa(state: SessionState): string[] {
   }, { color, width: largura })
   const cards = allCards()
   const rodando = emExecucao(cards, state.repo, Date.now(), id => ultimoAgente(atividadeDe(id)))
-  const espera = linhasEspera(esperandoVoce(cards, state.repo), { color, width: largura })
-  return [props, ...linhasExecucao(rodando, { color, now: Date.now(), width: largura }), ...espera]
+  const marcado = { color, now: Date.now(), width: largura, selecionado: noRodape ? selecionado : '' }
+  const espera = linhasEspera(esperandoVoce(cards, state.repo), marcado)
+  return [props, ...linhasExecucao(rodando, marcado), ...espera]
 }
 
 function dicaDa(state: SessionState): string {
@@ -165,8 +167,15 @@ function dicaDa(state: SessionState): string {
 
 let selecionado = ''
 
-function navegar(state: SessionState, dir: -1 | 1): boolean {
-  const ordem = ordemDoBoard(allCards(), state.repo)
+function ordemDoRodape(state: SessionState): string[] {
+  const cards = allCards()
+  const rodando = emExecucao(cards, state.repo, Date.now(), () => '').map(e => e.id)
+  const espera = esperandoVoce(cards, state.repo).slice(0, 3).map(e => e.id)
+  return [...rodando.slice(0, 3), ...espera.filter(id => !rodando.includes(id))]
+}
+
+function navegar(state: SessionState, dir: -1 | 1, modo: ModoNavegacao): boolean {
+  const ordem = modo === 'rodape' ? ordemDoRodape(state) : ordemDoBoard(allCards(), state.repo)
   if (!ordem.length) return false
   const atual = ordem.indexOf(selecionado)
   const proximo = atual < 0 ? 0 : atual + dir
@@ -347,26 +356,32 @@ function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void): Dis
 
 async function tui(state0: SessionState): Promise<void> {
   let state = state0
+  let modoAtual: ModoNavegacao = ''
   const term = nodeTerminal()
   let sairPedido = false
   const app = createApp(term, {
     header: () => `hii · ${state.repo || '(sem projeto)'}${state.seguindo ? ` · seguindo #${state.seguindo}` : ''}   daemon ${daemonStatus()}`,
     corpo: (ctx) => {
-      if (ctx.navegando) return boardNavegavel(state, ctx.altura)
+      modoAtual = ctx.navegando
+      if (ctx.navegando === 'board') return boardNavegavel(state, ctx.altura)
       return state.seguindo ? seguimento(state) : board(state).split('\n')
     },
-    dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · esc sai' : dicaDa(state)),
+    dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · ← board' : dicaDa(state)),
     prompt: () => '› ',
-    rodape: () => rodapeDa(state),
+    rodape: () => rodapeDa(state, modoAtual === 'rodape'),
     intervalMs: 400,
     onComplete: (linha) => completer(linha)[0],
     onInterrupt: () => { sairPedido = true; return true },
-    onNav: (dir) => navegar(state, dir),
-    onEntrar: () => {
+    onNav: (dir, modo) => navegar(state, dir, modo),
+    onEntrar: (modo) => {
       if (!selecionado) return
       const alvo = selecionado
       selecionado = ''
       state = seguir(state, alvo)
+      if (modo === 'rodape') {
+        app.log(`  seguindo a execucao de #${alvo} — /board volta`)
+        return
+      }
       void (async () => {
         const card = readCard(alvo)
         const vivo = card?.fm.preview_url ? await httpOk(card.fm.preview_url) : false

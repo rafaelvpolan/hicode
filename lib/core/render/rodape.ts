@@ -22,9 +22,14 @@ export interface RodapeOptions {
   color: boolean
   now: number
   width: number
+  selecionado: string
 }
 
-const PADRAO: RodapeOptions = { color: false, now: 0, width: 80 }
+const PADRAO: RodapeOptions = { color: false, now: 0, width: 80, selecionado: '' }
+
+function marca(id: string, o: RodapeOptions): string {
+  return o.selecionado && o.selecionado === id ? paint('›', CYAN, o) : ' '
+}
 
 function paint(s: string, code: string, o: RodapeOptions): string {
   return o.color ? `${code}${s}${RESET}` : s
@@ -106,7 +111,7 @@ export function linhasEspera(lista: Espera[], opts: Partial<RodapeOptions> = {})
   const mostrar = lista.slice(0, 3)
   const linhas = mostrar.map(e => {
     const titulo = e.titulo.slice(0, Math.max(10, o.width - 46))
-    return `${paint('●', YELLOW, o)} ${paint(`#${e.id.padStart(3, '0')}`, DIM, o)} ${titulo} ${paint(`${e.motivo} → ${e.comando}`, DIM, o)}`
+    return `${marca(e.id, o)}${paint('●', YELLOW, o)} ${paint(`#${e.id.padStart(3, '0')}`, DIM, o)} ${titulo} ${paint(`${e.motivo} → ${e.comando}`, DIM, o)}`
   })
   const resto = lista.length - mostrar.length
   if (resto > 0) linhas.push(paint(`  e mais ${resto} esperando voce`, DIM, o))
@@ -120,6 +125,6 @@ export function linhasExecucao(lista: EmExecucao[], opts: Partial<RodapeOptions>
   return lista.slice(0, 3).map((e) => {
     const meio = [e.estado.toLowerCase(), e.agente, e.desde].filter(Boolean).join(' · ')
     const titulo = e.titulo.slice(0, Math.max(10, o.width - 40))
-    return `${paint(giro, CYAN, o)} ${paint(`#${e.id.padStart(3, '0')}`, DIM, o)} ${titulo} ${paint(meio, DIM, o)}`
+    return `${marca(e.id, o)}${paint(giro, CYAN, o)} ${paint(`#${e.id.padStart(3, '0')}`, DIM, o)} ${titulo} ${paint(meio, DIM, o)}`
   })
 }
