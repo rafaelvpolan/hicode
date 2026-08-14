@@ -150,7 +150,11 @@ function rodapeDa(state: SessionState, noRodape = false): string[] {
   }, { color, width: largura })
   const cards = allCards()
   const rodando = emExecucao(cards, state.repo, Date.now(), id => ultimoAgente(atividadeDe(id)))
-  const marcado = { color, now: Date.now(), width: largura, selecionado: noRodape ? selecionado : '' }
+  const marcado = {
+    color, now: Date.now(), width: largura,
+    selecionado: noRodape ? selecionado : '',
+    maxLinhas: noRodape ? 6 : 3,
+  }
   const espera = linhasEspera(esperandoVoce(cards, state.repo), marcado)
   return [props, ...linhasExecucao(rodando, marcado), ...espera]
 }
@@ -170,8 +174,8 @@ let selecionado = ''
 function ordemDoRodape(state: SessionState): string[] {
   const cards = allCards()
   const rodando = emExecucao(cards, state.repo, Date.now(), () => '').map(e => e.id)
-  const espera = esperandoVoce(cards, state.repo).slice(0, 3).map(e => e.id)
-  return [...rodando.slice(0, 3), ...espera.filter(id => !rodando.includes(id))]
+  const espera = esperandoVoce(cards, state.repo).map(e => e.id)
+  return [...rodando, ...espera.filter(id => !rodando.includes(id))]
 }
 
 function navegar(state: SessionState, dir: -1 | 1, modo: ModoNavegacao): boolean {

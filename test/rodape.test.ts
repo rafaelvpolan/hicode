@@ -61,9 +61,11 @@ test('sem nada rodando, diz isso em vez de sumir', () => {
   expect(linhasExecucao([])[0]).toContain('nada em execucao')
 })
 
-test('limita a 3 linhas para nao comer a tela', () => {
+test('limita a 3 linhas, mas diz quantas ficaram de fora', () => {
   const muitos = Array.from({ length: 8 }, (_, i) => card({ id: String(i + 1), status: 'EXECUTING' }))
-  expect(linhasExecucao(emExecucao(muitos, 'org/app', Date.now(), () => '')).length).toBe(3)
+  const linhas = linhasExecucao(emExecucao(muitos, 'org/app', Date.now(), () => ''))
+  expect(linhas.length).toBe(4)
+  expect(linhas[3]).toContain('e mais 5')
 })
 
 test('giro avanca com o tempo e volta ao inicio', () => {
@@ -143,4 +145,40 @@ test('marca nao desalinha as colunas do rodape', () => {
 test('execucao selecionada tambem ganha marca', () => {
   const lista = emExecucao([c({ id: '31', status: 'EXECUTING' })], 'org/app', 0, () => 'vitro')
   expect(linhasExecucao(lista, { selecionado: '31' })[0]?.startsWith('›')).toBe(true)
+})
+
+import { janelaDaLista } from '../lib/core/render/rodape'
+
+const lista = (n: number): { id: string }[] => Array.from({ length: n }, (_, i) => ({ id: String(i + 1) }))
+
+test('janela mostra o inicio quando nada esta selecionado', () => {
+  expect(janelaDaLista(lista(10), '', 3).map(x => x.id)).toEqual(['1', '2', '3'])
+})
+
+test('janela acompanha a selecao alem do terceiro item', () => {
+  expect(janelaDaLista(lista(10), '7', 3).map(x => x.id)).toEqual(['6', '7', '8'])
+})
+
+test('janela nao passa do fim da lista', () => {
+  expect(janelaDaLista(lista(10), '10', 3).map(x => x.id)).toEqual(['8', '9', '10'])
+})
+
+test('lista curta aparece inteira', () => {
+  expect(janelaDaLista(lista(2), '2', 3).map(x => x.id)).toEqual(['1', '2'])
+})
+
+test('execucao alem do limite mostra quantas ficaram de fora', () => {
+  const rodando = Array.from({ length: 7 }, (_, i) =>
+    c({ id: String(i + 1), status: 'EXECUTING' }))
+  const linhas = linhasExecucao(emExecucao(rodando, 'org/app', 0, () => ''), { maxLinhas: 3 })
+  expect(linhas.length).toBe(4)
+  expect(linhas[3]).toContain('e mais 4')
+})
+
+test('navegar ate o fim mostra as ultimas em execucao', () => {
+  const rodando = Array.from({ length: 7 }, (_, i) =>
+    c({ id: String(i + 1), status: 'EXECUTING', title: `tarefa ${i + 1}` }))
+  const linhas = linhasExecucao(emExecucao(rodando, 'org/app', 0, () => ''), { maxLinhas: 3, selecionado: '7' })
+  expect(linhas.join(' ')).toContain('#007')
+  expect(linhas.join(' ')).not.toContain('#001')
 })

@@ -23,9 +23,10 @@ export interface RodapeOptions {
   now: number
   width: number
   selecionado: string
+  maxLinhas: number
 }
 
-const PADRAO: RodapeOptions = { color: false, now: 0, width: 80, selecionado: '' }
+const PADRAO: RodapeOptions = { color: false, now: 0, width: 80, selecionado: '', maxLinhas: 3 }
 
 function marca(id: string, o: RodapeOptions): string {
   return o.selecionado && o.selecionado === id ? paint('›', CYAN, o) : ' '
@@ -108,7 +109,7 @@ export function esperandoVoce(cards: Fields[], repo: string): Espera[] {
 export function linhasEspera(lista: Espera[], opts: Partial<RodapeOptions> = {}): string[] {
   const o = { ...PADRAO, ...opts }
   if (!lista.length) return []
-  const mostrar = lista.slice(0, 3)
+  const mostrar = janelaDaLista(lista, o.selecionado, o.maxLinhas)
   const linhas = mostrar.map(e => {
     const titulo = e.titulo.slice(0, Math.max(10, o.width - 46))
     return `${marca(e.id, o)}${paint('●', YELLOW, o)} ${paint(`#${e.id.padStart(3, '0')}`, DIM, o)} ${titulo} ${paint(`${e.motivo} → ${e.comando}`, DIM, o)}`
@@ -118,13 +119,27 @@ export function linhasEspera(lista: Espera[], opts: Partial<RodapeOptions> = {})
   return linhas
 }
 
+export function janelaDaLista<T extends { id: string }>(lista: T[], selecionado: string, max: number): T[] {
+  if (lista.length <= max) return lista
+  const i = lista.findIndex(x => x.id === selecionado)
+  if (i < 0) return lista.slice(0, max)
+  const inicio = Math.max(0, Math.min(i - Math.floor((max - 1) / 2), lista.length - max))
+  return lista.slice(inicio, inicio + max)
+}
+
+function contador(total: number, mostrados: number, o: RodapeOptions): string[] {
+  const resto = total - mostrados
+  return resto > 0 ? [paint(`  e mais ${resto}`, DIM, o)] : []
+}
+
 export function linhasExecucao(lista: EmExecucao[], opts: Partial<RodapeOptions> = {}): string[] {
   const o = { ...PADRAO, ...opts }
   if (!lista.length) return [paint('nada em execucao', DIM, o)]
   const giro = quadroDoGiro(o.now)
-  return lista.slice(0, 3).map((e) => {
+  const visiveis = janelaDaLista(lista, o.selecionado, o.maxLinhas)
+  return [...visiveis.map((e) => {
     const meio = [e.estado.toLowerCase(), e.agente, e.desde].filter(Boolean).join(' · ')
     const titulo = e.titulo.slice(0, Math.max(10, o.width - 40))
     return `${marca(e.id, o)}${paint(giro, CYAN, o)} ${paint(`#${e.id.padStart(3, '0')}`, DIM, o)} ${titulo} ${paint(meio, DIM, o)}`
-  })
+  }), ...contador(lista.length, visiveis.length, o)]
 }

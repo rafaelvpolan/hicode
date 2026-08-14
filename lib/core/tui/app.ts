@@ -101,7 +101,9 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
     if (a.kind === 'submit') {
       if (a.line.trim() || a.line === '') {
         log(`${hooks.prompt()}${exibido}`)
-        void Promise.resolve(hooks.onLine(a.line)).then(desenhar)
+        void Promise.resolve(hooks.onLine(a.line))
+          .catch((e: unknown) => { log(`  erro: ${e instanceof Error ? e.message : String(e)}`) })
+          .then(desenhar)
       }
       return true
     }
