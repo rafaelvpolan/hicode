@@ -130,6 +130,18 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       io.log(`instrucao ${r.numero} anotada em #${id}${r.reexecuta ? ' — a tarefa vai reexecutar com ela' : ''}`)
       return state
     }
+    case 'resume': {
+      const card = readCard(id)
+      if (!card) { io.log(`card #${id} nao encontrado`); return state }
+      const status = card.fm.status ?? ''
+      if (status !== 'HALTED' && status !== 'PAUSED') {
+        io.log(`#${id} esta em ${status} — nao ha o que retomar`)
+        return state
+      }
+      const r = core.transition(id, 'EXECUTING', 'retomado pelo humano')
+      io.log(r ? `#${id} retomado — segue de onde parou` : `nao consegui retomar #${id}`)
+      return state
+    }
     case 'preview': {
       if (id) { io.log(await io.subirPreview(id)); return state }
       for (const l of await io.listarPreviews(texto === 'limpar')) io.log(l)

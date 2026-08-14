@@ -79,3 +79,30 @@ test('com cor, o conteudo visivel e o mesmo', () => {
   const com = renderCabecalhoTarefa(c, { width: 78, color: true, objetivo: 'x' }).map(stripAnsi)
   expect(com).toEqual(sem)
 })
+
+import { renderParada } from '../lib/core/render/tarefa'
+
+test('painel de parada oferece retomar, apagar e sair', () => {
+  const t = renderParada('022', { width: 78 }).join('\n')
+  expect(t).toContain('#022 parado')
+  expect(t).toContain('enter')
+  expect(t).toContain('retoma de onde parou')
+  expect(t).toContain('/rm 22')
+  expect(t).toContain('ctrl+c')
+})
+
+test('painel de parada mostra quanto ja custou', () => {
+  expect(renderParada('022', { gasto: 'US$1.44' }).join('\n')).toContain('US$1.44 ate aqui')
+})
+
+test('sem gasto, nao inventa numero', () => {
+  expect(renderParada('022').join('\n')).not.toContain('US$')
+})
+
+test('painel de parada cabe na largura', () => {
+  for (const width of [40, 60, 78]) {
+    for (const l of renderParada('022', { width, gasto: 'US$1.44' })) {
+      expect(visibleLen(l)).toBeLessThanOrEqual(width)
+    }
+  }
+})

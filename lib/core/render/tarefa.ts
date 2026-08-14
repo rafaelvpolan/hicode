@@ -60,3 +60,24 @@ export function renderCabecalhoTarefa(card: Card, opts: Partial<TarefaOptions> =
   out.push('')
   return out.map(l => truncVisible(l, o.width))
 }
+
+export interface ParadaOptions {
+  color: boolean
+  width: number
+  gasto: string
+}
+
+export function renderParada(id: string, opts: Partial<ParadaOptions> = {}): string[] {
+  const o = { ...PADRAO, ...opts, gasto: opts.gasto ?? '' }
+  const linha = (tecla: string, texto: string): string =>
+    `    ${paint(padVisible(tecla, 10), CYAN, o)}${paint(texto, DIM, o)}`
+  return [
+    '',
+    `  ${paint(`#${id} parado`, YELLOW, o)}${o.gasto ? paint(`  ${o.gasto} ate aqui`, DIM, o) : ''}`,
+    '',
+    linha('enter', 'retoma de onde parou'),
+    linha(`/rm ${Number(id)}`, 'apaga a tarefa e limpa o worktree'),
+    linha('ctrl+c', 'sai do hii — a tarefa fica parada'),
+    '',
+  ].map(l => truncVisible(l, o.width))
+}

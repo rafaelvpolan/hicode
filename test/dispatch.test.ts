@@ -215,3 +215,26 @@ test('sem projeto, instrucao orfa nao cria nada', async () => {
   expect(allCards().length).toBe(0)
   expect(saida.join(' ')).toContain('sem projeto')
 })
+
+test('retomar so vale para tarefa parada', async () => {
+  const { readCard } = await import('../lib/runner/card-store')
+  const { retomando } = await import('../lib/core/session')
+  card('022', { status: 'HALTED' })
+  await digitar([''], retomando(newSession('org/app'), '022'))
+  expect(readCard('022')?.fm.status).toBe('EXECUTING')
+})
+
+test('retomar tarefa que nao esta parada nao mexe no estado', async () => {
+  const { readCard } = await import('../lib/runner/card-store')
+  const { retomando } = await import('../lib/core/session')
+  card('022', { status: 'PREVIEW' })
+  await digitar([''], retomando(newSession('org/app'), '022'))
+  expect(readCard('022')?.fm.status).toBe('PREVIEW')
+  expect(saida.join(' ')).toContain('nao ha o que retomar')
+})
+
+test('retomar card inexistente avisa', async () => {
+  const { retomando } = await import('../lib/core/session')
+  await digitar([''], retomando(newSession('org/app'), '099'))
+  expect(saida.join(' ')).toContain('nao encontrado')
+})

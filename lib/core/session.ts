@@ -2,7 +2,7 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume'
 
 export interface SessionState {
   repo: string
@@ -10,6 +10,7 @@ export interface SessionState {
   seguindo: string
   perguntando: string
   removendo: string
+  retomando: string
 }
 
 export interface Effect {
@@ -26,7 +27,7 @@ export interface Reply {
 export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/project', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '' }
+  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '' }
 }
 
 export function perguntando(state: SessionState, id: string): SessionState {
@@ -35,6 +36,10 @@ export function perguntando(state: SessionState, id: string): SessionState {
 
 export function respondido(state: SessionState): SessionState {
   return { ...state, perguntando: '' }
+}
+
+export function retomando(state: SessionState, id: string): SessionState {
+  return { ...state, retomando: id, pendingPlan: '', perguntando: '', removendo: '' }
 }
 
 export function removendo(state: SessionState, id: string): SessionState {
@@ -123,6 +128,7 @@ function command(line: string, state: SessionState): Reply {
 export function handle(raw: string, state: SessionState): Reply {
   const line = raw.trim()
   if (!line) {
+    if (state.retomando) return reply({ kind: 'resume', id: state.retomando }, { ...state, retomando: '' })
     if (state.removendo) return reply({ kind: 'confirm-rm', id: state.removendo, text: 'sim' }, { ...state, removendo: '' })
     if (state.perguntando) return reply({ kind: 'answer', id: state.perguntando, text: '' }, state)
     return state.pendingPlan
@@ -130,6 +136,7 @@ export function handle(raw: string, state: SessionState): Reply {
       : reply({ kind: 'none' }, state)
   }
   if (line.startsWith('/')) return command(line, state)
+  if (state.retomando) return handle(line, { ...state, retomando: '' })
   if (state.removendo) {
     const nao = /^(n|nao|não|no|c|cancel\w*)$/i.test(line)
     return reply({ kind: 'confirm-rm', id: state.removendo, text: nao ? '' : 'sim' }, { ...state, removendo: '' })

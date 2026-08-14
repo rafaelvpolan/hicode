@@ -21,7 +21,7 @@ import { planSteps } from '../lib/runner/analyze'
 import { extractObjetivo } from '../lib/card'
 import type { Fields } from '../lib/card'
 import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daemon'
-import { handle, newSession, planShown, respondido, seguir, perguntando } from '../lib/core/session'
+import { handle, newSession, planShown, respondido, seguir, perguntando, retomando } from '../lib/core/session'
 import { dispatch } from '../lib/core/dispatch'
 import type { DispatchIO } from '../lib/core/dispatch'
 import { cardsPerguntando, pendencia } from '../lib/core/responder'
@@ -31,7 +31,7 @@ import { renderOpcoesRodape } from '../lib/core/render/clarify'
 import { renderSugestoes, prefixoComum } from '../lib/core/render/sugestoes'
 import { etiquetaDoProjeto, corDoProjeto, nomeCurto } from '../lib/core/render/projeto'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
-import { renderCabecalhoTarefa } from '../lib/core/render/tarefa'
+import { renderCabecalhoTarefa, renderParada } from '../lib/core/render/tarefa'
 import { subPrompts } from '../lib/core/instruir'
 import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
@@ -212,6 +212,7 @@ function pintarComando(linha: string): string {
 function dicaDa(state: SessionState, sugerindo = false): string {
   if (sugerindo) return '↑↓ escolhe  tab completa  enter usa'
   if (selecionado) return 'setas movem  enter entra  esc sai'
+  if (state.retomando) return 'enter retoma  ctrl+c sai'
   if (state.removendo) return 'enter confirma  n cancela'
   if (state.perguntando) return '↓ escolhe  numero responde  enter confirma'
   if (state.perguntando) return 'numero responde  ctrl+j quebra linha'
@@ -534,7 +535,23 @@ async function tui(state0: SessionState): Promise<void> {
     }),
     prefixoComum,
     corInput: (linha) => pintarComando(linha),
-    onInterrupt: () => { sairPedido = true; return true },
+    onInterrupt: () => {
+      const id = state.seguindo
+      const card = id ? readCard(id) : null
+      const status = String(card?.fm.status ?? '')
+      if (!card || !['EXECUTING', 'CORRECTING'].includes(status)) {
+        sairPedido = true
+        return true
+      }
+      core.halt(id, 'parado pelo humano (ctrl+c)')
+      state = retomando(state, id)
+      const custo = parseFloat(String(card.fm.cost_usd ?? '0')) || 0
+      for (const l of renderParada(id, {
+        color, gasto: custo ? `US$${custo.toFixed(2)}` : '',
+        width: Math.max(40, (Number(process.stdout.columns) || 78) - 6),
+      })) app.log(l)
+      return false
+    },
     onNav: (dir, modo) => navegar(state, dir, modo),
     onAba: (dir) => {
       const nomes = reposRegistrados().map(r => r.name)

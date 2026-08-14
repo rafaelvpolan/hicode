@@ -333,3 +333,31 @@ test('comando dentro da tarefa continua sendo comando', () => {
 test('numero dentro da tarefa ainda abre o plano', () => {
   expect(handle('20', seguir(base, '022')).effect.kind).toBe('plan')
 })
+
+import { retomando } from '../lib/core/session'
+
+test('depois de parar, enter retoma a tarefa', () => {
+  const r = handle('', retomando(base, '022'))
+  expect(r.effect.kind).toBe('resume')
+  expect(r.effect.id).toBe('022')
+  expect(r.state.retomando).toBe('')
+})
+
+test('depois de parar, escrever nao retoma — segue o caminho normal', () => {
+  const dentro = { ...retomando(base, '022'), seguindo: '022' }
+  const r = handle('tenta outra abordagem', dentro)
+  expect(r.effect.kind).toBe('instruct')
+  expect(r.state.retomando).toBe('')
+})
+
+test('comando depois de parar continua sendo comando', () => {
+  expect(handle('/rm 22', retomando(base, '022')).effect.kind).toBe('rm')
+})
+
+test('retomar limpa pergunta e remocao pendentes', () => {
+  const cheio = { ...planShown(base, '9'), perguntando: '9', removendo: '9' }
+  const s = retomando(cheio, '022')
+  expect(s.perguntando).toBe('')
+  expect(s.removendo).toBe('')
+  expect(s.pendingPlan).toBe('')
+})
