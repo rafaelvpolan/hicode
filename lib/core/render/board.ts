@@ -141,32 +141,65 @@ function somaCusto(cards: Fields[]): string {
   return t ? t.toFixed(2) : '0.00'
 }
 
-export function renderBoard(cards: Fields[], opts: Partial<BoardOptions> = {}): string {
+export interface BoardLinhas {
+  linhas: string[]
+  idPorLinha: string[]
+  cabecalho: number
+}
+
+export function linhasDoBoard(cards: Fields[], opts: Partial<BoardOptions> = {}): BoardLinhas {
   const o = { ...DEFAULTS, ...opts }
   const meus = cards.filter(c => !o.repo || String(c.repo ?? '') === o.repo)
-  const out: string[] = []
-  out.push(paint(o.repo || '(sem repo)', BOLD, o) + paint(`   daemon ${o.daemon}`, DIM, o))
-  out.push(paint(`  ${meus.length} card(s) · US$${somaCusto(meus)} acumulado`, DIM, o))
-  out.push(paint('  ' + PHASES.map(p => p.label).join(' › '), DIM, o))
+  const linhas: string[] = []
+  const idPorLinha: string[] = []
+  const solta = (texto: string, id = ''): void => { linhas.push(texto); idPorLinha.push(id) }
+  solta(paint(o.repo || '(sem repo)', BOLD, o) + paint(`   daemon ${o.daemon}`, DIM, o))
+  solta(paint(`  ${meus.length} card(s) · US$${somaCusto(meus)} acumulado`, DIM, o))
+  solta(paint('  ' + PHASES.map(p => p.label).join(' › '), DIM, o))
+  const cabecalho = linhas.length
   if (!meus.length) {
-    out.push('')
-    out.push(paint('  nenhum card neste projeto — escreva a tarefa para criar o primeiro', DIM, o))
-    return out.join('\n')
+    solta('')
+    solta(paint('  nenhum card neste projeto — escreva a tarefa para criar o primeiro', DIM, o))
+    return { linhas, idPorLinha, cabecalho }
   }
   for (const g of agrupar(meus)) {
-    out.push('')
-    out.push(paint(`  ${g.rotulo} (${g.cards.length})`, g.rotulo === 'esperando voce' ? YELLOW : DIM, o))
-    for (const c of g.cards.sort((a, b) => Number(a.id) - Number(b.id))) {
-      const alvo = o.selecionado && String(c.id ?? '') === o.selecionado
-      out.push(alvo ? paint('›', CYAN, o) + linha(c, o).slice(1) : linha(c, o))
+    solta('')
+    solta(paint(`  ${g.rotulo} (${g.cards.length})`, g.rotulo === 'esperando voce' ? YELLOW : DIM, o))
+    for (const c of [...g.cards].sort((a, b) => Number(a.id) - Number(b.id))) {
+      const id = String(c.id ?? '')
+      const alvo = o.selecionado && id === o.selecionado
+      solta(alvo ? paint('›', CYAN, o) + linha(c, o).slice(1) : linha(c, o), id)
     }
   }
   const referencia = meus.map(c => o.passosDe(c)).find(p => p.length)
   if (referencia) {
-    out.push('')
-    out.push(renderLegenda(referencia.map(p => ({ ...p, estado: 'pendente' as const })), o))
+    solta('')
+    solta(renderLegenda(referencia.map(p => ({ ...p, estado: 'pendente' as const })), o))
   }
-  return out.join('\n')
+  return { linhas, idPorLinha, cabecalho }
+}
+
+export function janela(board: BoardLinhas, selecionado: string, altura: number): string[] {
+  const { linhas, idPorLinha, cabecalho } = board
+  if (altura <= 0 || linhas.length <= altura) return linhas
+  const fixo = linhas.slice(0, cabecalho)
+  const corpo = linhas.slice(cabecalho)
+  const sobra = Math.max(1, altura - cabecalho)
+  const alvo = idPorLinha.indexOf(selecionado) - cabecalho
+  const meio = Math.floor(sobra / 2)
+  const inicio = alvo < 0
+    ? 0
+    : Math.max(0, Math.min(alvo - meio, corpo.length - sobra))
+  return [...fixo, ...corpo.slice(inicio, inicio + sobra)]
+}
+
+export function renderBoard(cards: Fields[], opts: Partial<BoardOptions> = {}): string {
+  return linhasDoBoard(cards, opts).linhas.join('\n')
+}
+
+export function renderBoardJanela(cards: Fields[], opts: Partial<BoardOptions> = {}, altura = 0): string[] {
+  const board = linhasDoBoard(cards, opts)
+  return janela(board, opts.selecionado ?? '', altura)
 }
 
 export interface ProjetoResumo {

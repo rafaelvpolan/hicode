@@ -5,10 +5,15 @@ import { tokenizeParcial, agruparColagem } from './keys'
 import { linkificar } from './layout'
 import type { InputState } from './input'
 
+export interface CorpoContexto {
+  navegando: boolean
+  altura: number
+}
+
 export interface AppHooks {
   header: () => string
-  corpo: () => string[]
-  dica: () => string
+  corpo: (ctx: CorpoContexto) => string[]
+  dica: (ctx: CorpoContexto) => string
   prompt: () => string
   rodape: () => string[]
   onLine: (linha: string) => Promise<void> | void
@@ -32,14 +37,20 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
   const screen = openScreen(term)
 
   const desenhar = (): void => {
+    const rodape = hooks.rodape()
+    const ctx: CorpoContexto = {
+      navegando: input.navegando,
+      altura: Math.max(4, term.rows() - 6 - rodape.length),
+    }
+    const corpo = hooks.corpo(ctx)
     screen.draw({
       header: hooks.header(),
-      corpo: [...hooks.corpo(), ...extras],
-      input: input.buffer,
-      cursor: input.cursor,
-      dica: hooks.dica(),
+      corpo: ctx.navegando ? corpo : [...corpo, ...extras],
+      input: ctx.navegando ? '' : input.buffer,
+      cursor: ctx.navegando ? 0 : input.cursor,
+      dica: hooks.dica(ctx),
       prompt: hooks.prompt(),
-      rodape: hooks.rodape(),
+      rodape,
     })
   }
 

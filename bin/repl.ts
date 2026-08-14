@@ -9,7 +9,7 @@ import * as core from '../lib/core/actions'
 import { buildPlan } from '../lib/core/plan'
 import { renderPlan } from '../lib/core/render/plan'
 import { renderFleet } from '../lib/core/render/fleet'
-import { renderBoard, renderProjetos, resumirProjetos, ordemDoBoard } from '../lib/core/render/board'
+import { renderBoard, renderBoardJanela, renderProjetos, resumirProjetos, ordemDoBoard } from '../lib/core/render/board'
 import { startLive } from '../lib/core/watch'
 import { cardsDir } from '../lib/runner/config'
 import { repoStatus } from '../lib/core/repos'
@@ -175,11 +175,24 @@ function navegar(state: SessionState, dir: -1 | 1): boolean {
   return true
 }
 
-function board(state: SessionState): string {
-  return renderBoard(allCards(), {
+function opcoesDoBoard(state: SessionState): Parameters<typeof renderBoard>[1] {
+  return {
     color, repo: state.repo, daemon: daemonStatus(), passosDe, selecionado,
     now: Date.now(), width: Number(process.stdout.columns) || 78,
-  })
+  }
+}
+
+function board(state: SessionState): string {
+  return renderBoard(allCards(), opcoesDoBoard(state))
+}
+
+function boardNavegavel(state: SessionState, altura: number): string[] {
+  const cabecalho = [
+    `  ${color ? ACC : ''}board${color ? RESET : ''} ${dim('· ↑↓ move · enter abre · → volta a escrever')}`,
+    '',
+  ]
+  const corpo = renderBoardJanela(allCards(), opcoesDoBoard(state), Math.max(4, altura - cabecalho.length))
+  return [...cabecalho, ...corpo]
 }
 
 function avisoRepos(state: SessionState): void {
@@ -338,8 +351,11 @@ async function tui(state0: SessionState): Promise<void> {
   let sairPedido = false
   const app = createApp(term, {
     header: () => `hii · ${state.repo || '(sem projeto)'}${state.seguindo ? ` · seguindo #${state.seguindo}` : ''}   daemon ${daemonStatus()}`,
-    corpo: () => (state.seguindo ? seguimento(state) : board(state).split('\n')),
-    dica: () => dicaDa(state),
+    corpo: (ctx) => {
+      if (ctx.navegando) return boardNavegavel(state, ctx.altura)
+      return state.seguindo ? seguimento(state) : board(state).split('\n')
+    },
+    dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · esc sai' : dicaDa(state)),
     prompt: () => '› ',
     rodape: () => rodapeDa(state),
     intervalMs: 400,
@@ -351,7 +367,12 @@ async function tui(state0: SessionState): Promise<void> {
       const alvo = selecionado
       selecionado = ''
       state = seguir(state, alvo)
-      app.log(`  entrando em #${alvo} — /board volta`)
+      void (async () => {
+        const card = readCard(alvo)
+        const vivo = card?.fm.preview_url ? await httpOk(card.fm.preview_url) : false
+        for (const l of planoDe(alvo, vivo).split('\n')) app.log(l)
+        app.log(`  seguindo a execucao de #${alvo} — /board volta`)
+      })()
     },
     onLine: async (linha) => {
       const { effect, state: next } = handle(linha, state)

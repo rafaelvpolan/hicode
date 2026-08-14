@@ -213,3 +213,57 @@ test('selecao nao muda a largura da linha', () => {
   const com = renderBoard(cards, { repo: 'org/app', selecionado: '1', ...semPassos }).split('\n').find(l => l.includes('#001')) ?? ''
   expect(com.length).toBe(sem.length)
 })
+
+import { linhasDoBoard, janela, renderBoardJanela } from '../lib/core/render/board'
+
+function muitos(n: number): Fields[] {
+  return Array.from({ length: n }, (_, i) => card({ id: String(i + 1), status: 'READY', title: `tarefa ${i + 1}` }))
+}
+
+test('cada linha de card sabe a qual card pertence', () => {
+  const b = linhasDoBoard([card({ id: '7', status: 'READY' })], { repo: 'org/app', ...semPassos })
+  const idx = b.idPorLinha.indexOf('7')
+  expect(idx).toBeGreaterThan(0)
+  expect(b.linhas[idx]).toContain('#007')
+})
+
+test('titulo de grupo e cabecalho nao apontam para card', () => {
+  const b = linhasDoBoard([card({ id: '7', status: 'READY' })], { repo: 'org/app', ...semPassos })
+  expect(b.idPorLinha.slice(0, b.cabecalho).every(x => x === '')).toBe(true)
+})
+
+test('janela respeita a altura pedida', () => {
+  const b = linhasDoBoard(muitos(40), { repo: 'org/app', ...semPassos })
+  expect(b.linhas.length).toBeGreaterThan(20)
+  expect(janela(b, '1', 20).length).toBe(20)
+})
+
+test('janela mantem o cabecalho fixo enquanto rola', () => {
+  const b = linhasDoBoard(muitos(40), { repo: 'org/app', ...semPassos })
+  const j = janela(b, '38', 15)
+  expect(j.slice(0, b.cabecalho)).toEqual(b.linhas.slice(0, b.cabecalho))
+})
+
+test('janela sempre mostra o card selecionado', () => {
+  const b = linhasDoBoard(muitos(40), { repo: 'org/app', selecionado: '38', ...semPassos })
+  for (const alvo of ['1', '20', '38', '40']) {
+    const j = janela(linhasDoBoard(muitos(40), { repo: 'org/app', selecionado: alvo, ...semPassos }), alvo, 15)
+    expect(j.some(l => l.includes(`#${alvo.padStart(3, '0')} `))).toBe(true)
+  }
+})
+
+test('board curto nao e cortado', () => {
+  const b = linhasDoBoard(muitos(2), { repo: 'org/app', ...semPassos })
+  expect(janela(b, '1', 40)).toEqual(b.linhas)
+})
+
+test('altura zero significa sem limite', () => {
+  const b = linhasDoBoard(muitos(40), { repo: 'org/app', ...semPassos })
+  expect(janela(b, '1', 0)).toEqual(b.linhas)
+})
+
+test('renderBoard e renderBoardJanela sem limite dao o mesmo conteudo', () => {
+  const cards = muitos(5)
+  const o = { repo: 'org/app', ...semPassos }
+  expect(renderBoardJanela(cards, o, 0).join('\n')).toBe(renderBoard(cards, o))
+})

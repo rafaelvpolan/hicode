@@ -412,3 +412,26 @@ test('apagar palavra nao mexe no que esta depois do cursor', () => {
   const s = { ...digitar('um dois tres'), cursor: 7 }
   expect(keypress(s, '\x00').state.buffer).toBe('um  tres')
 })
+
+test('seta esquerda com campo vazio abre o board', () => {
+  const r = keypress(newInput(), '\x1b[D')
+  expect(r.action.kind).toBe('nav')
+  expect(r.state.navegando).toBe(true)
+})
+
+test('seta esquerda com texto continua movendo o cursor', () => {
+  const s = digitar('tarefa')
+  const r = keypress(s, '\x1b[D')
+  expect(r.state.navegando).toBe(false)
+  expect(r.state.cursor).toBe(5)
+})
+
+test('seta direita fecha o board e volta a escrever', () => {
+  const nav = keypress(newInput(), '\x1b[D').state
+  expect(keypress(nav, '\x1b[C').state.navegando).toBe(false)
+})
+
+test('no board, ctrl+c ainda interrompe', () => {
+  const nav = keypress(newInput(), '\x1b[D').state
+  expect(keypress(nav, '\x03').action.kind).toBe('interrupt')
+})

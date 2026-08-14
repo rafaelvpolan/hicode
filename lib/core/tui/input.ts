@@ -124,6 +124,7 @@ export function keypress(state: InputState, key: string): KeyResult {
   if (state.navegando) {
     if (key === ESC || key === ESC_CSI) return { state: { ...state, navegando: false }, action: { kind: 'redraw' } }
     if (ENTER.includes(key)) return { state, action: { kind: 'entrar' } }
+    if (key === RIGHT || key === LEFT) return { state: { ...state, navegando: false }, action: { kind: 'redraw' } }
     if (key !== UP && key !== DOWN) return keypress({ ...state, navegando: false }, key)
   }
   if (ENTER.includes(key) && state.buffer.endsWith('\\')) {
@@ -179,7 +180,10 @@ export function keypress(state: InputState, key: string): KeyResult {
   if (QUEBRA_LINHA.includes(key)) {
     return { state: inserirTexto(state, '\n'), action: { kind: 'redraw' } }
   }
-  if (key === LEFT) return { state: limpo(state, state.buffer, state.cursor - 1), action: { kind: 'redraw' } }
+  if (key === LEFT) {
+    if (!state.buffer) return { state: { ...state, navegando: true }, action: { kind: 'nav', dir: 1 } }
+    return { state: limpo(state, state.buffer, state.cursor - 1), action: { kind: 'redraw' } }
+  }
   if (key === RIGHT) return { state: limpo(state, state.buffer, state.cursor + 1), action: { kind: 'redraw' } }
   if (HOME.includes(key)) return { state: limpo(state, state.buffer, 0), action: { kind: 'redraw' } }
   if (END.includes(key)) return { state: limpo(state, state.buffer, state.buffer.length), action: { kind: 'redraw' } }
