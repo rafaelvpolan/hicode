@@ -49,7 +49,8 @@ hicode · org/app   daemon online (pid 48213)
 | `/board` | **quadro do projeto AO VIVO** — tela cheia, atualiza sozinho, `q` volta |
 | `/cards [STATUS]` | lista, opcionalmente filtrando (`/cards HALTED`) |
 | `/plan <id>` | reexibe o plano de um card |
-| `/watch <id>` | últimas linhas do log do card + link do preview |
+| `/watch <id>` | últimas transições do card + link do preview |
+| `/agents <id>` | **agentes, skills e ferramentas** que rodaram no card |
 | **`/ok <id>`** | **aprova o preview que você viu no dev server** |
 | **`/no <id> [o que]`** | rejeita o preview; com motivo, pede correção em vez de refazer |
 | `/halt <id> [motivo]` | para um card |
@@ -88,6 +89,9 @@ hii approve <id> --plan   # aprova o plano e enfileira (READY -> EXECUTING)
 hii reject <id> [o que]   # rejeita o preview; com motivo, pede correção
 hii halt <id> [motivo]    # para o card
 hii doctor           # confere gh, IA, daemon, push e contrato — ANTES de gastar token
+hii archive          # arquiva os entregues acima do teto (10 por projeto)
+hii archive ls       # o que está arquivado
+hii archive restore <id>   # traz um card de volta
 hii init [caminho]   # provisiona .hii/ num repo-alvo (default: cwd)
 hii hooks install [caminho]   # instala o gate de pre-push num repo (default: cwd)
 hii hooks uninstall [caminho] # remove o pre-push
@@ -298,6 +302,38 @@ hii                                   # 4. sessão: escreva a tarefa
 #   ↳ leia o plano e tecle ⏎                                  # 5. aprova e enfileira
 #   ↳ /watch <id> acompanha; /board mostra a frota            # 6. acompanhar
 ```
+
+---
+
+## Acompanhar a execução
+
+**`/agents <id>`** lê o log de streaming da IA e mostra o que de fato rodou:
+
+```
+#021 — vitro, frontiteto · 1 skill(s) · 9 arquivo(s) · 2 comando(s)
+  ◇ sessao claude-opus-5
+  ◆ agente vitro — criar o selo no hero
+  ✦ skill frontend-design
+  · read src/App.vue
+  · edit src/App.vue
+  $ bash npm run build
+  ◇ concluido US$0.4078
+```
+
+Sai de `cards/runs/<id>.live.log`, que o adapter de streaming grava com cada
+`tool_use` — então **um `Task({"subagent_type":"vitro"})` é um agente Nexus sendo despachado**, e
+`Skill(...)` é uma skill. Nada disso precisou de instrumentação nova: o dado já existia, faltava
+ler.
+
+> O log **acumula** por card (com poda automática acima de 1MB). Antes ele era truncado a cada
+> chamada de IA, então ao entrar no polimento você perdia o registro da implementação.
+
+### Teto de cards por projeto
+
+Card entregue (`MERGED`/`DEPLOYED`) acima de **10 por projeto** vai para `cards/archive/` — o motor
+poda sozinho no tick. Card vivo **nunca** é arquivado: `PR_OPEN` espera merge, `HALTED` espera
+você, e em andamento é trabalho em curso. Se o teto estourar só com card vivo, o motor avisa em vez
+de mexer.
 
 ---
 

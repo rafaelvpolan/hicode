@@ -59,6 +59,12 @@ function usage(): void {
     '  contract [caminho]       redetecta o contrato do alvo (stack, comandos, pacotes)',
     '  doctor                   confere gh, IA, daemon, push e contrato de cada alvo',
     '',
+    'Arquivo de cards (teto de 10 por projeto):',
+    '  archive                  arquiva os entregues mais antigos acima do teto',
+    '  archive --dry-run        mostra o que faria, sem mover',
+    '  archive ls               lista o que esta arquivado',
+    '  archive restore <id>     traz um card de volta',
+    '',
     'Tarefas e integracao:',
     '  sync                     sincroniza tarefas externas (HICODE_TASK_SYNC)',
     '  init [caminho]           provisiona .hii/ num repo-alvo (default: diretorio atual)',
@@ -141,6 +147,8 @@ async function main(): Promise<number> {
       return script('contract', args.slice(1))
     case 'doctor':
       return script('doctor', args.slice(1))
+    case 'archive':
+      return script('archive', args.slice(1))
     case undefined:
       return spawnSync('bun', [join(ROOT, 'bin', 'repl.ts')], { stdio: 'inherit', cwd: ROOT }).status ?? 0
     default:

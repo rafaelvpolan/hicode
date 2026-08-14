@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { ROOT, reposFile } from '../lib/runner/config'
-import { allCards, listRepos, readCard, repoPath, repoRegistered } from '../lib/runner/card-store'
+import { allCards, listRepos, normalizeId, readCard, repoPath, repoRegistered } from '../lib/runner/card-store'
 import { hasDevServer } from '../lib/runner/preview'
 import * as core from '../lib/core/actions'
 import { buildPlan } from '../lib/core/plan'
@@ -24,6 +24,8 @@ import { handle, newSession, planShown } from '../lib/core/session'
 import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
+import { parseLog, formatar, resumo } from '../lib/core/activity'
+import { readFileSync } from 'node:fs'
 import { STATUSES } from '../lib/card'
 import type { SessionState } from '../lib/core/session'
 
@@ -61,6 +63,14 @@ async function escolherProjeto(ask: (q: string) => Promise<string | null>): Prom
     const porNome = lista.find(p => p.name === t) ?? lista.find(p => p.name.includes(t))
     if (porNome) return porNome.name
     say(dim('  nao achei esse projeto — numero da lista ou parte do nome'))
+  }
+}
+
+function atividadeDe(id: string): ReturnType<typeof parseLog> {
+  try {
+    return parseLog(readFileSync(join(cardsDir(), 'runs', `${normalizeId(id)}.live.log`), 'utf8'))
+  } catch {
+    return []
   }
 }
 
@@ -258,8 +268,15 @@ async function tui(state0: SessionState): Promise<void> {
       if (effect.kind === 'watch') {
         const card = readCard(effect.id ?? '')
         if (!card) return diga(`card #${effect.id} nao encontrado`)
-        for (const l of card.body.split('\n').filter(l => /^\d{4}-/.test(l.trim())).slice(-8)) diga(l.slice(0, 110))
+        for (const l of card.body.split('\n').filter(l => /^\d{4}-/.test(l.trim())).slice(-6)) diga(l.slice(0, 110))
         if (card.fm.preview_url) diga(`preview → ${card.fm.preview_url}`)
+        return
+      }
+      if (effect.kind === 'activity') {
+        const at = atividadeDe(effect.id ?? '')
+        if (!at.length) return diga(`sem atividade registrada para #${effect.id}`)
+        diga(`#${effect.id} — ${resumo(at) || 'sem ferramenta usada'}`)
+        for (const a of at.filter(x => x.tipo !== 'texto').slice(-14)) diga(formatar(a))
         return
       }
       if (effect.kind === 'plan') {

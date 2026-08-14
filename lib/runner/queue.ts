@@ -7,6 +7,7 @@ import { handleFinish } from './finish'
 import { handleCorrect } from './correct'
 import { handleSpec } from './spec-phase'
 import { checkMerged } from './merge'
+import { arquivar, precisaArquivar } from '../core/archive'
 
 const active = new Set<string>()
 
@@ -56,8 +57,17 @@ export function pending(): Job[] {
   return [...sp, ...ex, ...fi, ...co].filter(j => !active.has(j.id))
 }
 
+function podar(): void {
+  if (!precisaArquivar()) return
+  const r = arquivar()
+  for (const m of r.movidos) {
+    process.stdout.write(`[runner] #${m.id}: arquivado (${m.status}) — teto de cards por projeto\n`)
+  }
+}
+
 export function tick(): void {
   void checkMerged(Date.now())
+  podar()
   for (const job of pending()) {
     if (active.size >= MAX_CONCURRENCY) break
     void runJob(job)

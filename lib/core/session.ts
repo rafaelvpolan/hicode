@@ -1,7 +1,7 @@
 export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'discard-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
-  | 'approve-preview' | 'reject-preview' | 'reopen-repo'
+  | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
 
 export interface SessionState {
   repo: string
@@ -19,7 +19,7 @@ export interface Reply {
   state: SessionState
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/watch', '/halt', '/plan', '/repo', '/quit'] as const
+export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/watch', '/agents', '/halt', '/plan', '/repo', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
   return { repo, pendingPlan: '' }
@@ -51,6 +51,11 @@ function command(line: string, state: SessionState): Reply {
         : reply({ kind: 'error', text: 'uso: /halt <id> [motivo]' }, state)
     case 'plan':
       return arg ? reply({ kind: 'plan', id: arg }, state) : reply({ kind: 'error', text: 'uso: /plan <id>' }, state)
+    case 'agents':
+    case 'agentes':
+      return arg
+        ? reply({ kind: 'activity', id: arg }, state)
+        : reply({ kind: 'error', text: 'uso: /agents <id> — agentes, skills e ferramentas usados' }, state)
     case 'ok':
     case 'aprovar':
       return arg
