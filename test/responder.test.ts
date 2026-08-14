@@ -72,3 +72,19 @@ test('pergunta longa quebra em linhas dentro da largura', () => {
   expect(linhas.every(l => l.length <= 40)).toBe(true)
   expect(linhas.length).toBeGreaterThan(1)
 })
+
+import { renderRespondidas } from '../lib/core/render/clarify'
+
+test('mostra as decisoes ja tomadas, pergunta e resposta', () => {
+  const t = renderRespondidas('022', [
+    { q: 'Qual selo remover?', answer: 'Só o do header' },
+    { q: 'Sem resposta ainda', answer: '' },
+  ]).join('\n')
+  expect(t).toContain('Qual selo remover?')
+  expect(t).toContain('→ Só o do header')
+  expect(t).not.toContain('Sem resposta ainda')
+})
+
+test('card sem pergunta nem resposta diz isso', () => {
+  expect(renderRespondidas('030', []).join('')).toContain('nao tem pergunta nem resposta')
+})

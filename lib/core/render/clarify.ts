@@ -28,6 +28,18 @@ export function renderPergunta(p: Pendencia, o: OpcoesClarify = {}): string[] {
   return out
 }
 
+export function renderRespondidas(id: string, perguntas: { q: string; answer?: string }[], o: OpcoesClarify = {}): string[] {
+  const respondidas = perguntas.filter(p => p.answer)
+  if (!respondidas.length) return [`  #${id} nao tem pergunta nem resposta`]
+  const out: string[] = ['', `  ${paint(`#${id} — decisoes que voce tomou`, BOLD, o)}`, '']
+  for (const p of respondidas) {
+    for (const linha of quebrar(p.q, 66)) out.push(`  ${paint(linha, DIM, o)}`)
+    out.push(`    ${paint('→', ACC, o)} ${p.answer}`)
+    out.push('')
+  }
+  return out
+}
+
 export function quebrar(texto: string, largura: number): string[] {
   const palavras = texto.split(/\s+/).filter(Boolean)
   const linhas: string[] = []

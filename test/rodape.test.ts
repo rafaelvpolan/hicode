@@ -76,3 +76,47 @@ test('sem cor nao emite escape ANSI', () => {
   expect(linhaPropriedades(props, { color: false })).not.toContain('\x1b[')
   expect(linhasExecucao(emExecucao([card({ status: 'EXECUTING' })], '', 0, () => ''), { color: false })[0]).not.toContain('\x1b[')
 })
+
+import { esperandoVoce, linhasEspera } from '../lib/core/render/rodape'
+
+function c(over: Partial<Fields>): Fields {
+  return { id: '1', title: 't', status: 'READY', repo: 'org/app', ...over }
+}
+
+test('lista quem espera voce, com o comando que destrava', () => {
+  const e = esperandoVoce([
+    c({ id: '22', status: 'CLARIFY' }),
+    c({ id: '23', status: 'PREVIEW' }),
+    c({ id: '24', status: 'READY' }),
+    c({ id: '25', status: 'EXECUTING' }),
+  ], 'org/app')
+  expect(e.map(x => x.comando)).toEqual(['/ask 22', '/ok 23', '/plan 24'])
+})
+
+test('card rodando nao aparece como esperando voce', () => {
+  expect(esperandoVoce([c({ status: 'EXECUTING' }), c({ status: 'REVIEWED' })], 'org/app')).toEqual([])
+})
+
+test('espera de outro projeto nao polui a faixa', () => {
+  expect(esperandoVoce([c({ status: 'CLARIFY', repo: 'org/outro' })], 'org/app')).toEqual([])
+})
+
+test('PR aberto conta como esperando revisao humana', () => {
+  expect(esperandoVoce([c({ id: '9', status: 'PR_OPEN' })], 'org/app')[0]?.motivo).toContain('PR aberto')
+})
+
+test('mostra no maximo 3 e resume o resto', () => {
+  const muitos = ['1', '2', '3', '4', '5'].map(id => c({ id, status: 'READY' }))
+  const linhas = linhasEspera(esperandoVoce(muitos, 'org/app'))
+  expect(linhas.length).toBe(4)
+  expect(linhas[3]).toContain('e mais 2')
+})
+
+test('sem ninguem esperando, a faixa some', () => {
+  expect(linhasEspera([])).toEqual([])
+})
+
+test('faixa sem cor nao emite escape ANSI', () => {
+  const linhas = linhasEspera(esperandoVoce([c({ status: 'CLARIFY' })], 'org/app'), { color: false })
+  expect(linhas.join('')).not.toContain('\x1b[')
+})

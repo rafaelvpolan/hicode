@@ -1,6 +1,6 @@
 import { openScreen } from './screen'
 import type { Terminal } from './screen'
-import { newInput, keypress, aplicarCompletar } from './input'
+import { newInput, keypress, aplicarCompletar, pararNavegacao } from './input'
 import { tokenizeParcial, agruparColagem } from './keys'
 import { linkificar } from './layout'
 import type { InputState } from './input'
@@ -14,6 +14,8 @@ export interface AppHooks {
   onLine: (linha: string) => Promise<void> | void
   onComplete: (linha: string) => string[]
   onInterrupt: () => boolean
+  onNav: (dir: -1 | 1) => boolean
+  onEntrar: () => void
   intervalMs: number
 }
 
@@ -93,6 +95,15 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
     }
     if (a.kind === 'interrupt') {
       if (hooks.onInterrupt()) { finalizar(); return false }
+      return true
+    }
+    if (a.kind === 'nav') {
+      if (!hooks.onNav(a.dir)) input = pararNavegacao(input)
+      return true
+    }
+    if (a.kind === 'entrar') {
+      input = pararNavegacao(input)
+      hooks.onEntrar()
       return true
     }
     if (a.kind === 'eof') { finalizar(); return false }

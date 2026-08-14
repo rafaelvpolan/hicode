@@ -60,6 +60,7 @@ function usage(): void {
     '  doctor                   confere gh, IA, daemon, push e contrato de cada alvo',
     '',
     'Arquivo de cards (teto de 10 por projeto):',
+    '  board [repo] [--watch]   mostra o board das tarefas no terminal',
     '  rm <id> --yes            apaga o card e limpa worktree, preview e runs',
     '  archive                  arquiva os entregues mais antigos acima do teto',
     '  archive --dry-run        mostra o que faria, sem mover',
@@ -148,6 +149,9 @@ async function main(): Promise<number> {
       return script('contract', args.slice(1))
     case 'doctor':
       return script('doctor', args.slice(1))
+    case 'board':
+    case 'quadro':
+      return script('board', args.slice(1))
     case 'rm':
     case 'apagar':
       return script('rm', args.slice(1))

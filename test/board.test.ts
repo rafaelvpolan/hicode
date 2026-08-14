@@ -180,3 +180,36 @@ test('board mostra a legenda quando ha passos', () => {
 test('board sem passos nao inventa legenda', () => {
   expect(renderBoard([card({ id: '1' })], { repo: 'org/app', ...semPassos })).not.toContain('legenda')
 })
+
+import { ordemDoBoard } from '../lib/core/render/board'
+
+test('ordem do board e a mesma que aparece na tela', () => {
+  const cards = [
+    card({ id: '5', status: 'MERGED' }),
+    card({ id: '3', status: 'EXECUTING' }),
+    card({ id: '1', status: 'PREVIEW' }),
+    card({ id: '4', status: 'READY' }),
+    card({ id: '2', status: 'HALTED' }),
+  ]
+  expect(ordemDoBoard(cards, 'org/app')).toEqual(['1', '2', '3', '4', '5'])
+})
+
+test('ordem ignora cards de outro projeto', () => {
+  const cards = [card({ id: '1' }), card({ id: '2', repo: 'org/outro' })]
+  expect(ordemDoBoard(cards, 'org/app')).toEqual(['1'])
+})
+
+test('card selecionado ganha marca na linha', () => {
+  const cards = [card({ id: '1', status: 'READY' }), card({ id: '2', status: 'READY' })]
+  const t = renderBoard(cards, { repo: 'org/app', selecionado: '2', ...semPassos })
+  const linhas = t.split('\n').filter(l => l.includes('#00'))
+  expect(linhas.find(l => l.includes('#002'))?.startsWith('›')).toBe(true)
+  expect(linhas.find(l => l.includes('#001'))?.startsWith('›')).toBe(false)
+})
+
+test('selecao nao muda a largura da linha', () => {
+  const cards = [card({ id: '1', status: 'READY' })]
+  const sem = renderBoard(cards, { repo: 'org/app', ...semPassos }).split('\n').find(l => l.includes('#001')) ?? ''
+  const com = renderBoard(cards, { repo: 'org/app', selecionado: '1', ...semPassos }).split('\n').find(l => l.includes('#001')) ?? ''
+  expect(com.length).toBe(sem.length)
+})

@@ -17,9 +17,10 @@ export interface BoardOptions {
   now: number
   width: number
   passosDe: (card: Fields) => Passo[]
+  selecionado: string
 }
 
-const DEFAULTS: BoardOptions = { color: false, repo: '', daemon: 'offline', now: 0, width: 78, passosDe: () => [] }
+const DEFAULTS: BoardOptions = { color: false, repo: '', daemon: 'offline', now: 0, width: 78, passosDe: () => [], selecionado: '' }
 
 const MARCA: Record<Passo['estado'], string> = {
   feito: '●',
@@ -119,6 +120,11 @@ interface Grupo {
   cards: Fields[]
 }
 
+export function ordemDoBoard(cards: Fields[], repo = ''): string[] {
+  const meus = cards.filter(c => !repo || String(c.repo ?? '') === repo)
+  return agrupar(meus).flatMap(g => [...g.cards].sort((a, b) => Number(a.id) - Number(b.id)).map(c => String(c.id ?? '')))
+}
+
 function agrupar(cards: Fields[]): Grupo[] {
   const st = (c: Fields): string => String(c.status ?? 'INBOX')
   return [
@@ -150,7 +156,10 @@ export function renderBoard(cards: Fields[], opts: Partial<BoardOptions> = {}): 
   for (const g of agrupar(meus)) {
     out.push('')
     out.push(paint(`  ${g.rotulo} (${g.cards.length})`, g.rotulo === 'esperando voce' ? YELLOW : DIM, o))
-    for (const c of g.cards.sort((a, b) => Number(a.id) - Number(b.id))) out.push(linha(c, o))
+    for (const c of g.cards.sort((a, b) => Number(a.id) - Number(b.id))) {
+      const alvo = o.selecionado && String(c.id ?? '') === o.selecionado
+      out.push(alvo ? paint('›', CYAN, o) + linha(c, o).slice(1) : linha(c, o))
+    }
   }
   const referencia = meus.map(c => o.passosDe(c)).find(p => p.length)
   if (referencia) {

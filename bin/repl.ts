@@ -9,7 +9,7 @@ import * as core from '../lib/core/actions'
 import { buildPlan } from '../lib/core/plan'
 import { renderPlan } from '../lib/core/render/plan'
 import { renderFleet } from '../lib/core/render/fleet'
-import { renderBoard, renderProjetos, resumirProjetos } from '../lib/core/render/board'
+import { renderBoard, renderProjetos, resumirProjetos, ordemDoBoard } from '../lib/core/render/board'
 import { startLive } from '../lib/core/watch'
 import { cardsDir } from '../lib/runner/config'
 import { repoStatus } from '../lib/core/repos'
@@ -23,12 +23,13 @@ import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daem
 import { handle, newSession, planShown, seguir, perguntando, respondido, removendo } from '../lib/core/session'
 import { pendencia, responder, cardsPerguntando } from '../lib/core/responder'
 import { planejarRemocao, remover } from '../lib/core/remover'
-import { renderPergunta } from '../lib/core/render/clarify'
+import { renderPergunta, renderRespondidas } from '../lib/core/render/clarify'
+import { readClarify } from '../lib/runner/clarify'
 import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
 import { parseLog, formatar, resumo, ultimoAgente } from '../lib/core/activity'
-import { linhaPropriedades, linhasExecucao, emExecucao } from '../lib/core/render/rodape'
+import { linhaPropriedades, linhasExecucao, emExecucao, linhasEspera, esperandoVoce } from '../lib/core/render/rodape'
 import { providerNameFor, modelFor } from '../lib/ai/registry'
 import { readFileSync } from 'node:fs'
 import { STATUSES } from '../lib/card'
@@ -147,11 +148,14 @@ function rodapeDa(state: SessionState): string[] {
     custoHoje: custoDoDia(state.repo),
     divergentes: papeisDivergentes(),
   }, { color, width: largura })
-  const rodando = emExecucao(allCards(), state.repo, Date.now(), id => ultimoAgente(atividadeDe(id)))
-  return [props, ...linhasExecucao(rodando, { color, now: Date.now(), width: largura })]
+  const cards = allCards()
+  const rodando = emExecucao(cards, state.repo, Date.now(), id => ultimoAgente(atividadeDe(id)))
+  const espera = linhasEspera(esperandoVoce(cards, state.repo), { color, width: largura })
+  return [props, ...linhasExecucao(rodando, { color, now: Date.now(), width: largura }), ...espera]
 }
 
 function dicaDa(state: SessionState): string {
+  if (selecionado) return 'setas movem  enter entra  esc sai'
   if (state.removendo) return 's confirma  outra tecla cancela'
   if (state.perguntando) return 'numero responde  ctrl+j quebra linha'
   const esperando = cardsPerguntando(allCards(), state.repo)
@@ -160,9 +164,21 @@ function dicaDa(state: SessionState): string {
   return '/help  ctrl+j quebra linha  ctrl+c sai'
 }
 
+let selecionado = ''
+
+function navegar(state: SessionState, dir: -1 | 1): boolean {
+  const ordem = ordemDoBoard(allCards(), state.repo)
+  if (!ordem.length) return false
+  const atual = ordem.indexOf(selecionado)
+  const proximo = atual < 0 ? 0 : atual + dir
+  if (proximo < 0) { selecionado = ''; return false }
+  selecionado = ordem[Math.min(proximo, ordem.length - 1)] ?? ''
+  return true
+}
+
 function board(state: SessionState): string {
   return renderBoard(allCards(), {
-    color, repo: state.repo, daemon: daemonStatus(), passosDe,
+    color, repo: state.repo, daemon: daemonStatus(), passosDe, selecionado,
     now: Date.now(), width: Number(process.stdout.columns) || 78,
   })
 }
@@ -327,6 +343,14 @@ async function tui(state0: SessionState): Promise<void> {
     intervalMs: 400,
     onComplete: (linha) => completer(linha)[0],
     onInterrupt: () => { sairPedido = true; return true },
+    onNav: (dir) => navegar(state, dir),
+    onEntrar: () => {
+      if (!selecionado) return
+      const alvo = selecionado
+      selecionado = ''
+      state = seguir(state, alvo)
+      app.log(`  entrando em #${alvo} — /board volta`)
+    },
     onLine: async (linha) => {
       const { effect, state: next } = handle(linha, state)
       state = next
@@ -398,7 +422,10 @@ async function tui(state0: SessionState): Promise<void> {
         const alvo = effect.id || cardsPerguntando(allCards(), state.repo)[0] || ''
         if (!alvo) return diga('nenhum card esperando resposta')
         const p = pendencia(alvo)
-        if (!p) return diga(`#${alvo} nao tem pergunta aberta`)
+        if (!p) {
+          for (const l of renderRespondidas(alvo, readClarify(alvo), { color })) app.log(l)
+          return
+        }
         for (const l of renderPergunta(p, { color })) app.log(l)
         state = perguntando(state, alvo)
         return

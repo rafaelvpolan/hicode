@@ -333,3 +333,49 @@ test('colagem multilinha nao vira submit por causa do \\n', () => {
   expect(tokens.length).toBe(1)
   expect(ehCola(tokens[0] ?? '')).toBe(true)
 })
+
+import { pararNavegacao } from '../lib/core/tui/input'
+
+test('seta para baixo com campo vazio entra em selecao', () => {
+  const r = keypress(newInput(), '\x1b[B')
+  expect(r.action.kind).toBe('nav')
+  expect(r.state.navegando).toBe(true)
+})
+
+test('seta para cima com campo vazio ainda recupera historico', () => {
+  const r = keypress(newInput(['tarefa antiga']), '\x1b[A')
+  expect(r.action.kind).toBe('redraw')
+  expect(r.state.buffer).toBe('tarefa antiga')
+  expect(r.state.navegando).toBe(false)
+})
+
+test('com texto digitado, seta para baixo continua sendo historico', () => {
+  const s = digitar('meio escrito')
+  expect(keypress(s, '\x1b[B').state.navegando).toBe(false)
+})
+
+test('navegando, as setas movem a selecao e enter entra', () => {
+  const nav = keypress(newInput(), '\x1b[B').state
+  expect(keypress(nav, '\x1b[A').action.kind).toBe('nav')
+  expect(keypress(nav, '\x1b[B').action.kind).toBe('nav')
+  expect(keypress(nav, '\r').action.kind).toBe('entrar')
+})
+
+test('esc sai da selecao', () => {
+  const nav = keypress(newInput(), '\x1b[B').state
+  expect(keypress(nav, '\x1b').state.navegando).toBe(false)
+})
+
+test('digitar sai da selecao e escreve a letra', () => {
+  const nav = keypress(newInput(), '\x1b[B').state
+  const r = keypress(nav, 'a')
+  expect(r.state.navegando).toBe(false)
+  expect(r.state.buffer).toBe('a')
+})
+
+test('pararNavegacao limpa o modo sem tocar no buffer', () => {
+  const nav = { ...digitar('x'), navegando: true }
+  const s = pararNavegacao(nav)
+  expect(s.navegando).toBe(false)
+  expect(s.buffer).toBe('x')
+})

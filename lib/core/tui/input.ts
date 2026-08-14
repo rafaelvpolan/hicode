@@ -7,6 +7,7 @@ export interface InputState {
   histIdx: number
   draft: string
   pastes: string[]
+  navegando: boolean
 }
 
 export const LIMITE_COLA = Number(process.env.HICODE_PASTE_INLINE_MAX || 120)
@@ -19,6 +20,8 @@ export type InputAction =
   | { kind: 'interrupt' }
   | { kind: 'eof' }
   | { kind: 'complete'; line: string }
+  | { kind: 'nav'; dir: -1 | 1 }
+  | { kind: 'entrar' }
 
 export interface KeyResult {
   state: InputState
@@ -26,7 +29,7 @@ export interface KeyResult {
 }
 
 export function newInput(history: string[] = []): InputState {
-  return { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [] }
+  return { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [], navegando: false }
 }
 
 function inserirTexto(state: InputState, texto: string): InputState {
@@ -50,6 +53,7 @@ export function expandir(state: InputState, linha: string): string {
 }
 
 const ENTER = ['\r']
+const ESC = '\x1b'
 const BACKSPACE = ['\x7f']
 const UP = '\x1b[A'
 const DOWN = '\x1b[B'
@@ -108,7 +112,16 @@ function navegarHistorico(state: InputState, delta: number): KeyResult {
   }
 }
 
+export function pararNavegacao(state: InputState): InputState {
+  return state.navegando ? { ...state, navegando: false } : state
+}
+
 export function keypress(state: InputState, key: string): KeyResult {
+  if (state.navegando) {
+    if (key === ESC) return { state: { ...state, navegando: false }, action: { kind: 'redraw' } }
+    if (ENTER.includes(key)) return { state, action: { kind: 'entrar' } }
+    if (key !== UP && key !== DOWN) return keypress({ ...state, navegando: false }, key)
+  }
   if (ENTER.includes(key) && state.buffer.endsWith('\\')) {
     const buffer = state.buffer.slice(0, -1) + '\n'
     return { state: limpo(state, buffer, buffer.length), action: { kind: 'redraw' } }
@@ -119,7 +132,7 @@ export function keypress(state: InputState, key: string): KeyResult {
       ? [...state.history, line]
       : state.history
     return {
-      state: { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [] },
+      state: { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [], navegando: false },
       action: { kind: 'submit', line: expandir(state, line) },
     }
   }
@@ -166,8 +179,15 @@ export function keypress(state: InputState, key: string): KeyResult {
   if (key === RIGHT) return { state: limpo(state, state.buffer, state.cursor + 1), action: { kind: 'redraw' } }
   if (HOME.includes(key)) return { state: limpo(state, state.buffer, 0), action: { kind: 'redraw' } }
   if (END.includes(key)) return { state: limpo(state, state.buffer, state.buffer.length), action: { kind: 'redraw' } }
-  if (key === UP) return navegarHistorico(state, -1)
-  if (key === DOWN) return navegarHistorico(state, 1)
+  if (key === UP) {
+    if (state.navegando) return { state, action: { kind: 'nav', dir: -1 } }
+    return navegarHistorico(state, -1)
+  }
+  if (key === DOWN) {
+    if (state.navegando) return { state, action: { kind: 'nav', dir: 1 } }
+    if (!state.buffer) return { state: { ...state, navegando: true }, action: { kind: 'nav', dir: 1 } }
+    return navegarHistorico(state, 1)
+  }
   if (ehCola(key)) {
     return { state: colar(state, textoDaCola(key)), action: { kind: 'redraw' } }
   }

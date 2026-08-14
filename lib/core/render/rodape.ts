@@ -69,6 +69,50 @@ export function emExecucao(cards: Fields[], repo: string, now: number, agenteDe:
     }))
 }
 
+export interface Espera {
+  id: string
+  titulo: string
+  motivo: string
+  comando: string
+}
+
+const ESPERAS: Record<string, { motivo: string; comando: string }> = {
+  CLARIFY: { motivo: 'precisa da sua resposta', comando: '/ask' },
+  PREVIEW: { motivo: 'preview pronto para ver', comando: '/ok' },
+  READY: { motivo: 'plano nao aprovado', comando: '/plan' },
+  INBOX: { motivo: 'plano nao aprovado', comando: '/plan' },
+  SPECCED: { motivo: 'plano nao aprovado', comando: '/plan' },
+  HALTED: { motivo: 'parou no meio', comando: '/plan' },
+  PR_OPEN: { motivo: 'PR aberto para voce revisar', comando: '/plan' },
+}
+
+export function esperandoVoce(cards: Fields[], repo: string): Espera[] {
+  return cards
+    .filter(c => !repo || c.repo === repo)
+    .map(c => ({ card: c, esp: ESPERAS[String(c.status ?? '')] }))
+    .filter((x): x is { card: Fields; esp: { motivo: string; comando: string } } => !!x.esp)
+    .sort((a, b) => Number(a.card.id) - Number(b.card.id))
+    .map(({ card, esp }) => ({
+      id: String(card.id ?? ''),
+      titulo: String(card.title ?? ''),
+      motivo: esp.motivo,
+      comando: `${esp.comando} ${Number(card.id)}`,
+    }))
+}
+
+export function linhasEspera(lista: Espera[], opts: Partial<RodapeOptions> = {}): string[] {
+  const o = { ...PADRAO, ...opts }
+  if (!lista.length) return []
+  const mostrar = lista.slice(0, 3)
+  const linhas = mostrar.map(e => {
+    const titulo = e.titulo.slice(0, Math.max(10, o.width - 46))
+    return `${paint('●', YELLOW, o)} ${paint(`#${e.id.padStart(3, '0')}`, DIM, o)} ${titulo} ${paint(`${e.motivo} → ${e.comando}`, DIM, o)}`
+  })
+  const resto = lista.length - mostrar.length
+  if (resto > 0) linhas.push(paint(`  e mais ${resto} esperando voce`, DIM, o))
+  return linhas
+}
+
 export function linhasExecucao(lista: EmExecucao[], opts: Partial<RodapeOptions> = {}): string[] {
   const o = { ...PADRAO, ...opts }
   if (!lista.length) return [paint('nada em execucao', DIM, o)]
