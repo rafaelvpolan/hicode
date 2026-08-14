@@ -102,7 +102,8 @@ export function renderFrame(f: FrameInput): Frame {
   const rodape = f.rodape ?? []
   const sugestoes = f.sugestoes ?? []
   const moldura = f.legenda === undefined ? 0 : 2
-  const alturaCorpo = Math.max(MIN_CORPO, f.rows - 3 - alturaEntrada - rodape.length - sugestoes.length - moldura)
+  const linhaDica = f.dica ? 1 : 0
+  const alturaCorpo = Math.max(MIN_CORPO, f.rows - 3 - alturaEntrada - rodape.length - sugestoes.length - moldura - linhaDica)
   const visiveis = f.corpo.slice(-alturaCorpo)
   const lines: string[] = []
   lines.push(padVisible('  ' + truncVisible(f.header, largura - 2), largura))
@@ -124,16 +125,14 @@ export function renderFrame(f: FrameInput): Frame {
   const dentro = comMoldura ? interno - 2 : largura - 4
   entrada.forEach((linha, i) => {
     const prefixo = i === 0 ? f.prompt : recuo
-    const dica = i === entrada.length - 1 && f.dica
-      ? padVisible('', Math.max(0, dentro - visibleLen(prefixo) - visibleLen(linha) - visibleLen(f.dica))) + f.dica
-      : ''
     const pintada = f.corInput ? f.corInput(linha) : linha
-    const conteudo = prefixo + pintada + dica
+    const conteudo = prefixo + pintada
     lines.push(comMoldura
       ? '  │ ' + padVisible(truncVisible(conteudo, interno - 2), interno - 2) + ' │'
       : padVisible('  ' + conteudo, largura))
   })
   if (comMoldura) lines.push('  └' + '─'.repeat(interno) + '┘')
+  if (f.dica) lines.push(padVisible('    ' + truncVisible(f.dica, largura - 4), largura))
   for (const r of rodape) lines.push(padVisible('  ' + truncVisible(r, largura - 2), largura))
   const pos = posicaoNoTexto(f.input, f.cursor)
   return {

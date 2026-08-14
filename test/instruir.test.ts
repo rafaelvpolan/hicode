@@ -133,3 +133,49 @@ test('umaLinha preserva o conteudo e marca as quebras', async () => {
   expect(umaLinha('  espacos   demais  ')).toBe('espacos demais')
   expect(umaLinha('so uma')).toBe('so uma')
 })
+
+test('texto colado chega INTEIRO na instrucao, nao o marcador', async () => {
+  const { newInput, keypress } = await import('../lib/core/tui/input')
+  const { marcarCola } = await import('../lib/core/tui/keys')
+  const { instruir, subPrompts } = await import('../lib/core/instruir')
+  const { readCard } = await import('../lib/runner/card-store')
+  const erro = 'deu erro:\nApp.vue:97:7\n95 |\n96 |  <EngineConsole />'
+
+  let s = newInput()
+  for (const c of 'arruma isso: ') s = keypress(s, c).state
+  s = keypress(s, marcarCola(erro)).state
+  expect(s.buffer).toContain('[colado #1')
+  const enviado = keypress(s, '\r').action
+
+  card('022', { status: 'HALTED' })
+  instruir('022', enviado.kind === 'submit' ? enviado.line : '')
+  const subs = subPrompts(readCard('022')?.body ?? '')
+  expect(subs.length).toBe(1)
+  expect(subs[0]).toContain('arruma isso:')
+  expect(subs[0]).toContain('App.vue:97:7')
+  expect(subs[0]).toContain('EngineConsole')
+  expect(subs[0]).not.toContain('[colado')
+})
+
+test('varios pastes na mesma linha chegam todos', async () => {
+  const { newInput, keypress } = await import('../lib/core/tui/input')
+  const { marcarCola } = await import('../lib/core/tui/keys')
+  const { umaLinha } = await import('../lib/core/instruir')
+  let s = newInput()
+  s = keypress(s, marcarCola('primeiro bloco\ncom duas linhas')).state
+  for (const c of ' e ') s = keypress(s, c).state
+  s = keypress(s, marcarCola('segundo bloco\ntambem grande')).state
+  const enviado = keypress(s, '\r').action
+  const texto = umaLinha(enviado.kind === 'submit' ? enviado.line : '')
+  expect(texto).toContain('primeiro bloco')
+  expect(texto).toContain('segundo bloco')
+  expect(texto).not.toContain('[colado')
+})
+
+test('paste curto nao vira marcador, entra direto', async () => {
+  const { newInput, keypress } = await import('../lib/core/tui/input')
+  const { marcarCola } = await import('../lib/core/tui/keys')
+  const s = keypress(newInput(), marcarCola('http://localhost:5222')).state
+  expect(s.buffer).toBe('http://localhost:5222')
+  expect(s.buffer).not.toContain('[colado')
+})

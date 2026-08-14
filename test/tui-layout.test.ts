@@ -203,3 +203,49 @@ test('url no meio de texto ainda vira link quando suportado', () => {
   expect(visibleLen(t)).toBe('preview → http://localhost:5222 agora'.length)
   delete process.env.HICODE_HYPERLINKS
 })
+
+test('a dica fica ABAIXO do campo, em linha propria', () => {
+  const f = quadro({ rows: 14, cols: 60, input: 'tarefa', dica: '↑/↓ para escolher · enter para ver' })
+  const texto = f.lines.map(l => stripAnsi(l))
+  const iInput = texto.findIndex(l => l.includes('› tarefa'))
+  const iDica = texto.findIndex(l => l.includes('para escolher'))
+  expect(iDica).toBe(iInput + 1)
+})
+
+test('a dica nao divide linha com o que voce digita', () => {
+  const f = quadro({ rows: 14, cols: 60, input: 'tarefa', dica: 'uma dica' })
+  const linha = stripAnsi(f.lines.find(l => stripAnsi(l).includes('› tarefa')) ?? '')
+  expect(linha).not.toContain('uma dica')
+})
+
+test('a dica fica fora do quadro do prompt', () => {
+  const f = renderFrame({
+    rows: 16, cols: 60, header: 'h', corpo: ['x'], input: 'y', cursor: 1,
+    dica: 'a dica', prompt: '› ', rodape: [], legenda: 'proj',
+  })
+  const texto = f.lines.map(l => stripAnsi(l))
+  const iFecha = texto.findIndex(l => l.includes('└'))
+  const iDica = texto.findIndex(l => l.includes('a dica'))
+  expect(iDica).toBeGreaterThan(iFecha)
+})
+
+test('a dica nao move o cursor do campo', () => {
+  const com = quadro({ rows: 14, cols: 60, input: 'abc', cursor: 3, dica: 'uma dica bem longa aqui' })
+  const sem = quadro({ rows: 14, cols: 60, input: 'abc', cursor: 3, dica: '' })
+  expect(com.cursorCol).toBe(sem.cursorCol)
+  expect(stripAnsi(com.lines[com.cursorRow - 1] ?? '')).toContain('abc')
+})
+
+test('dica longa nao estoura a largura', () => {
+  const f = quadro({ cols: 40, input: 'x', dica: 'd'.repeat(200) })
+  expect(f.lines.every(l => visibleLen(l) === 40)).toBe(true)
+})
+
+test('a dica ocupa espaco do corpo, nao estica o quadro', () => {
+  const corpo = Array.from({ length: 30 }, (_, i) => `linha ${i}`)
+  const com = quadro({ rows: 14, cols: 60, corpo, input: 'x', dica: 'algo' })
+  const sem = quadro({ rows: 14, cols: 60, corpo, input: 'x', dica: '' })
+  expect(com.lines.length).toBe(sem.lines.length)
+  const corpoDe = (f: typeof com): number => f.lines.filter(l => stripAnsi(l).includes('linha ')).length
+  expect(corpoDe(com)).toBe(corpoDe(sem) - 1)
+})
