@@ -12,6 +12,8 @@ import { renderFleet } from '../lib/core/render/fleet'
 import { renderProgress } from '../lib/runner/progress'
 import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daemon'
 import { handle, newSession, planShown } from '../lib/core/session'
+import { complete } from '../lib/core/complete'
+import { STATUSES } from '../lib/card'
 import type { SessionState } from '../lib/core/session'
 
 const DIM = '\x1b[2m'
@@ -57,6 +59,14 @@ function avisoRepos(state: SessionState): void {
   }
 }
 
+function completer(line: string): [string[], string] {
+  return complete(line, {
+    repos: listRepos().map(r => r.name),
+    cards: allCards().map(c => String(c.id ?? '')).filter(Boolean),
+    statuses: [...STATUSES],
+  })
+}
+
 function fleet(state: SessionState): void {
   say('')
   say(renderFleet(allCards(), { color, repo: state.repo, daemon: daemonStatus() }))
@@ -74,6 +84,11 @@ function showPlan(id: string, state: SessionState): SessionState {
   say('')
   say(renderPlan(plan, { color }))
   say('')
+  const status = card.fm.status ?? 'INBOX'
+  if (!core.canApprovePlan(status)) {
+    say(dim(`  #${id} esta em ${status} — plano exibido so para leitura (aprovar aqui descartaria o trabalho)`))
+    return { ...state, pendingPlan: '' }
+  }
   say(dim('  enter aprova e enfileira · escreva outra tarefa para descartar · /plan <id> reexibe'))
   return planShown(state, id)
 }
@@ -138,7 +153,7 @@ function start(): void {
 }
 
 async function main(): Promise<void> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  const rl = createInterface({ input: process.stdin, output: process.stdout, completer })
   const lines = rl[Symbol.asyncIterator]()
   const ask = async (q: string): Promise<string | null> => {
     process.stdout.write(q)
@@ -174,10 +189,10 @@ async function main(): Promise<void> {
       say(dim(`  card #${id} criado`))
       state = showPlan(id, state)
     } else if (effect.kind === 'approve-plan') {
-      const r = core.transition(effect.id ?? '', 'EXECUTING', 'plano aprovado no REPL')
-      say(dim(r ? `  #${effect.id} aprovado e na fila` : `  card #${effect.id} nao encontrado`))
-      if (r && !daemonPid()) say(dim('  daemon offline — vai rodar quando voce subir com `hii start`'))
-      fleet(state)
+      const r = core.approvePlan(effect.id ?? '')
+      say(dim(r.ok ? `  #${effect.id} aprovado e na fila` : `  ${r.reason}`))
+      if (r.ok && !daemonPid()) say(dim('  daemon offline — vai rodar quando voce subir com `hii start`'))
+      if (r.ok) fleet(state)
     }
   }
   rl.close()

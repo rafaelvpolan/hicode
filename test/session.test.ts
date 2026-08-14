@@ -124,3 +124,44 @@ test('fleet vazio ainda mostra cabecalho e daemon', () => {
   expect(t).toContain('daemon offline')
   expect(t).toContain('0 ativo(s)')
 })
+
+import { complete } from '../lib/core/complete'
+import { canApprovePlan } from '../lib/core/actions'
+
+const ctx = { repos: ['acme/site', 'acme/api'], cards: ['019', '020'], statuses: ['READY', 'HALTED', 'PREVIEW'] }
+
+test('completar: barra sozinha lista os comandos', () => {
+  expect(complete('/', ctx)[0]).toContain('/repo')
+  expect(complete('/re', ctx)[0]).toEqual(['/repo'])
+})
+
+test('completar /repo sugere os repos registrados', () => {
+  expect(complete('/repo ', ctx)[0]).toEqual(['acme/site', 'acme/api'])
+  expect(complete('/repo acme/a', ctx)[0]).toEqual(['acme/api'])
+})
+
+test('completar /plan, /watch e /halt sugerem ids de card', () => {
+  for (const c of ['/plan ', '/watch ', '/halt ']) expect(complete(c, ctx)[0]).toEqual(['019', '020'])
+  expect(complete('/plan 02', ctx)[0]).toEqual(['020'])
+})
+
+test('completar /cards sugere estados, insensivel a caixa', () => {
+  expect(complete('/cards hal', ctx)[0]).toEqual(['HALTED'])
+})
+
+test('texto livre nao completa', () => {
+  expect(complete('adicionar um selo', ctx)[0]).toEqual([])
+})
+
+test('nao completa alem do primeiro argumento', () => {
+  expect(complete('/halt 020 motivo qual', ctx)[0]).toEqual([])
+})
+
+test('REGRESSAO canApprovePlan: so estado pre-execucao', () => {
+  for (const s of ['INBOX', 'READY', 'CLARIFY', 'SPECCED', 'PLAN_APPROVED', 'PAUSED']) {
+    expect(canApprovePlan(s)).toBe(true)
+  }
+  for (const s of ['EXECUTING', 'EXECUTED', 'PREVIEW', 'PREVIEW_OK', 'REVIEWED', 'PR_OPEN', 'MERGED', 'HALTED']) {
+    expect(canApprovePlan(s)).toBe(false)
+  }
+})

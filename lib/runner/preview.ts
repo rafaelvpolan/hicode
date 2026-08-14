@@ -35,6 +35,30 @@ export function startPreview(wt: string, port: number, target: string): number {
   return child.pid || 0
 }
 
+export function pidAlive(pid: string | undefined): boolean {
+  const n = Number(pid)
+  if (!n) return false
+  try {
+    process.kill(n, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export interface PreviewHandle {
+  pid: number
+  reused: boolean
+}
+
+export async function ensurePreview(wt: string, port: number, target: string, knownPid?: string): Promise<PreviewHandle> {
+  if (pidAlive(knownPid) && await httpOk(`http://localhost:${port}`)) {
+    return { pid: Number(knownPid), reused: true }
+  }
+  await freePort(port)
+  return { pid: startPreview(wt, port, target), reused: false }
+}
+
 export function stopPreview(pid: string | undefined): void {
   const n = Number(pid)
   if (!n) return

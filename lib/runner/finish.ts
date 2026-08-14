@@ -5,7 +5,7 @@ import { MAX_REAJUSTE, MAX_CONFLICT, CARD_BUDGET_USD, PROJECT_MEMORY } from './c
 import { appendProjectMemory } from './memory'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
-import { freePort, hasDevServer, previewPort, httpOk, inspectPreview, startPreview, stopPreview, waitHttp } from './preview'
+import { ensurePreview, hasDevServer, previewPort, httpOk, inspectPreview, stopPreview, waitHttp } from './preview'
 import { runStep } from './agent'
 import { activeSteps } from './pipeline/config'
 import { isNonVisual } from './classify'
@@ -129,8 +129,7 @@ async function revalidate(id: string, card: Card, wt: string, target: string, fs
     const rurl = `http://localhost:${rport}`
     let up = await httpOk(rurl)
     if (!up) {
-      await freePort(rport)
-      startPreview(wt, rport, target)
+      await ensurePreview(wt, rport, target)
       up = await waitHttp(rurl, 25)
     }
     if (up) {

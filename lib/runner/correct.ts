@@ -5,7 +5,7 @@ import type { Usage, VerifyResult } from '../card'
 import { CARD_BUDGET_USD } from './config'
 import { readCard, patchCard, repoPath } from './card-store'
 import { runGit, stageAll } from './git'
-import { freePort, hasDevServer, previewPort, httpOk, inspectPreview, startPreview, waitHttp } from './preview'
+import { ensurePreview, hasDevServer, previewPort, httpOk, inspectPreview, waitHttp } from './preview'
 import { implement, runStep } from './agent'
 import { appendAttempt, readAttempts } from './attempts'
 
@@ -35,8 +35,7 @@ async function revalidate(id: string, wt: string, target: string): Promise<Verif
   const url = `http://localhost:${port}`
   let up = await httpOk(url)
   if (!up) {
-    await freePort(port)
-    startPreview(wt, port, target)
+    await ensurePreview(wt, port, target)
     up = await waitHttp(url, 25)
   }
   if (!up) return { ok: true, reason: 'dev server nao respondeu', cost: 0, tokens: 0 }

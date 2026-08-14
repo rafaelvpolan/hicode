@@ -7,7 +7,7 @@ import { clarify, writeClarify } from './clarify'
 import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
-import { freePort, hasDevServer, inspectPreview, previewPort, startPreview, stopPreview, waitHttp } from './preview'
+import { ensurePreview, hasDevServer, inspectPreview, previewPort, stopPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
@@ -132,10 +132,10 @@ export async function handleExecute(id: string): Promise<void> {
   const port = previewPort(id)
   let previewPid = 0
   if (surface.surface === 'visual' && hasDevServer(target)) {
-    await freePort(port)
-    previewPid = startPreview(wt, port, target)
-    patchCard(id, { preview_url: `http://localhost:${port}`, preview_pid: String(previewPid) }, `${isoNow()} preview subindo em http://localhost:${port} — acompanhe pelo link enquanto a IA trabalha`)
-    process.stdout.write(`[runner] #${id}: preview ao vivo em http://localhost:${port} (durante a execucao)\n`)
+    const h = await ensurePreview(wt, port, target, card.fm.preview_pid)
+    previewPid = h.pid
+    patchCard(id, { preview_url: `http://localhost:${port}`, preview_pid: String(previewPid) }, `${isoNow()} preview ${h.reused ? 'reaproveitado (ja estava no ar)' : 'subindo'} em http://localhost:${port} — acompanhe pelo link enquanto a IA trabalha`)
+    process.stdout.write(`[runner] #${id}: preview ${h.reused ? 'reaproveitado' : 'ao vivo'} em http://localhost:${port}\n`)
   }
   const t0 = Date.now()
   const shotPath = join(cardsDir(), 'previews', String(id), 'preview.png')
@@ -171,7 +171,7 @@ export async function handleExecute(id: string): Promise<void> {
     return
   }
   const tpv = Date.now()
-  const pid = previewPid || (hasDevServer(target) ? startPreview(wt, port, target) : 0)
+  const pid = previewPid || (hasDevServer(target) ? (await ensurePreview(wt, port, target, card.fm.preview_pid)).pid : 0)
   const url = pid ? `http://localhost:${port}` : ''
   const up = pid ? await waitHttp(url, 30) : false
   steps.Preview.time = toSeconds(Date.now() - tpv)

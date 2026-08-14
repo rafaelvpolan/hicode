@@ -62,6 +62,29 @@ export function approvePreview(id: string): ActionResult {
   return transition(id, 'PREVIEW_OK', 'aprovado pelo humano')
 }
 
+export const PRE_EXECUCAO = ['INBOX', 'READY', 'CLARIFY', 'SPECCED', 'PLAN_APPROVED', 'PAUSED']
+
+export interface GuardedResult {
+  ok: boolean
+  reason: string
+  card?: Fields
+}
+
+export function canApprovePlan(status: string): boolean {
+  return PRE_EXECUCAO.includes(status)
+}
+
+export function approvePlan(id: string): GuardedResult {
+  const card = readCard(id)
+  if (!card) return { ok: false, reason: `card #${id} nao encontrado` }
+  const status = card.fm.status ?? 'INBOX'
+  if (!canApprovePlan(status)) {
+    return { ok: false, reason: `#${id} esta em ${status} — o plano ja foi executado; aprovar aqui descartaria o trabalho e pagaria de novo` }
+  }
+  const r = transition(id, 'EXECUTING', 'plano aprovado')
+  return r ? { ok: true, reason: '', card: r } : { ok: false, reason: `card #${id} nao encontrado` }
+}
+
 export function halt(id: string, reason: string): ActionResult {
   return transition(id, 'HALTED', reason)
 }
