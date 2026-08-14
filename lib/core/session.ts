@@ -2,7 +2,7 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct'
 
 export interface SessionState {
   repo: string
@@ -138,6 +138,9 @@ export function handle(raw: string, state: SessionState): Reply {
   }
   if (/^#?\d{1,4}$/.test(line)) {
     return reply({ kind: 'plan', id: line.replace('#', '') }, state)
+  }
+  if (state.seguindo) {
+    return reply({ kind: 'instruct', id: state.seguindo, text: line }, state)
   }
   if (state.pendingPlan) {
     return reply({ kind: 'submit', text: line }, { ...state, pendingPlan: '' })

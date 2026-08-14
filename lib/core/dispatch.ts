@@ -5,6 +5,7 @@ import { planejarLote, removerLote } from './remover'
 import { renderRemocao, renderResultado } from './render/remocao'
 import { pendencia, responder, cardsPerguntando } from './responder'
 import { renderPergunta, renderRespondidas } from './render/clarify'
+import { instruir } from './instruir'
 import { renderHelp } from './render/help'
 import { esperandoVoce } from './render/rodape'
 import { seguir, planShown, perguntando, removendo, respondido } from './session'
@@ -108,6 +109,12 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       if (texto !== 'sim') { io.log('cancelado — nada foi apagado'); return state }
       const r = await removerLote(id.split(/\s+/), true)
       for (const l of renderResultado(r.apagados, r.falhas, { color: io.color, width: io.largura() })) io.log(l)
+      return state
+    }
+    case 'instruct': {
+      const r = instruir(id, texto)
+      if (!r.ok) { io.log(r.reason); return state }
+      io.log(`instrucao ${r.numero} anotada em #${id}${r.reexecuta ? ' — a tarefa vai reexecutar com ela' : ''}`)
       return state
     }
     case 'preview': {

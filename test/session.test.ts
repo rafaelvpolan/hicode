@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { handle, newSession, planShown } from '../lib/core/session'
+import { handle, newSession, planShown, seguir } from '../lib/core/session'
 import { renderFleet } from '../lib/core/render/fleet'
 import { isActive, waitsHuman, phaseLabel } from '../lib/core/render/phases'
 import type { Fields } from '../lib/card'
@@ -310,4 +310,26 @@ test('/stop limpa plano pendente para nao aprovar por engano', () => {
 
 test('completar sugere ids em /stop, /rm e /ask tambem', () => {
   for (const c of ['/stop ', '/rm ', '/ask ']) expect(complete(c, ctx)[0]).toEqual(['019', '020'])
+})
+
+test('dentro da tarefa, texto vira instrucao e NAO tarefa nova', () => {
+  const dentro = seguir(base, '022')
+  const r = handle('tira tambem o selo do hero', dentro)
+  expect(r.effect.kind).toBe('instruct')
+  expect(r.effect.id).toBe('022')
+  expect(r.effect.text).toBe('tira tambem o selo do hero')
+})
+
+test('fora da tarefa, o mesmo texto cria tarefa', () => {
+  expect(handle('tira tambem o selo do hero', base).effect.kind).toBe('submit')
+})
+
+test('comando dentro da tarefa continua sendo comando', () => {
+  const dentro = seguir(base, '022')
+  expect(handle('/board', dentro).effect.kind).toBe('board')
+  expect(handle('/rm 23', dentro).effect.kind).toBe('rm')
+})
+
+test('numero dentro da tarefa ainda abre o plano', () => {
+  expect(handle('20', seguir(base, '022')).effect.kind).toBe('plan')
 })

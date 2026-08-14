@@ -152,3 +152,24 @@ test('LOTE: confirmacao relata quantos foram', async () => {
   await digitar(['/rm 23 24', 's'])
   expect(saida.join(' ')).toContain('2 apagada(s)')
 })
+
+test('FLUXO REAL: instrucao dentro da tarefa entra como sub-prompt, sem confirmar', async () => {
+  const { subPrompts } = await import('../lib/core/instruir')
+  const { readCard } = await import('../lib/runner/card-store')
+  const { seguir } = await import('../lib/core/session')
+  card('022', { status: 'EXECUTED' })
+  await digitar(['tira tambem o do hero'], seguir(newSession('org/app'), '022'))
+  const c = readCard('022')
+  expect(subPrompts(c?.body ?? '')).toEqual(['tira tambem o do hero'])
+  expect(c?.fm.status).toBe('CORRECTING')
+  expect(saida.join(' ')).toContain('instrucao 1 anotada')
+})
+
+test('FLUXO REAL: nenhuma tarefa nova nasce de uma instrucao', async () => {
+  const { allCards } = await import('../lib/runner/card-store')
+  const { seguir } = await import('../lib/core/session')
+  card('022', { status: 'EXECUTED' })
+  const antes = allCards().length
+  await digitar(['muda mais isso', 'e aquilo'], seguir(newSession('org/app'), '022'))
+  expect(allCards().length).toBe(antes)
+})

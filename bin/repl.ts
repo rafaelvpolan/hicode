@@ -26,6 +26,8 @@ import { dispatch } from '../lib/core/dispatch'
 import type { DispatchIO } from '../lib/core/dispatch'
 import { cardsPerguntando } from '../lib/core/responder'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
+import { renderCabecalhoTarefa } from '../lib/core/render/tarefa'
+import { subPrompts } from '../lib/core/instruir'
 import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
@@ -108,17 +110,26 @@ function planoDe(id: string, ativo = false, subindo = false): string {
   return renderPlan(plano, { color })
 }
 
+const previewVivo = new Map<string, boolean>()
+
 function seguimento(state: SessionState): string[] {
   const card = readCard(state.seguindo)
   if (!card) return [`card #${state.seguindo} nao encontrado`]
+  const alvo = repoPath(card.fm.repo ?? '')
+  const temDev = existsSync(alvo) && hasDevServer(alvo)
+  const url = card.fm.preview_url || (temDev ? `http://localhost:${previewPort(state.seguindo)}` : '')
+  const cab = renderCabecalhoTarefa(card, {
+    color,
+    width: Math.max(40, (Number(process.stdout.columns) || 78) - 6),
+    objetivo: extractObjetivo(card.body) || String(card.fm.title ?? ''),
+    subs: subPrompts(card.body),
+    previewUrl: url,
+    temDevServer: temDev,
+    vivo: previewVivo.get(state.seguindo) ?? false,
+  })
   const at = atividadeDe(state.seguindo)
-  const cab = [
-    `seguindo #${state.seguindo} · ${card.fm.status} · ${String(card.fm.title ?? '').slice(0, 50)}`,
-    at.length ? `  ${resumo(at) || 'sem ferramenta ainda'}` : '  aguardando a IA…',
-    card.fm.preview_url ? `  preview → ${card.fm.preview_url}` : '',
-    '',
-  ].filter(Boolean)
-  return [...cab, ...at.slice(-200).map(formatar)]
+  const corpo = at.length ? at.slice(-200).map(formatar) : ['  aguardando a IA…']
+  return [...cab, ...corpo]
 }
 
 function custoDoDia(repo: string): string {
@@ -457,6 +468,7 @@ async function tui(state0: SessionState): Promise<void> {
       const alvo = selecionado
       selecionado = ''
       state = seguir(state, alvo)
+      void httpOk(`http://localhost:${previewPort(alvo)}`).then(v => previewVivo.set(alvo, v))
       if (modo === 'rodape') {
         app.log(`  seguindo a execucao de #${alvo} — /board volta`)
         return
