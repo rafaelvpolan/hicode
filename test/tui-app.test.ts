@@ -226,12 +226,14 @@ test('digitacao normal continua redesenhando por tecla', () => {
 })
 
 test('link no log vira clicavel sem quebrar o quadro', () => {
+  process.env.HICODE_HYPERLINKS = 'on'
   const t = fakeTerminal(12, 60)
   const a = app(t)
   void a.run()
   a.log('preview → http://localhost:5220')
   expect(t.saida.join('')).toContain('\x1b]8;;http://localhost:5220')
   expect(t.tela()).toContain('localhost:5220')
+  delete process.env.HICODE_HYPERLINKS
 })
 
 test('setas percorrem as sugestoes em vez de mexer no historico', () => {

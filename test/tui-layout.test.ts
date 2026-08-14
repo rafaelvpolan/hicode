@@ -88,9 +88,11 @@ test('link OSC 8 nao conta como largura visivel', () => {
 })
 
 test('linkificar transforma url em link mantendo a largura do texto', () => {
+  process.env.HICODE_HYPERLINKS = 'on'
   const t = linkificar('veja https://exemplo.com/x agora')
   expect(visibleLen(t)).toBe('veja https://exemplo.com/x agora'.length)
   expect(t).toContain('\x1b]8;;')
+  delete process.env.HICODE_HYPERLINKS
 })
 
 test('linkificar nao mexe em texto sem url', () => {
@@ -248,4 +250,20 @@ test('a dica ocupa espaco do corpo, nao estica o quadro', () => {
   expect(com.lines.length).toBe(sem.lines.length)
   const corpoDe = (f: typeof com): number => f.lines.filter(l => stripAnsi(l).includes('linha ')).length
   expect(corpoDe(com)).toBe(corpoDe(sem) - 1)
+})
+
+test('REGRESSAO nenhum teste pode depender do terminal de quem roda', () => {
+  const guardado = { ...process.env }
+  for (const v of ['WT_SESSION', 'TERM_PROGRAM', 'KITTY_WINDOW_ID', 'VTE_VERSION', 'GHOSTTY_RESOURCES_DIR']) {
+    delete process.env[v]
+  }
+  delete process.env.HICODE_HYPERLINKS
+  expect(suportaLink()).toBe(false)
+  expect(link('http://x', 'texto')).toBe('texto')
+
+  process.env.HICODE_HYPERLINKS = 'on'
+  expect(link('http://x', 'texto')).toContain('\x1b]8;;')
+
+  delete process.env.HICODE_HYPERLINKS
+  Object.assign(process.env, guardado)
 })
