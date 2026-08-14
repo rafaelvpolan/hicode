@@ -19,6 +19,7 @@ export interface PlanoRemocao {
   runs: string[]
   bloqueio: string
   avisos: string[]
+  custo: string
 }
 
 function runsDoCard(id: string): string[] {
@@ -44,6 +45,7 @@ export function planejarRemocao(id: string): PlanoRemocao | null {
     worktree: fm.worktree ?? '',
     previewPid: fm.preview_pid ?? '',
     runs: runsDoCard(id),
+    custo: fm.cost_usd ?? '',
     bloqueio: EM_VOO.includes(status) ? `#${id} esta em ${status} — o motor esta gastando nele agora; pare antes com /halt ${id}` : '',
     avisos,
   }

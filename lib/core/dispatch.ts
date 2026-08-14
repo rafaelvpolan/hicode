@@ -2,6 +2,7 @@ import { readCard, allCards } from '../runner/card-store'
 import { readClarify } from '../runner/clarify'
 import * as core from './actions'
 import { planejarLote, removerLote } from './remover'
+import { renderRemocao, renderResultado } from './render/remocao'
 import { pendencia, responder, cardsPerguntando } from './responder'
 import { renderPergunta, renderRespondidas } from './render/clarify'
 import { renderHelp } from './render/help'
@@ -97,23 +98,14 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       const lote = planejarLote(id.split(/\s+/))
       const forcar = texto === 'force'
       const alvos = forcar ? [...lote.removiveis, ...lote.bloqueados] : lote.removiveis
-      for (const a of lote.ausentes) io.log(io.dim(`  #${a} nao encontrado`))
-      if (!forcar) for (const b of lote.bloqueados) io.log(io.dim(`  #${b.id} fica — ${b.bloqueio}`))
-      if (!alvos.length) { io.log('nada a apagar'); return state }
-      io.log(alvos.length === 1 ? `apagar 1 card?` : `apagar ${alvos.length} cards?`)
-      for (const p of alvos) {
-        const extra = [p.worktree ? 'worktree' : '', p.previewPid ? 'preview' : ''].filter(Boolean).join(' + ')
-        io.log(io.dim(`  #${p.id} ${p.status}  ${p.titulo.slice(0, 40)}${extra ? `  (${extra})` : ''}`))
-      }
-      for (const a of [...new Set(alvos.flatMap(p => p.avisos))]) io.log(io.dim(`  ${a}`))
-      io.log('s confirma · qualquer outra tecla cancela')
+      for (const l of renderRemocao(lote, forcar, { color: io.color, width: io.largura() })) io.log(l)
+      if (!alvos.length) return state
       return removendo(state, alvos.map(p => p.id).join(' '))
     }
     case 'confirm-rm': {
-      if (texto !== 'sim') { io.log('cancelado'); return state }
+      if (texto !== 'sim') { io.log('cancelado — nada foi apagado'); return state }
       const r = await removerLote(id.split(/\s+/), true)
-      if (r.apagados.length) io.log(`${r.apagados.length} card(s) apagado(s): ${r.apagados.map(x => `#${x}`).join(' ')}`)
-      for (const f of r.falhas) io.log(`#${f.id}: ${f.reason}`)
+      for (const l of renderResultado(r.apagados, r.falhas, { color: io.color, width: io.largura() })) io.log(l)
       return state
     }
     case 'ask': {

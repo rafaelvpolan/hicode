@@ -246,13 +246,18 @@ test('/rm exige id e pede confirmacao antes de apagar', () => {
   expect(r.effect.id).toBe('23')
 })
 
-test('so "s" confirma a remocao; qualquer outra coisa cancela', () => {
+test('enter confirma a remocao, igual ao resto do hii', () => {
   const s = removendo(base, '023')
+  expect(handle('', s).effect.text).toBe('sim')
   expect(handle('s', s).effect.text).toBe('sim')
   expect(handle('sim', s).effect.text).toBe('sim')
-  expect(handle('n', s).effect.text).toBe('')
-  expect(handle('', s).effect.text).toBe('')
-  expect(handle('qualquer coisa', s).effect.text).toBe('')
+})
+
+test('n cancela a remocao, em qualquer forma', () => {
+  const s = removendo(base, '023')
+  for (const nao of ['n', 'N', 'nao', 'não', 'no', 'cancelar']) {
+    expect(handle(nao, s).effect.text).toBe('')
+  }
 })
 
 test('confirmacao de remocao nao deixa o estado preso', () => {
@@ -262,6 +267,11 @@ test('confirmacao de remocao nao deixa o estado preso', () => {
 test('remocao pendente nao vira card novo nem aprova plano', () => {
   const r = handle('outra tarefa', removendo(planShown(base, '042'), '023'))
   expect(r.effect.kind).toBe('confirm-rm')
+})
+
+test('enter confirma tanto o plano quanto a remocao — mesma tecla, mesmo sentido', () => {
+  expect(handle('', planShown(base, '042')).effect.kind).toBe('approve-plan')
+  expect(handle('', removendo(base, '023')).effect.text).toBe('sim')
 })
 
 test('/rm aceita varios ids e separa a flag', () => {

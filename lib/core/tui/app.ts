@@ -72,6 +72,7 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
 
   let pendente = ''
   let emLote = false
+  let fila: Promise<void> = Promise.resolve()
 
   const onChunk = (chunk: string): void => {
     if (sair) return
@@ -101,9 +102,12 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
     if (a.kind === 'submit') {
       if (a.line.trim() || a.line === '') {
         log(`${hooks.prompt()}${exibido}`)
-        void Promise.resolve(hooks.onLine(a.line))
+        const linha = a.line
+        fila = fila
+          .then(() => hooks.onLine(linha))
           .catch((e: unknown) => { log(`  erro: ${e instanceof Error ? e.message : String(e)}`) })
           .then(desenhar)
+        void fila
       }
       return true
     }

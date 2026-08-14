@@ -119,7 +119,7 @@ function command(line: string, state: SessionState): Reply {
 export function handle(raw: string, state: SessionState): Reply {
   const line = raw.trim()
   if (!line) {
-    if (state.removendo) return reply({ kind: 'confirm-rm', id: state.removendo, text: '' }, { ...state, removendo: '' })
+    if (state.removendo) return reply({ kind: 'confirm-rm', id: state.removendo, text: 'sim' }, { ...state, removendo: '' })
     if (state.perguntando) return reply({ kind: 'answer', id: state.perguntando, text: '' }, state)
     return state.pendingPlan
       ? reply({ kind: 'approve-plan', id: state.pendingPlan }, { ...state, pendingPlan: '' })
@@ -127,8 +127,8 @@ export function handle(raw: string, state: SessionState): Reply {
   }
   if (line.startsWith('/')) return command(line, state)
   if (state.removendo) {
-    const sim = /^(s|sim|y|yes)$/i.test(line)
-    return reply({ kind: 'confirm-rm', id: state.removendo, text: sim ? 'sim' : '' }, { ...state, removendo: '' })
+    const nao = /^(n|nao|não|no|c|cancel\w*)$/i.test(line)
+    return reply({ kind: 'confirm-rm', id: state.removendo, text: nao ? '' : 'sim' }, { ...state, removendo: '' })
   }
   if (state.perguntando) {
     return reply({ kind: 'answer', id: state.perguntando, text: line }, state)

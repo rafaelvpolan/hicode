@@ -67,12 +67,12 @@ test('FLUXO REAL: /rm de card em execucao recusa e nao apaga', async () => {
   card('025', { status: 'EXECUTING' })
   await digitar(['/rm 25'])
   expect(existsSync(join(dir, '025-x.md'))).toBe(true)
-  expect(saida.join(' ')).toContain('/halt')
+  expect(saida.join(' ')).toContain('/stop')
 })
 
 test('FLUXO REAL: /rm de card inexistente avisa', async () => {
   await digitar(['/rm 99'])
-  expect(saida.join(' ')).toContain('nao encontrado')
+  expect(saida.join(' ')).toContain('#099 nao existe')
 })
 
 test('nenhum efeito da sessao pode sumir em silencio', async () => {
@@ -110,7 +110,7 @@ test('LOTE: /rm com varios ids apaga todos', async () => {
 test('LOTE: id repetido nao conta duas vezes', async () => {
   card('023')
   await digitar(['/rm 23 23 023', 's'])
-  expect(saida.join(' ')).toContain('apagar 1 card')
+  expect(saida.join(' ')).toContain('apagar 1 tarefa')
 })
 
 test('LOTE: card em execucao fica de fora, o resto vai', async () => {
@@ -118,7 +118,7 @@ test('LOTE: card em execucao fica de fora, o resto vai', async () => {
   await digitar(['/rm 23 24', 's'])
   expect(existsSync(join(dir, '023-x.md'))).toBe(false)
   expect(existsSync(join(dir, '024-x.md'))).toBe(true)
-  expect(saida.join(' ')).toContain('#024 fica')
+  expect(saida.join(' ')).toContain('#024 em EXECUTING, fica')
 })
 
 test('LOTE: --force leva tambem o que estava em execucao', async () => {
@@ -130,7 +130,7 @@ test('LOTE: --force leva tambem o que estava em execucao', async () => {
 test('LOTE: id inexistente e avisado sem travar os outros', async () => {
   card('023')
   await digitar(['/rm 23 99', 's'])
-  expect(saida.join(' ')).toContain('#099 nao encontrado')
+  expect(saida.join(' ')).toContain('#099 nao existe')
   expect(existsSync(join(dir, '023-x.md'))).toBe(false)
 })
 
@@ -150,5 +150,5 @@ test('LOTE: cancelar preserva todos', async () => {
 test('LOTE: confirmacao relata quantos foram', async () => {
   card('023'); card('024')
   await digitar(['/rm 23 24', 's'])
-  expect(saida.join(' ')).toContain('2 card(s) apagado(s)')
+  expect(saida.join(' ')).toContain('2 apagada(s)')
 })

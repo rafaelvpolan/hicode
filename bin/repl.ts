@@ -161,7 +161,7 @@ function rodapeDa(state: SessionState, noRodape = false): string[] {
 
 function dicaDa(state: SessionState): string {
   if (selecionado) return 'setas movem  enter entra  esc sai'
-  if (state.removendo) return 's confirma  outra tecla cancela'
+  if (state.removendo) return 'enter confirma  n cancela'
   if (state.perguntando) return 'numero responde  ctrl+j quebra linha'
   const esperando = cardsPerguntando(allCards(), state.repo)
   if (esperando.length) return `/ask responde #${esperando[0]}  ctrl+c sai`
