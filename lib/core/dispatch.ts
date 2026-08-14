@@ -4,6 +4,8 @@ import * as core from './actions'
 import { planejarLote, removerLote } from './remover'
 import { pendencia, responder, cardsPerguntando } from './responder'
 import { renderPergunta, renderRespondidas } from './render/clarify'
+import { renderHelp } from './render/help'
+import { esperandoVoce } from './render/rodape'
 import { seguir, planShown, perguntando, removendo, respondido } from './session'
 import type { Effect, SessionState } from './session'
 
@@ -11,6 +13,7 @@ export interface DispatchIO {
   log: (linha: string) => void
   dim: (texto: string) => string
   color: boolean
+  largura: () => number
   plano: (id: string) => Promise<string[]>
   atividade: (id: string) => string[]
 }
@@ -26,9 +29,18 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
   const id = effect.id ?? ''
   const texto = effect.text ?? ''
   switch (effect.kind) {
-    case 'help':
-      io.log('escreva a tarefa · /board /cards /plan /watch /ask /ok /no /stop /rm /repo /quit')
+    case 'help': {
+      const espera = esperandoVoce(allCards(), state.repo)
+      const linhas = renderHelp({
+        color: io.color,
+        width: io.largura(),
+        repo: state.repo,
+        esperando: espera.length,
+        primeiroComando: espera[0]?.comando ?? '',
+      })
+      for (const l of linhas) io.log(l)
       return state
+    }
     case 'error':
       io.log(texto)
       return state

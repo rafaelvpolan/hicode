@@ -277,22 +277,6 @@ async function boardAoVivo(state: SessionState): Promise<void> {
   })
 }
 
-function help(): void {
-  say('')
-  say('  escreva a tarefa em linguagem natural para criar um card')
-  say('')
-  say(`  ${'/board'.padEnd(20)} ${dim('quadro do projeto AO VIVO (q volta)')}`)
-  say(`  ${'/cards [STATUS]'.padEnd(20)} ${dim('lista, opcionalmente filtrando por estado')}`)
-  say(`  ${'/plan <id>'.padEnd(20)} ${dim('reexibe o plano de um card')}`)
-  say(`  ${'/watch <id>'.padEnd(20)} ${dim('mostra o log do card')}`)
-  say(`  ${'/ok <id>'.padEnd(20)} ${dim('aprova o preview que voce viu no dev server')}`)
-  say(`  ${'/no <id> [o que]'.padEnd(20)} ${dim('rejeita o preview; com motivo, pede correcao')}`)
-  say(`  ${'/halt <id> [motivo]'.padEnd(20)} ${dim('para um card')}`)
-  say(`  ${'/repo'.padEnd(20)} ${dim('troca de projeto (reabre a lista)')}`)
-  say(`  ${'/quit'.padEnd(20)} ${dim('sai (nao derruba o daemon nem os cards)')}`)
-  say('')
-}
-
 function watch(id: string): void {
   const card = readCard(id)
   if (!card) return say(dim(`card #${id} nao encontrado`))
@@ -334,6 +318,7 @@ function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void): Dis
     log: (l) => (l.startsWith(' ') || l === '' ? app.log(l) : diga(l)),
     dim,
     color,
+    largura: () => Math.max(40, (Number(process.stdout.columns) || 78) - 6),
     plano: async (id) => {
       const card = readCard(id)
       const vivo = card?.fm.preview_url ? await httpOk(card.fm.preview_url) : false

@@ -12,6 +12,7 @@ const io = {
   log: (l: string) => { saida.push(l) },
   dim: (t: string) => t,
   color: false,
+  largura: () => 78,
   plano: async (id: string) => [`plano do #${id}`],
   atividade: () => [],
 }
