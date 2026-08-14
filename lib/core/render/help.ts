@@ -60,7 +60,8 @@ const SECOES: Secao[] = [
     titulo: 'projeto',
     itens: [
       { chave: '/repo', arg: '[owner/nome]', texto: 'troca de projeto, ou lista os registrados' },
-      { chave: '/quit', arg: '', texto: 'sai — as tarefas seguem rodando' },
+      { chave: '/exit', arg: '', texto: 'sai do hii e volta para o shell' },
+      { chave: '/quit', arg: '', texto: 'o mesmo que /exit' },
     ],
   },
   {

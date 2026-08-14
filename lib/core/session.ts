@@ -24,7 +24,7 @@ export interface Reply {
   state: SessionState
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/project', '/quit'] as const
+export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/project', '/exit', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
   return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '' }

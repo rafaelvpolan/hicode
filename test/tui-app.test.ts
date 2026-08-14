@@ -394,3 +394,16 @@ test('sugestao nova recalcula o corpo (a altura muda)', () => {
   t.tecla('/')
   expect(calculos).toBeGreaterThan(inicial)
 })
+
+test('sair devolve o terminal ao estado normal', () => {
+  const t = fakeTerminal()
+  const a = app(t, { onInterrupt: () => true })
+  void a.run()
+  t.saida.length = 0
+  t.tecla('\x03')
+  const saida = t.saida.join('')
+  expect(saida).toContain('\x1b[?1049l')
+  expect(saida).toContain('\x1b[?25h')
+  expect(saida).toContain('\x1b[?2004l')
+  expect(t.raw[t.raw.length - 1]).toBe(false)
+})

@@ -361,3 +361,17 @@ test('retomar limpa pergunta e remocao pendentes', () => {
   expect(s.removendo).toBe('')
   expect(s.pendingPlan).toBe('')
 })
+
+test('/exit sai, como /quit e /q', () => {
+  for (const c of ['/exit', '/quit', '/q']) expect(handle(c, base).effect.kind).toBe('quit')
+})
+
+test('/exit aparece no catalogo de comandos', async () => {
+  const { COMMANDS } = await import('../lib/core/session')
+  expect([...COMMANDS]).toContain('/exit')
+})
+
+test('/exit sai mesmo com algo pendente', () => {
+  const cheio = { ...planShown(base, '9'), perguntando: '9', removendo: '9', retomando: '9', seguindo: '9' }
+  expect(handle('/exit', cheio).effect.kind).toBe('quit')
+})

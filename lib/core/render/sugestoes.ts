@@ -21,6 +21,7 @@ export const AJUDA_DO_COMANDO: Record<string, string> = {
   '/rm': 'apaga tarefas e limpa o que fica atras',
   '/repo': 'troca de projeto',
   '/project': 'troca de projeto (mesmo que /repo)',
+  '/exit': 'sai do hii e volta para o shell',
   '/quit': 'sai — as tarefas seguem rodando',
 }
 
