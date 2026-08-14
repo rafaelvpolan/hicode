@@ -27,7 +27,7 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
   const texto = effect.text ?? ''
   switch (effect.kind) {
     case 'help':
-      io.log('escreva a tarefa · /board /cards /plan /watch /ask /ok /no /rm /halt /repo /quit')
+      io.log('escreva a tarefa · /board /cards /plan /watch /ask /ok /no /stop /rm /repo /quit')
       return state
     case 'error':
       io.log(texto)

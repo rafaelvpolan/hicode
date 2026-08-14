@@ -62,6 +62,7 @@ function usage(): void {
     'Arquivo de cards (teto de 10 por projeto):',
     '  board [repo] [--watch]   mostra o board das tarefas no terminal',
     '  teclas                   mostra o que o seu terminal manda em cada tecla',
+    '  teclas --corrigir        ensina o Windows Terminal a mandar shift+enter',
     '  rm <id> [id...] --yes    apaga os cards e limpa worktree, preview e runs',
     '  archive                  arquiva os entregues mais antigos acima do teto',
     '  archive --dry-run        mostra o que faria, sem mover',
@@ -151,7 +152,9 @@ async function main(): Promise<number> {
     case 'doctor':
       return script('doctor', args.slice(1))
     case 'teclas':
-      return script('teclas', args.slice(1))
+      return args[1] === '--corrigir'
+        ? script('wt-shift-enter', args.slice(2))
+        : script('teclas', args.slice(1))
     case 'board':
     case 'quadro':
       return script('board', args.slice(1))

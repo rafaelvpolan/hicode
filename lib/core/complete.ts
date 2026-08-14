@@ -25,6 +25,6 @@ export function complete(line: string, ctx: CompleteContext): Completion {
 
   if (head === '/repo') return [byPrefix(ctx.repos, arg), arg]
   if (head === '/cards' || head === '/ls') return [byPrefix(ctx.statuses, arg.toUpperCase()), arg]
-  if (['/plan', '/watch', '/halt', '/ok', '/no', '/agents'].includes(head)) return [byPrefix(ctx.cards, arg), arg]
+  if (['/plan', '/watch', '/halt', '/stop', '/rm', '/ask', '/ok', '/no', '/agents'].includes(head)) return [byPrefix(ctx.cards, arg), arg]
   return [[], arg]
 }

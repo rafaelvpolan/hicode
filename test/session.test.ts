@@ -274,3 +274,30 @@ test('/rm aceita varios ids e separa a flag', () => {
 test('/rm so com flag ainda e erro', () => {
   expect(handle('/rm --force', base).effect.kind).toBe('error')
 })
+
+test('/stop para a tarefa, igual /halt', () => {
+  for (const cmd of ['/stop', '/halt', '/parar']) {
+    const r = handle(`${cmd} 37`, base)
+    expect(r.effect.kind).toBe('halt')
+    expect(r.effect.id).toBe('37')
+    expect(r.effect.text).toBe('parado pelo humano')
+  }
+})
+
+test('/stop aceita motivo', () => {
+  expect(handle('/stop 37 travou no build', base).effect.text).toBe('travou no build')
+})
+
+test('/stop sem id explica o uso', () => {
+  const r = handle('/stop', base)
+  expect(r.effect.kind).toBe('error')
+  expect(r.effect.text).toContain('/stop <id>')
+})
+
+test('/stop limpa plano pendente para nao aprovar por engano', () => {
+  expect(handle('/stop 37', planShown(base, '042')).state.pendingPlan).toBe('')
+})
+
+test('completar sugere ids em /stop, /rm e /ask tambem', () => {
+  for (const c of ['/stop ', '/rm ', '/ask ']) expect(complete(c, ctx)[0]).toEqual(['019', '020'])
+})
