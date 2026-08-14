@@ -52,8 +52,11 @@ export function expandir(state: InputState, linha: string): string {
   return linha.replace(RE_MARCADOR, (m, n: string) => state.pastes[Number(n) - 1] ?? m)
 }
 
-const ENTER = ['\r']
+const ENTER = ['\r', '\x1b[13u', '\x1b[27;1;13~']
 const ESC = '\x1b'
+const ESC_CSI = '\x1b[27u'
+const INTERRUPT = ['\x03', '\x1b[99;5u', '\x1b[27;5;99~']
+const EOF_TECLA = ['\x04', '\x1b[100;5u', '\x1b[27;5;100~']
 const BACKSPACE = ['\x7f']
 const UP = '\x1b[A'
 const DOWN = '\x1b[B'
@@ -68,7 +71,8 @@ const APAGA_PALAVRA_ESQ = ['\x17', '\x08', '\x1b\x7f', '\x1b[3;5~']
 const APAGA_PALAVRA_DIR = ['\x1bd', '\x1b[3;3~']
 const APAGA_ATE_FIM = '\x0b'
 const APAGA_ATE_INICIO = '\x15'
-const QUEBRA_LINHA = ['\n', '\x1b\r', '\x1b\n', '\x1b[13;2u', '\x1b[13;5u', '\x1b[13;2;13u', '\x1bOM']
+const QUEBRA_LINHA = ['\n', '\x1b\r', '\x1b\n', '\x1b[13;2u', '\x1b[13;5u', '\x1b[13;2;13u',
+  '\x1b[27;2;13~', '\x1b[27;5;13~', '\x1b[106;5u', '\x1bOM']
 
 function limpo(state: InputState, buffer: string, cursor: number): InputState {
   return { ...state, buffer, cursor: Math.max(0, Math.min(cursor, buffer.length)) }
@@ -118,7 +122,7 @@ export function pararNavegacao(state: InputState): InputState {
 
 export function keypress(state: InputState, key: string): KeyResult {
   if (state.navegando) {
-    if (key === ESC) return { state: { ...state, navegando: false }, action: { kind: 'redraw' } }
+    if (key === ESC || key === ESC_CSI) return { state: { ...state, navegando: false }, action: { kind: 'redraw' } }
     if (ENTER.includes(key)) return { state, action: { kind: 'entrar' } }
     if (key !== UP && key !== DOWN) return keypress({ ...state, navegando: false }, key)
   }
@@ -136,8 +140,8 @@ export function keypress(state: InputState, key: string): KeyResult {
       action: { kind: 'submit', line: expandir(state, line) },
     }
   }
-  if (key === '\x03') return { state, action: { kind: 'interrupt' } }
-  if (key === '\x04') {
+  if (INTERRUPT.includes(key)) return { state, action: { kind: 'interrupt' } }
+  if (EOF_TECLA.includes(key)) {
     return state.buffer
       ? { state, action: { kind: 'none' } }
       : { state, action: { kind: 'eof' } }

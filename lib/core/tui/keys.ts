@@ -1,8 +1,8 @@
 export const PASTE_ON = '\x1b[?2004h'
 export const PASTE_OFF = '\x1b[?2004l'
 
-export const TECLAS_ON = '\x1b[>4;2m\x1b[>1u'
-export const TECLAS_OFF = '\x1b[<u\x1b[>4;0m'
+export const TECLAS_ON = '\x1b[>4;1m'
+export const TECLAS_OFF = '\x1b[>4;0m'
 
 const INICIO_COLA = '\x1b[200~'
 const FIM_COLA = '\x1b[201~'

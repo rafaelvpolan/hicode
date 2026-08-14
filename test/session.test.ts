@@ -263,3 +263,14 @@ test('remocao pendente nao vira card novo nem aprova plano', () => {
   const r = handle('outra tarefa', removendo(planShown(base, '042'), '023'))
   expect(r.effect.kind).toBe('confirm-rm')
 })
+
+test('/rm aceita varios ids e separa a flag', () => {
+  expect(handle('/rm 23 24 25', base).effect.id).toBe('23 24 25')
+  const f = handle('/rm 23 --force', base)
+  expect(f.effect.id).toBe('23')
+  expect(f.effect.text).toBe('force')
+})
+
+test('/rm so com flag ainda e erro', () => {
+  expect(handle('/rm --force', base).effect.kind).toBe('error')
+})

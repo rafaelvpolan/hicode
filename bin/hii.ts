@@ -61,7 +61,8 @@ function usage(): void {
     '',
     'Arquivo de cards (teto de 10 por projeto):',
     '  board [repo] [--watch]   mostra o board das tarefas no terminal',
-    '  rm <id> --yes            apaga o card e limpa worktree, preview e runs',
+    '  teclas                   mostra o que o seu terminal manda em cada tecla',
+    '  rm <id> [id...] --yes    apaga os cards e limpa worktree, preview e runs',
     '  archive                  arquiva os entregues mais antigos acima do teto',
     '  archive --dry-run        mostra o que faria, sem mover',
     '  archive ls               lista o que esta arquivado',
@@ -149,6 +150,8 @@ async function main(): Promise<number> {
       return script('contract', args.slice(1))
     case 'doctor':
       return script('doctor', args.slice(1))
+    case 'teclas':
+      return script('teclas', args.slice(1))
     case 'board':
     case 'quadro':
       return script('board', args.slice(1))

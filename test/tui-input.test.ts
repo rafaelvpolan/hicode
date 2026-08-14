@@ -379,3 +379,25 @@ test('pararNavegacao limpa o modo sem tocar no buffer', () => {
   expect(s.navegando).toBe(false)
   expect(s.buffer).toBe('x')
 })
+
+test('ctrl+c continua interrompendo mesmo se o terminal reencodar', () => {
+  for (const k of ['\x03', '\x1b[99;5u', '\x1b[27;5;99~']) {
+    expect(keypress(newInput(), k).action.kind).toBe('interrupt')
+  }
+})
+
+test('shift+enter no formato modifyOtherKeys quebra a linha', () => {
+  expect(keypress(digitar('ab'), '\x1b[27;2;13~').state.buffer).toBe('ab\n')
+})
+
+test('enter reencodado ainda submete, nao vira texto', () => {
+  for (const k of ['\r', '\x1b[13u', '\x1b[27;1;13~']) {
+    expect(keypress(digitar('ab'), k).action.kind).toBe('submit')
+  }
+})
+
+test('tokenizer nao parte as sequencias novas ao meio', () => {
+  expect(tokenize('\x1b[27;2;13~')).toEqual(['\x1b[27;2;13~'])
+  expect(tokenize('\x1b[13u')).toEqual(['\x1b[13u'])
+  expect(tokenize('\x1b[99;5u')).toEqual(['\x1b[99;5u'])
+})

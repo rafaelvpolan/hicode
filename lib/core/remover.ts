@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { readCard, listRepos, findCardFile } from '../runner/card-store'
+import { readCard, listRepos, findCardFile, normalizeId } from '../runner/card-store'
 import { cardsDir } from '../runner/config'
 import { stopPreview } from '../runner/preview'
 import { removeWorktree } from '../runner/git'
@@ -79,6 +79,42 @@ export async function remover(id: string, force = false): Promise<ResultadoRemoc
   if (!remove(id)) return { ok: false, reason: `card #${id} sumiu no meio da remocao`, limpou }
   limpou.push('card apagado')
   return { ok: true, reason: '', limpou }
+}
+
+export interface PlanoLote {
+  removiveis: PlanoRemocao[]
+  bloqueados: PlanoRemocao[]
+  ausentes: string[]
+}
+
+export function planejarLote(ids: string[]): PlanoLote {
+  const vistos = new Set<string>()
+  const lote: PlanoLote = { removiveis: [], bloqueados: [], ausentes: [] }
+  for (const bruto of ids) {
+    const id = normalizeId(bruto.trim())
+    if (!id || vistos.has(id)) continue
+    vistos.add(id)
+    const p = planejarRemocao(id)
+    if (!p) lote.ausentes.push(id)
+    else if (p.bloqueio) lote.bloqueados.push(p)
+    else lote.removiveis.push(p)
+  }
+  return lote
+}
+
+export interface ResultadoLote {
+  apagados: string[]
+  falhas: { id: string; reason: string }[]
+}
+
+export async function removerLote(ids: string[], force = false): Promise<ResultadoLote> {
+  const out: ResultadoLote = { apagados: [], falhas: [] }
+  for (const id of ids) {
+    const r = await remover(id, force)
+    if (r.ok) out.apagados.push(id)
+    else out.falhas.push({ id, reason: r.reason })
+  }
+  return out
 }
 
 export function existeCard(id: string): boolean {

@@ -76,9 +76,10 @@ function command(line: string, state: SessionState): Reply {
       return arg ? reply({ kind: 'plan', id: arg }, state) : reply({ kind: 'error', text: 'uso: /plan <id>' }, state)
     case 'rm':
     case 'apagar':
-      return rest[0]
-        ? reply({ kind: 'rm', id: rest[0], text: rest[1] === '--force' ? 'force' : '' }, cleared)
-        : reply({ kind: 'error', text: 'uso: /rm <id> — apaga o card e limpa worktree e preview' }, state)
+      const alvos = rest.filter(a => !a.startsWith('-'))
+      return alvos.length
+        ? reply({ kind: 'rm', id: alvos.join(' '), text: rest.includes('--force') ? 'force' : '' }, cleared)
+        : reply({ kind: 'error', text: 'uso: /rm <id> [id...] — apaga os cards e limpa worktree e preview' }, state)
     case 'ask':
     case 'responder':
       return arg

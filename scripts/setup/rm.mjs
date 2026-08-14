@@ -1,4 +1,4 @@
-import { planejarRemocao, remover } from '../../lib/core/remover.ts'
+import { planejarLote, removerLote } from '../../lib/core/remover.ts'
 
 const DIM = '\x1b[2m'
 const RESET = '\x1b[0m'
@@ -9,41 +9,44 @@ const dim = (s) => (color ? DIM + s + RESET : s)
 const args = process.argv.slice(2)
 const force = args.includes('--force') || args.includes('-f')
 const sim = args.includes('--yes') || args.includes('-y')
-const id = args.find((a) => !a.startsWith('-'))
+const ids = args.filter((a) => !a.startsWith('-'))
 
-if (!id) {
+if (!ids.length) {
   out('')
-  out('  uso: hii rm <id> [--force] [--yes]')
+  out('  uso: hii rm <id> [id...] [--force] [--yes]')
   out(dim('  apaga o card e limpa worktree, preview e arquivos de execucao'))
   out('')
   process.exit(1)
 }
 
-const plano = planejarRemocao(id)
-if (!plano) {
-  out(dim(`  card #${id} nao encontrado`))
-  process.exit(1)
-}
-if (plano.bloqueio && !force) {
-  out(dim(`  ${plano.bloqueio}`))
-  process.exit(1)
-}
+const lote = planejarLote(ids)
+const alvos = force ? [...lote.removiveis, ...lote.bloqueados] : lote.removiveis
 
 out('')
-out(`  #${plano.id} ${plano.status}  ${plano.titulo.slice(0, 50)}`)
-if (plano.worktree) out(dim(`  worktree  ${plano.worktree}`))
-if (plano.previewPid) out(dim(`  preview   pid ${plano.previewPid}`))
-if (plano.runs.length) out(dim(`  execucao  ${plano.runs.length} arquivo(s)`))
-for (const a of plano.avisos) out(dim(`  ${a}`))
+for (const a of lote.ausentes) out(dim(`  #${a} nao encontrado`))
+if (!force) for (const b of lote.bloqueados) out(dim(`  #${b.id} fica — ${b.bloqueio}`))
+if (!alvos.length) {
+  out(dim('  nada a apagar'))
+  out('')
+  process.exit(1)
+}
+for (const p of alvos) {
+  out(`  #${p.id} ${p.status}  ${p.titulo.slice(0, 50)}`)
+  if (p.worktree) out(dim(`    worktree  ${p.worktree}`))
+  if (p.previewPid) out(dim(`    preview   pid ${p.previewPid}`))
+  if (p.runs.length) out(dim(`    execucao  ${p.runs.length} arquivo(s)`))
+}
+for (const a of [...new Set(alvos.flatMap((p) => p.avisos))]) out(dim(`  ${a}`))
 out('')
 
 if (!sim) {
-  out(dim('  nada foi apagado — repita com --yes para confirmar'))
+  out(dim(`  nada foi apagado — repita com --yes para apagar ${alvos.length} card(s)`))
   out('')
   process.exit(0)
 }
 
-const r = await remover(id, force)
-out(r.ok ? `  #${id} apagado — ${r.limpou.join(', ')}` : `  ${r.reason}`)
+const r = await removerLote(alvos.map((p) => p.id), force)
+if (r.apagados.length) out(`  ${r.apagados.length} card(s) apagado(s): ${r.apagados.map((x) => '#' + x).join(' ')}`)
+for (const f of r.falhas) out(dim(`  #${f.id}: ${f.reason}`))
 out('')
-process.exit(r.ok ? 0 : 1)
+process.exit(r.falhas.length ? 1 : 0)

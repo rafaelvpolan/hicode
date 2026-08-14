@@ -99,3 +99,55 @@ test('quit, board e reopen-repo ficam para quem chamou', async () => {
     expect((await dispatch({ kind } as never, newSession(''), io)).tratado).toBe(false)
   }
 })
+
+test('LOTE: /rm com varios ids apaga todos', async () => {
+  card('023'); card('024'); card('025')
+  await digitar(['/rm 23 24 25', 's'])
+  for (const id of ['023', '024', '025']) expect(existsSync(join(dir, `${id}-x.md`))).toBe(false)
+})
+
+test('LOTE: id repetido nao conta duas vezes', async () => {
+  card('023')
+  await digitar(['/rm 23 23 023', 's'])
+  expect(saida.join(' ')).toContain('apagar 1 card')
+})
+
+test('LOTE: card em execucao fica de fora, o resto vai', async () => {
+  card('023'); card('024', { status: 'EXECUTING' })
+  await digitar(['/rm 23 24', 's'])
+  expect(existsSync(join(dir, '023-x.md'))).toBe(false)
+  expect(existsSync(join(dir, '024-x.md'))).toBe(true)
+  expect(saida.join(' ')).toContain('#024 fica')
+})
+
+test('LOTE: --force leva tambem o que estava em execucao', async () => {
+  card('023', { status: 'EXECUTING' })
+  await digitar(['/rm 23 --force', 's'])
+  expect(existsSync(join(dir, '023-x.md'))).toBe(false)
+})
+
+test('LOTE: id inexistente e avisado sem travar os outros', async () => {
+  card('023')
+  await digitar(['/rm 23 99', 's'])
+  expect(saida.join(' ')).toContain('#099 nao encontrado')
+  expect(existsSync(join(dir, '023-x.md'))).toBe(false)
+})
+
+test('LOTE: nenhum alvo valido nao pede confirmacao', async () => {
+  const state = await digitar(['/rm 98 99'])
+  expect(saida.join(' ')).toContain('nada a apagar')
+  expect(state.removendo).toBe('')
+})
+
+test('LOTE: cancelar preserva todos', async () => {
+  card('023'); card('024')
+  await digitar(['/rm 23 24', 'n'])
+  expect(existsSync(join(dir, '023-x.md'))).toBe(true)
+  expect(existsSync(join(dir, '024-x.md'))).toBe(true)
+})
+
+test('LOTE: confirmacao relata quantos foram', async () => {
+  card('023'); card('024')
+  await digitar(['/rm 23 24', 's'])
+  expect(saida.join(' ')).toContain('2 card(s) apagado(s)')
+})

@@ -76,3 +76,35 @@ test('id sem zero a esquerda acha o card', async () => {
   card('099', { status: 'READY', title: 'x', repo: 'org/app' })
   expect(planejarRemocao('99')?.id).toBe('99')
 })
+
+test('lote normaliza id: 23 e 023 sao o mesmo card', async () => {
+  const { planejarLote } = await import('../lib/core/remover')
+  card('023', { status: 'READY', title: 'x', repo: 'org/app' })
+  const lote = planejarLote(['23', '023', ' 23 '])
+  expect(lote.removiveis.length).toBe(1)
+  expect(lote.removiveis[0]?.id).toBe('023')
+})
+
+test('lote separa removivel, bloqueado e ausente', async () => {
+  const { planejarLote } = await import('../lib/core/remover')
+  card('023', { status: 'READY', title: 'x', repo: 'org/app' })
+  card('024', { status: 'EXECUTING', title: 'x', repo: 'org/app' })
+  const lote = planejarLote(['23', '24', '99'])
+  expect(lote.removiveis.map(p => p.id)).toEqual(['023'])
+  expect(lote.bloqueados.map(p => p.id)).toEqual(['024'])
+  expect(lote.ausentes).toEqual(['099'])
+})
+
+test('lote vazio nao explode', async () => {
+  const { planejarLote } = await import('../lib/core/remover')
+  const lote = planejarLote(['', '   '])
+  expect(lote.removiveis.length + lote.bloqueados.length + lote.ausentes.length).toBe(0)
+})
+
+test('removerLote relata sucesso e falha por id', async () => {
+  const { removerLote } = await import('../lib/core/remover')
+  card('023', { status: 'READY', title: 'x', repo: 'org/app' })
+  const r = await removerLote(['023', '099'], true)
+  expect(r.apagados).toEqual(['023'])
+  expect(r.falhas[0]?.id).toBe('099')
+})
