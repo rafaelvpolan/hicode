@@ -84,9 +84,7 @@ function command(line: string, state: SessionState): Reply {
         : reply({ kind: 'error', text: 'uso: /rm <id> [id...] — apaga os cards e limpa worktree e preview' }, state)
     case 'preview':
     case 'subir':
-      return rest[0]
-        ? reply({ kind: 'preview', id: rest[0] }, state)
-        : reply({ kind: 'error', text: 'uso: /preview <id> — sobe o dev server da tarefa' }, state)
+      return reply({ kind: 'preview', id: rest[0] ?? '', text: rest.includes('--limpar') ? 'limpar' : '' }, state)
     case 'ask':
     case 'responder':
       return arg

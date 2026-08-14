@@ -52,3 +52,19 @@ test('projeto sem dev server nao fala de preview', () => {
 test('vivo vence o estado do card — se responde, esta no ar', () => {
   expect(estadoDoPreview(e({ status: 'MERGED', vivo: true, worktree: '/wt' })).situacao).toBe('no-ar')
 })
+
+test('enquanto sobe, mostra a URL e avisa que esta subindo', () => {
+  const r = estadoDoPreview(e({ status: 'EXECUTED', worktree: '/wt', subindo: true }))
+  expect(r.situacao).toBe('subindo')
+  expect(r.url).toBe('http://localhost:5222')
+  expect(r.rotulo).toContain('subindo agora')
+})
+
+test('subindo nao vence servidor ja no ar', () => {
+  expect(estadoDoPreview(e({ vivo: true, subindo: true, worktree: '/wt' })).situacao).toBe('no-ar')
+})
+
+test('subindo nao inventa link para tarefa sem worktree', () => {
+  const r = estadoDoPreview(e({ status: 'CLARIFY', worktree: '', subindo: false }))
+  expect(r.url).toBe('')
+})

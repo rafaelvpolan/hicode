@@ -4,7 +4,8 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { ROOT, reposFile } from '../lib/runner/config'
 import { allCards, listRepos, normalizeId, readCard, repoPath, repoRegistered } from '../lib/runner/card-store'
-import { hasDevServer, previewPort, httpOk, ensurePreview, waitHttp } from '../lib/runner/preview'
+import { hasDevServer, previewPort, httpOk, ensurePreview, waitHttp, stopPreview } from '../lib/runner/preview'
+import { PREVIEW_BASE_PORT } from '../lib/runner/config'
 import * as core from '../lib/core/actions'
 import { buildPlan } from '../lib/core/plan'
 import { renderPlan } from '../lib/core/render/plan'
@@ -24,6 +25,7 @@ import { handle, newSession, planShown, respondido, seguir } from '../lib/core/s
 import { dispatch } from '../lib/core/dispatch'
 import type { DispatchIO } from '../lib/core/dispatch'
 import { cardsPerguntando } from '../lib/core/responder'
+import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
@@ -91,7 +93,7 @@ function passosDe(c: Fields): ReturnType<typeof passosDoCard> {
   return passosDoCard(c, plano.steps, readRunSteps(String(c.id ?? '')))
 }
 
-function planoDe(id: string, ativo = false): string {
+function planoDe(id: string, ativo = false, subindo = false): string {
   const card = readCard(id)
   if (!card) return ''
   const alvo = repoPath(card.fm.repo ?? '')
@@ -101,6 +103,7 @@ function planoDe(id: string, ativo = false): string {
     hasDevServer: temDev,
     previewUrl: card.fm.preview_url || (temDev ? `http://localhost:${previewPort(id)}` : ''),
     previewAtivo: ativo,
+    previewSubindo: subindo,
   })
   return renderPlan(plano, { color })
 }
@@ -339,6 +342,48 @@ function start(): void {
   spawnSync(sh, ['start'], { stdio: 'inherit' })
 }
 
+async function listarPreviews(limpar: boolean): Promise<string[]> {
+  const cards = allCards()
+  const vivos: string[] = []
+  for (const c of cards) {
+    const url = c.preview_url || ''
+    if (url && await httpOk(url)) vivos.push(url)
+  }
+  const portas = inventario({ cards, base: PREVIEW_BASE_PORT, vivo: (u) => vivos.includes(u) })
+  if (!portas.length) return ['  nenhum preview rodando']
+  const out = portas.map(p => {
+    const marca = p.situacao === 'orfao' ? 'orfao' : 'em uso'
+    return `  ${p.url}  ${dim(`#${p.cardId} ${p.status.toLowerCase()} · ${marca}`)}`
+  })
+  const soltos = orfaos(portas)
+  if (!soltos.length) return out
+  if (!limpar) {
+    out.push(dim(`  ${soltos.length} orfao(s) — /preview --limpar derruba`))
+    return out
+  }
+  for (const p of soltos) {
+    stopPreview(p.pid)
+    core.setPreviewPid(p.cardId, 0)
+  }
+  out.push(dim(`  ${soltos.length} orfao(s) derrubado(s)`))
+  return out
+}
+
+async function contextoPreview(id: string): Promise<{ url: string; vivo: boolean; temDev: boolean; plano: ReturnType<typeof planejarPreview> }> {
+  const card = readCard(id)
+  if (!card) return { url: '', vivo: false, temDev: false, plano: { acao: 'nada', url: '', motivo: 'card nao encontrado' } }
+  const alvo = repoPath(card.fm.repo ?? '')
+  const temDev = existsSync(alvo) && hasDevServer(alvo)
+  const url = card.fm.preview_url || (temDev ? `http://localhost:${previewPort(id)}` : '')
+  const vivo = url ? await httpOk(url) : false
+  const plano = planejarPreview({
+    status: card.fm.status ?? '',
+    worktree: card.fm.worktree ?? '',
+    url, vivo, temDevServer: temDev,
+  })
+  return { url, vivo, temDev, plano }
+}
+
 async function subirPreview(id: string): Promise<string> {
   const card = readCard(id)
   if (!card) return `card #${id} nao encontrado`
@@ -366,10 +411,13 @@ function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void): Dis
     color,
     largura: () => Math.max(40, (Number(process.stdout.columns) || 78) - 6),
     subirPreview,
+    listarPreviews,
     plano: async (id) => {
-      const card = readCard(id)
-      const vivo = card?.fm.preview_url ? await httpOk(card.fm.preview_url) : false
-      return planoDe(id, vivo).split('\n')
+      const ctx = await contextoPreview(id)
+      if (ctx.plano.acao === 'subir') {
+        void subirPreview(id).then(msg => app.log(`  ${msg}`))
+      }
+      return planoDe(id, ctx.vivo, ctx.plano.acao === 'subir').split('\n')
     },
     atividade: (id) => {
       const at = atividadeDe(id)

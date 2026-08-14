@@ -16,6 +16,7 @@ export interface DispatchIO {
   color: boolean
   largura: () => number
   subirPreview: (id: string) => Promise<string>
+  listarPreviews: (limpar: boolean) => Promise<string[]>
   plano: (id: string) => Promise<string[]>
   atividade: (id: string) => string[]
 }
@@ -110,7 +111,8 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       return state
     }
     case 'preview': {
-      io.log(await io.subirPreview(id))
+      if (id) { io.log(await io.subirPreview(id)); return state }
+      for (const l of await io.listarPreviews(texto === 'limpar')) io.log(l)
       return state
     }
     case 'ask': {

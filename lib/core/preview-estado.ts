@@ -1,6 +1,6 @@
 import type { Fields } from '../card/types'
 
-export type SituacaoPreview = 'no-ar' | 'parado' | 'futuro' | 'encerrado' | 'sem-superficie'
+export type SituacaoPreview = 'no-ar' | 'subindo' | 'parado' | 'futuro' | 'encerrado' | 'sem-superficie'
 
 export interface EstadoPreview {
   situacao: SituacaoPreview
@@ -18,6 +18,7 @@ export interface EntradaPreview {
   url: string
   vivo: boolean
   temDevServer: boolean
+  subindo?: boolean
 }
 
 export function daCard(card: Fields, url: string, vivo: boolean, temDevServer: boolean): EntradaPreview {
@@ -37,6 +38,9 @@ export function estadoDoPreview(e: EntradaPreview): EstadoPreview {
   }
   if (e.vivo) {
     return { situacao: 'no-ar', url: e.url, rotulo: 'no ar agora', comando: '' }
+  }
+  if (e.subindo) {
+    return { situacao: 'subindo', url: e.url, rotulo: 'subindo agora — aguarde alguns segundos', comando: '' }
   }
   if (TERMINAIS.includes(e.status)) {
     return { ...vazio, situacao: 'encerrado', rotulo: 'tarefa entregue — o preview foi encerrado' }

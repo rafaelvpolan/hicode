@@ -42,6 +42,7 @@ export interface PlanInput {
   sliceLimit?: number
   previewUrl?: string
   previewAtivo?: boolean
+  previewSubindo?: boolean
 }
 
 const SUBJETIVO = /\b(?:melhor\w*|chamativ\w*|bonit\w*|moderniz\w*|refin\w*|aparencia|estil\w*|design|visual\w*|layout|ux)\b/
@@ -81,6 +82,7 @@ export function buildPlan(input: PlanInput): Plan {
     url: input.previewUrl ?? '',
     vivo: !!input.previewAtivo,
     temDevServer: input.hasDevServer,
+    subindo: !!input.previewSubindo,
   })
   return {
     previewUrl: preview.url,
