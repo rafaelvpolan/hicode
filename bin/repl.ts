@@ -10,7 +10,7 @@ import * as core from '../lib/core/actions'
 import { buildPlan } from '../lib/core/plan'
 import { renderPlan } from '../lib/core/render/plan'
 import { renderFleet } from '../lib/core/render/fleet'
-import { renderBoard, renderBoardJanela, renderProjetos, resumirProjetos, ordemDoBoard } from '../lib/core/render/board'
+import { renderBoard, renderBoardJanela, renderProjetos, resumirProjetos, ordemDoBoard, renderAbas, abasDe } from '../lib/core/render/board'
 import { startLive } from '../lib/core/watch'
 import { cardsDir } from '../lib/runner/config'
 import { repoStatus } from '../lib/core/repos'
@@ -190,7 +190,8 @@ function pintarComando(linha: string): string {
   return `${ACC}${comando}${RESET}${resto ?? ''}`
 }
 
-function dicaDa(state: SessionState): string {
+function dicaDa(state: SessionState, sugerindo = false): string {
+  if (sugerindo) return '↑↓ escolhe  tab completa  enter usa'
   if (selecionado) return 'setas movem  enter entra  esc sai'
   if (state.removendo) return 'enter confirma  n cancela'
   if (state.perguntando) return '↓ escolhe  numero responde  enter confirma'
@@ -236,9 +237,12 @@ function board(state: SessionState): string {
 }
 
 function boardNavegavel(state: SessionState, altura: number): string[] {
+  const cards = allCards()
+  const abas = renderAbas(abasDe(listRepos().map(r => r.name), cards), state.repo, { color })
   const cabecalho = [
-    `  ${color ? ACC : ''}board${color ? RESET : ''} ${dim('· ↑↓ move · enter abre · → volta a escrever')}`,
+    `  ${color ? ACC : ''}board${color ? RESET : ''} ${dim(abas.length ? '· ↑↓ move · tab troca de projeto · enter abre · → volta' : '· ↑↓ move · enter abre · → volta a escrever')}`,
     '',
+    ...abas,
   ]
   const corpo = renderBoardJanela(allCards(), opcoesDoBoard(state), Math.max(4, altura - cabecalho.length))
   return [...cabecalho, ...corpo]
@@ -482,7 +486,10 @@ async function tui(state0: SessionState): Promise<void> {
     }
     const r = await dispatch(effect, state, ioDo(app, diga))
     state = r.state
-    if (!r.tratado && effect.kind === 'board') state = { ...state, seguindo: '' }
+    if (!r.tratado && effect.kind === 'board') {
+      state = { ...state, seguindo: '' }
+      app.abrirBoard()
+    }
   }
 
   const app = createApp(term, {
@@ -493,7 +500,7 @@ async function tui(state0: SessionState): Promise<void> {
       return state.seguindo ? seguimento(state) : board(state).split('\n')
     },
     fixo: (ctx) => (state.seguindo && ctx.navegando !== 'board' ? cabecalhoDaTarefa(state) : []),
-    dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · ← board' : dicaDa(state)),
+    dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · ← board' : dicaDa(state, ctx.sugerindo)),
     prompt: () => '› ',
     rodape: () => rodapeDa(state, modoAtual === 'rodape'),
     intervalMs: 400,
@@ -505,6 +512,14 @@ async function tui(state0: SessionState): Promise<void> {
     corInput: (linha) => pintarComando(linha),
     onInterrupt: () => { sairPedido = true; return true },
     onNav: (dir, modo) => navegar(state, dir, modo),
+    onAba: (dir) => {
+      const nomes = listRepos().map(r => r.name)
+      if (nomes.length < 2) return
+      const i = nomes.indexOf(state.repo)
+      const proximo = nomes[(i + dir + nomes.length) % nomes.length] ?? state.repo
+      state = { ...state, repo: proximo }
+      selecionado = ''
+    },
     podeLimpar: () => {
       const rodando = emExecucao(allCards(), state.repo, Date.now(), () => '')
       if (!rodando.length) return ''

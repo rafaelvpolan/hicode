@@ -182,3 +182,21 @@ test('navegar ate o fim mostra as ultimas em execucao', () => {
   expect(linhas.join(' ')).toContain('#007')
   expect(linhas.join(' ')).not.toContain('#001')
 })
+
+import { esperaHumano } from '../lib/core/render/phases'
+
+test('uma definicao so de "esperando voce" — rodape e abas concordam', async () => {
+  const { abasDe } = await import('../lib/core/render/board')
+  const cards = [
+    c({ id: '1', repo: 'org/site', status: 'CLARIFY' }),
+    c({ id: '2', repo: 'org/site', status: 'READY' }),
+    c({ id: '3', repo: 'org/site', status: 'PR_OPEN' }),
+    c({ id: '4', repo: 'org/site', status: 'EXECUTING' }),
+  ]
+  expect(abasDe(['org/site'], cards)[0]?.esperando).toBe(esperandoVoce(cards, 'org/site').length)
+})
+
+test('estado que espera humano tem motivo e comando', () => {
+  expect(esperaHumano('CLARIFY')?.comando).toBe('/ask')
+  expect(esperaHumano('EXECUTING')).toBe(null)
+})

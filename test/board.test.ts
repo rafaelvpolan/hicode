@@ -267,3 +267,49 @@ test('renderBoard e renderBoardJanela sem limite dao o mesmo conteudo', () => {
   const o = { repo: 'org/app', ...semPassos }
   expect(renderBoardJanela(cards, o, 0).join('\n')).toBe(renderBoard(cards, o))
 })
+
+import { abasDe, renderAbas } from '../lib/core/render/board'
+
+test('cada projeto vira uma aba com o que importa nele', () => {
+  const cards = [
+    card({ id: '1', repo: 'org/site', status: 'CLARIFY' }),
+    card({ id: '2', repo: 'org/site', status: 'READY' }),
+    card({ id: '3', repo: 'org/site', status: 'MERGED' }),
+    card({ id: '4', repo: 'org/api', status: 'EXECUTING' }),
+  ]
+  const abas = abasDe(['org/site', 'org/api'], cards)
+  expect(abas[0]).toMatchObject({ repo: 'org/site', cards: 2, esperando: 2 })
+  expect(abas[1]).toMatchObject({ repo: 'org/api', cards: 1, esperando: 0 })
+})
+
+test('entregues nao contam na aba', () => {
+  const cards = [card({ id: '1', repo: 'org/site', status: 'MERGED' })]
+  expect(abasDe(['org/site'], cards)[0]?.cards).toBe(0)
+})
+
+test('projeto unico nao ganha barra de abas', () => {
+  expect(renderAbas(abasDe(['org/site'], []), 'org/site')).toEqual([])
+})
+
+test('a aba ativa fica marcada', () => {
+  const abas = abasDe(['org/site', 'org/api'], [])
+  const linha = renderAbas(abas, 'org/api')[0] ?? ''
+  expect(linha).toContain('[api]')
+  expect(linha).toContain('site')
+  expect(linha).not.toContain('[site]')
+})
+
+test('aba mostra o nome curto do repo, nao o owner', () => {
+  const linha = renderAbas(abasDe(['rafaelvpolan/hicode-site', 'org/api'], []), 'org/api')[0] ?? ''
+  expect(linha).toContain('hicode-site')
+  expect(linha).not.toContain('rafaelvpolan/')
+})
+
+test('aba com tarefa esperando mostra a contagem', () => {
+  const cards = [card({ id: '1', repo: 'org/site', status: 'PREVIEW' })]
+  expect(renderAbas(abasDe(['org/site', 'org/api'], cards), 'org/api')[0]).toContain('·1')
+})
+
+test('abas sem cor nao emitem escape ANSI', () => {
+  expect(renderAbas(abasDe(['a/b', 'c/d'], []), 'a/b', { color: false }).join('')).not.toContain('\x1b[')
+})

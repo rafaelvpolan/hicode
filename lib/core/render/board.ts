@@ -1,6 +1,6 @@
 import type { Fields } from '../../card'
 import type { Passo } from '../progresso'
-import { PHASES, isActive, phaseIndex, phaseLabel, waitsHuman } from './phases'
+import { PHASES, isActive, phaseIndex, phaseLabel, waitsHuman, esperaHumano } from './phases'
 
 const RESET = '\x1b[0m'
 const DIM = '\x1b[2m'
@@ -139,6 +139,36 @@ function agrupar(cards: Fields[]): Grupo[] {
 function somaCusto(cards: Fields[]): string {
   const t = cards.reduce((a, c) => a + (parseFloat(String(c.cost_usd ?? '0')) || 0), 0)
   return t ? t.toFixed(2) : '0.00'
+}
+
+export interface Aba {
+  repo: string
+  cards: number
+  esperando: number
+}
+
+export function abasDe(repos: string[], cards: Fields[]): Aba[] {
+  return repos.map(repo => {
+    const meus = cards.filter(c => String(c.repo ?? '') === repo)
+    return {
+      repo,
+      cards: meus.filter(c => !['MERGED', 'DEPLOYED'].includes(String(c.status ?? ''))).length,
+      esperando: meus.filter(c => !!esperaHumano(String(c.status ?? 'INBOX'))).length,
+    }
+  })
+}
+
+export function renderAbas(abas: Aba[], ativo: string, opts: Partial<BoardOptions> = {}): string[] {
+  const o = { ...DEFAULTS, ...opts }
+  if (abas.length < 2) return []
+  const pedacos = abas.map(a => {
+    const nome = a.repo.split('/').pop() ?? a.repo
+    const selo = a.esperando ? `·${a.esperando}` : a.cards ? ` ${a.cards}` : ''
+    const texto = ` ${nome}${selo} `
+    if (a.repo !== ativo) return paint(texto, DIM, o)
+    return o.color ? `\x1b[7m${texto}\x1b[0m` : `[${texto.trim()}]`
+  })
+  return [`  ${pedacos.join(' ')}`, '']
 }
 
 export interface BoardLinhas {

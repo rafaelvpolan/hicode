@@ -1,5 +1,5 @@
 import type { Fields } from '../../card'
-import { isActive } from './phases'
+import { isActive, esperaHumano } from './phases'
 import { idadeDe } from './board'
 
 const RESET = '\x1b[0m'
@@ -82,20 +82,10 @@ export interface Espera {
   comando: string
 }
 
-const ESPERAS: Record<string, { motivo: string; comando: string }> = {
-  CLARIFY: { motivo: 'precisa da sua resposta', comando: '/ask' },
-  PREVIEW: { motivo: 'preview pronto para ver', comando: '/ok' },
-  READY: { motivo: 'plano nao aprovado', comando: '/plan' },
-  INBOX: { motivo: 'plano nao aprovado', comando: '/plan' },
-  SPECCED: { motivo: 'plano nao aprovado', comando: '/plan' },
-  HALTED: { motivo: 'parou no meio', comando: '/plan' },
-  PR_OPEN: { motivo: 'PR aberto para voce revisar', comando: '/plan' },
-}
-
 export function esperandoVoce(cards: Fields[], repo: string): Espera[] {
   return cards
     .filter(c => !repo || c.repo === repo)
-    .map(c => ({ card: c, esp: ESPERAS[String(c.status ?? '')] }))
+    .map(c => ({ card: c, esp: esperaHumano(String(c.status ?? '')) }))
     .filter((x): x is { card: Fields; esp: { motivo: string; comando: string } } => !!x.esp)
     .sort((a, b) => Number(a.card.id) - Number(b.card.id))
     .map(({ card, esp }) => ({

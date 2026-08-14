@@ -1,6 +1,6 @@
 import { openScreen } from './screen'
 import type { Terminal } from './screen'
-import { newInput, keypress, aplicarCompletar, pararNavegacao } from './input'
+import { newInput, keypress, aplicarCompletar, pararNavegacao, classificarNavegacao } from './input'
 import type { ModoNavegacao } from './input'
 import { tokenizeParcial, agruparColagem } from './keys'
 import { linkificar } from './layout'
@@ -9,6 +9,7 @@ import type { InputState } from './input'
 export interface CorpoContexto {
   navegando: ModoNavegacao
   altura: number
+  sugerindo: boolean
 }
 
 export interface AppHooks {
@@ -26,6 +27,7 @@ export interface AppHooks {
   onInterrupt: () => boolean
   onNav: (dir: -1 | 1, modo: ModoNavegacao) => boolean
   onEntrar: (modo: ModoNavegacao) => void
+  onAba: (dir: -1 | 1) => void
   podeLimpar: () => string
   intervalMs: number
 }
@@ -33,6 +35,7 @@ export interface AppHooks {
 export interface App {
   run: () => Promise<void>
   log: (linha: string) => void
+  abrirBoard: () => void
 }
 
 export function createApp(term: Terminal, hooks: AppHooks): App {
@@ -46,14 +49,15 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
 
   const desenhar = (): void => {
     const rodape = hooks.rodape()
-    const ctx: CorpoContexto = {
-      navegando: input.navegando,
-      altura: Math.max(4, term.rows() - 6 - rodape.length),
-    }
     sugestoes = input.buffer.startsWith('/') && !input.buffer.includes('\n')
       ? hooks.onComplete(input.buffer)
       : []
     if (!sugestoes.length) sugIdx = -1
+    const ctx: CorpoContexto = {
+      navegando: input.navegando,
+      altura: Math.max(4, term.rows() - 6 - rodape.length - sugestoes.length),
+      sugerindo: sugestoes.length > 0,
+    }
     const fixo = hooks.fixo(ctx)
     const rolante = ctx.navegando === 'board' ? hooks.corpo(ctx) : [...hooks.corpo(ctx), ...extras]
     const sobra = Math.max(1, ctx.altura - fixo.length)
@@ -110,6 +114,23 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
 
   const onKey = (key: string): boolean => {
     if (sair) return false
+    if (sugestoes.length) {
+      const nav = classificarNavegacao(key)
+      if (nav === 'baixo') {
+        sugIdx = (sugIdx + 1) % sugestoes.length
+        return true
+      }
+      if (nav === 'cima') {
+        sugIdx = sugIdx <= 0 ? sugestoes.length - 1 : sugIdx - 1
+        return true
+      }
+      if (nav === 'enter' && sugIdx >= 0) {
+        const escolha = sugestoes[sugIdx]
+        if (escolha) input = aplicarCompletar(input, escolha)
+        sugIdx = -1
+        return true
+      }
+    }
     const exibido = input.buffer
     const r = keypress(input, key)
     input = r.state
@@ -138,6 +159,10 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
       const modo = a.modo
       input = pararNavegacao(input)
       hooks.onEntrar(modo)
+      return true
+    }
+    if (a.kind === 'aba') {
+      hooks.onAba(a.dir)
       return true
     }
     if (a.kind === 'limpar') {
@@ -173,6 +198,11 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
 
   return {
     log,
+    abrirBoard: (): void => {
+      input = { ...input, navegando: 'board' }
+      if (!hooks.onNav(1, 'board')) input = pararNavegacao(input)
+      desenhar()
+    },
     run: () => new Promise<void>((resolve) => {
       resolver = resolve
       term.onKey(onChunk)

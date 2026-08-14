@@ -25,6 +25,7 @@ export type InputAction =
   | { kind: 'nav'; dir: -1 | 1; modo: ModoNavegacao }
   | { kind: 'entrar'; modo: ModoNavegacao }
   | { kind: 'limpar' }
+  | { kind: 'aba'; dir: -1 | 1 }
 
 export interface KeyResult {
   state: InputState
@@ -120,6 +121,15 @@ function navegarHistorico(state: InputState, delta: number): KeyResult {
   }
 }
 
+export type TeclaNavegacao = 'cima' | 'baixo' | 'enter' | ''
+
+export function classificarNavegacao(key: string): TeclaNavegacao {
+  if (key === UP) return 'cima'
+  if (key === DOWN) return 'baixo'
+  if (ENTER.includes(key)) return 'enter'
+  return ''
+}
+
 export function pararNavegacao(state: InputState): InputState {
   return state.navegando ? { ...state, navegando: '' } : state
 }
@@ -138,6 +148,8 @@ export function keypress(state: InputState, key: string): KeyResult {
     if (key === UP || key === DOWN) {
       return { state, action: { kind: 'nav', dir: key === UP ? -1 : 1, modo: state.navegando } }
     }
+    if (key === '\t') return { state, action: { kind: 'aba', dir: 1 } }
+    if (key === '\x1b[Z') return { state, action: { kind: 'aba', dir: -1 } }
     return keypress({ ...state, navegando: '' }, key)
   }
   if (ENTER.includes(key) && state.buffer.endsWith('\\')) {

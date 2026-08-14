@@ -45,6 +45,7 @@ function app(term: Fake, over: Partial<Parameters<typeof createApp>[1]> = {}): R
     onInterrupt: () => true,
     onNav: () => false,
     onEntrar: () => {},
+    onAba: () => {},
     podeLimpar: () => '',
     fixo: () => [],
     sugestoes: () => [],
@@ -230,4 +231,106 @@ test('link no log vira clicavel sem quebrar o quadro', () => {
   a.log('preview → http://localhost:5220')
   expect(t.saida.join('')).toContain('\x1b]8;;http://localhost:5220')
   expect(t.tela()).toContain('localhost:5220')
+})
+
+test('setas percorrem as sugestoes em vez de mexer no historico', () => {
+  const t = fakeTerminal()
+  void app(t, {
+    onComplete: () => ['/rm', '/repo', '/quit'],
+    sugestoes: (opcoes, sel) => opcoes.map((o, i) => `  ${i === sel ? '>' : ' '}${o}`),
+  }).run()
+  t.tecla('/')
+  t.tecla('\x1b[B')
+  expect(t.tela()).toContain('>/rm')
+  t.tecla('\x1b[B')
+  expect(t.tela()).toContain('>/repo')
+  t.tecla('\x1b[A')
+  expect(t.tela()).toContain('>/rm')
+})
+
+test('seta para cima no topo da lista volta para o fim', () => {
+  const t = fakeTerminal()
+  void app(t, {
+    onComplete: () => ['/rm', '/repo', '/quit'],
+    sugestoes: (opcoes, sel) => opcoes.map((o, i) => `  ${i === sel ? '>' : ' '}${o}`),
+  }).run()
+  t.tecla('/')
+  t.tecla('\x1b[A')
+  expect(t.tela()).toContain('>/quit')
+})
+
+test('enter com sugestao escolhida usa ela em vez de enviar', () => {
+  const t = fakeTerminal()
+  const linhas: string[] = []
+  void app(t, {
+    onComplete: () => ['/rm', '/repo'],
+    sugestoes: (opcoes, sel) => opcoes.map((o, i) => `  ${i === sel ? '>' : ' '}${o}`),
+    onLine: (l) => { linhas.push(l) },
+  }).run()
+  t.tecla('/')
+  t.tecla('\x1b[B')
+  t.tecla('\r')
+  expect(linhas).toEqual([])
+  expect(t.tela()).toContain('/rm')
+})
+
+test('enter sem escolher nenhuma envia a linha normalmente', async () => {
+  const t = fakeTerminal()
+  const linhas: string[] = []
+  void app(t, {
+    onComplete: () => ['/rm', '/repo'],
+    sugestoes: (opcoes) => opcoes.map(o => `  ${o}`),
+    onLine: (l) => { linhas.push(l) },
+  }).run()
+  for (const c of '/rm') t.tecla(c)
+  t.tecla('\r')
+  await new Promise(r => setTimeout(r, 5))
+  expect(linhas).toEqual(['/rm'])
+})
+
+test('sem sugestao na tela, setas voltam a ser historico', () => {
+  const t = fakeTerminal()
+  void app(t, { onComplete: () => [] }).run()
+  for (const c of 'tarefa antiga') t.tecla(c)
+  t.tecla('\r')
+  t.tecla('\x1b[A')
+  expect(t.tela()).toContain('tarefa antiga')
+})
+
+test('tab no board troca de projeto em vez de completar', () => {
+  const t = fakeTerminal()
+  const trocas: number[] = []
+  void app(t, { onNav: () => true, onAba: (dir) => { trocas.push(dir) } }).run()
+  t.tecla('\x1b[D')
+  t.tecla('\t')
+  t.tecla('\t')
+  expect(trocas).toEqual([1, 1])
+})
+
+test('shift+tab volta uma aba', () => {
+  const t = fakeTerminal()
+  const trocas: number[] = []
+  void app(t, { onNav: () => true, onAba: (dir) => { trocas.push(dir) } }).run()
+  t.tecla('\x1b[D')
+  t.tecla('\x1b[Z')
+  expect(trocas).toEqual([-1])
+})
+
+test('tab fora do board continua completando', () => {
+  const t = fakeTerminal()
+  const trocas: number[] = []
+  void app(t, { onComplete: () => ['/rm'], onAba: (dir) => { trocas.push(dir) } }).run()
+  t.tecla('/')
+  t.tecla('\t')
+  expect(trocas).toEqual([])
+  expect(t.tela()).toContain('/rm')
+})
+
+test('abrirBoard entra na tela do board', () => {
+  const t = fakeTerminal()
+  const a = app(t, { onNav: () => true, corpo: (ctx) => [ctx.navegando === 'board' ? 'TELA DO BOARD' : 'normal'] })
+  void a.run()
+  expect(t.tela()).toContain('normal')
+  a.abrirBoard()
+  expect(t.tela()).toContain('TELA DO BOARD')
 })

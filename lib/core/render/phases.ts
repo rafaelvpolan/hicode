@@ -30,3 +30,22 @@ export function isActive(status: string): boolean {
 export function waitsHuman(status: string): boolean {
   return WAITING_HUMAN.includes(status)
 }
+
+export interface EsperaHumano {
+  motivo: string
+  comando: string
+}
+
+const ESPERAS: Record<string, EsperaHumano> = {
+  CLARIFY: { motivo: 'precisa da sua resposta', comando: '/ask' },
+  PREVIEW: { motivo: 'preview pronto para ver', comando: '/ok' },
+  READY: { motivo: 'plano nao aprovado', comando: '/plan' },
+  INBOX: { motivo: 'plano nao aprovado', comando: '/plan' },
+  SPECCED: { motivo: 'plano nao aprovado', comando: '/plan' },
+  HALTED: { motivo: 'parou no meio', comando: '/plan' },
+  PR_OPEN: { motivo: 'PR aberto para voce revisar', comando: '/plan' },
+}
+
+export function esperaHumano(status: string): EsperaHumano | null {
+  return ESPERAS[status] ?? null
+}
