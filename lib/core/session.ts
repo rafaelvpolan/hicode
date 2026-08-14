@@ -1,5 +1,5 @@
 export type EffectKind =
-  | 'none' | 'submit' | 'approve-plan' | 'discard-plan' | 'board' | 'cards'
+  | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
   | 'ask' | 'answer' | 'rm' | 'confirm-rm'

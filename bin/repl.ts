@@ -20,11 +20,10 @@ import { planSteps } from '../lib/runner/analyze'
 import { extractObjetivo } from '../lib/card'
 import type { Fields } from '../lib/card'
 import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daemon'
-import { handle, newSession, planShown, seguir, perguntando, respondido, removendo } from '../lib/core/session'
-import { pendencia, responder, cardsPerguntando } from '../lib/core/responder'
-import { planejarRemocao, remover } from '../lib/core/remover'
-import { renderPergunta, renderRespondidas } from '../lib/core/render/clarify'
-import { readClarify } from '../lib/runner/clarify'
+import { handle, newSession, planShown, respondido, seguir } from '../lib/core/session'
+import { dispatch } from '../lib/core/dispatch'
+import type { DispatchIO } from '../lib/core/dispatch'
+import { cardsPerguntando } from '../lib/core/responder'
 import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
@@ -330,6 +329,24 @@ function start(): void {
   spawnSync(sh, ['start'], { stdio: 'inherit' })
 }
 
+function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void): DispatchIO {
+  return {
+    log: (l) => (l.startsWith(' ') || l === '' ? app.log(l) : diga(l)),
+    dim,
+    color,
+    plano: async (id) => {
+      const card = readCard(id)
+      const vivo = card?.fm.preview_url ? await httpOk(card.fm.preview_url) : false
+      return planoDe(id, vivo).split('\n')
+    },
+    atividade: (id) => {
+      const at = atividadeDe(id)
+      if (!at.length) return []
+      return [`#${id} — ${resumo(at) || 'sem ferramenta usada'}`, ...at.filter(x => x.tipo !== 'texto').slice(-14).map(formatar)]
+    },
+  }
+}
+
 async function tui(state0: SessionState): Promise<void> {
   let state = state0
   const term = nodeTerminal()
@@ -356,111 +373,19 @@ async function tui(state0: SessionState): Promise<void> {
       state = next
       const diga = (s: string): void => app.log('  ' + s)
       if (effect.kind === 'quit') { sairPedido = true; return }
-      if (effect.kind === 'help') { diga('escreva a tarefa · /board /cards /plan /watch /ask /ok /no /rm /halt /repo /quit'); return }
-      if (effect.kind === 'error') return diga(effect.text ?? '')
-      if (effect.kind === 'cards') {
-        const alvo = (effect.text ?? '').trim().toUpperCase()
-        const lista = allCards().filter(c => (!state.repo || c.repo === state.repo) && (!alvo || c.status === alvo))
-        if (!lista.length) return diga(alvo ? `nenhum card em ${alvo}` : 'nenhum card')
-        for (const c of lista) diga(`#${String(c.id).padStart(3, '0')} ${String(c.status).padEnd(12)} ${String(c.title ?? '').slice(0, 46)}`)
-        return
-      }
-      if (effect.kind === 'watch') {
-        const card = readCard(effect.id ?? '')
-        if (!card) { state = { ...state, seguindo: '' }; return diga(`card #${effect.id} nao encontrado`) }
-        if (card.fm.preview_url) diga(`preview → ${card.fm.preview_url}`)
-        return
-      }
-      if (effect.kind === 'activity') {
-        const at = atividadeDe(effect.id ?? '')
-        if (!at.length) return diga(`sem atividade registrada para #${effect.id}`)
-        diga(`#${effect.id} — ${resumo(at) || 'sem ferramenta usada'}`)
-        for (const a of at.filter(x => x.tipo !== 'texto').slice(-14)) diga(formatar(a))
-        return
-      }
-      if (effect.kind === 'plan') {
-        const card = readCard(effect.id ?? '')
-        if (!card) return diga(`card #${effect.id} nao encontrado`)
-        const vivo = card.fm.preview_url ? await httpOk(card.fm.preview_url) : false
-        const texto = planoDe(effect.id ?? '', vivo)
-        for (const l of texto.split('\n')) app.log(l)
-        const st = card.fm.status ?? 'INBOX'
-        if (core.canApprovePlan(st)) { state = planShown(state, effect.id ?? ''); diga('enter aprova e enfileira') }
-        else diga(`#${effect.id} esta em ${st} — plano so para leitura`)
-        return
-      }
-      if (effect.kind === 'approve-plan') {
-        const r = core.approvePlan(effect.id ?? '')
-        if (!r.ok) return diga(r.reason)
-        state = seguir(state, effect.id ?? '')
-        diga(`#${effect.id} aprovado e na fila — seguindo a execucao (/board volta)`)
-        return
-      }
-      if (effect.kind === 'approve-preview') {
-        const r = core.approvePreview(effect.id ?? '')
-        return diga(r.ok ? `#${effect.id} preview aprovado — segue para o polimento` : r.reason)
-      }
-      if (effect.kind === 'rm') {
-        const p = planejarRemocao(effect.id ?? '')
-        if (!p) return diga(`card #${effect.id} nao encontrado`)
-        if (p.bloqueio && effect.text !== 'force') return diga(p.bloqueio)
-        diga(`apagar #${p.id} "${p.titulo.slice(0, 44)}" (${p.status})?`)
-        if (p.worktree) diga(dim('  vai remover o worktree e parar o preview'))
-        for (const a of p.avisos) diga(dim(`  ${a}`))
-        state = removendo(state, p.id)
-        diga('s confirma · qualquer outra tecla cancela')
-        return
-      }
-      if (effect.kind === 'confirm-rm') {
-        if (effect.text !== 'sim') return diga('cancelado')
-        const r = await remover(effect.id ?? '', true)
-        if (!r.ok) return diga(r.reason)
-        diga(`#${effect.id} apagado — ${r.limpou.join(', ')}`)
-        return
-      }
-      if (effect.kind === 'ask') {
-        const alvo = effect.id || cardsPerguntando(allCards(), state.repo)[0] || ''
-        if (!alvo) return diga('nenhum card esperando resposta')
-        const p = pendencia(alvo)
-        if (!p) {
-          for (const l of renderRespondidas(alvo, readClarify(alvo), { color })) app.log(l)
-          return
-        }
-        for (const l of renderPergunta(p, { color })) app.log(l)
-        state = perguntando(state, alvo)
-        return
-      }
-      if (effect.kind === 'answer') {
-        const r = responder(effect.id ?? '', effect.text ?? '')
-        if (!r.ok) return diga(r.reason)
-        diga(`respondido: ${r.resposta}`)
-        if (r.restantes > 0) {
-          const proxima = pendencia(effect.id ?? '')
-          if (proxima) { for (const l of renderPergunta(proxima, { color })) app.log(l) }
-          return
-        }
-        state = seguir(respondido(state), effect.id ?? '')
-        diga(`#${effect.id} retomado — seguindo a execucao (/board volta)`)
-        return
-      }
-      if (effect.kind === 'reject-preview') {
-        const r = core.rejectPreview(effect.id ?? '', effect.text ?? '')
-        return diga(r.ok ? `#${effect.id} ${effect.text ? 'vai corrigir' : 'vai refazer'}` : r.reason)
-      }
-      if (effect.kind === 'halt') {
-        const r = core.halt(effect.id ?? '', effect.text ?? '')
-        return diga(r ? `#${effect.id} parado` : `card #${effect.id} nao encontrado`)
-      }
       if (effect.kind === 'submit') {
         if (state.perguntando) state = respondido(state)
         if (!state.repo) return diga('sem projeto — /repo <owner/nome>')
-        const id = core.submit({ title: effect.text ?? '', repo: state.repo })
-        diga(`card #${id} criado`)
-        for (const l of planoDe(id).split('\n')) app.log(l)
-        state = planShown(state, id)
+        const novoId = core.submit({ title: effect.text ?? '', repo: state.repo })
+        diga(`card #${novoId} criado`)
+        for (const l of planoDe(novoId).split('\n')) app.log(l)
+        state = planShown(state, novoId)
         diga('enter aprova e enfileira · outra tarefa descarta')
         return
       }
+      const r = await dispatch(effect, state, ioDo(app, diga))
+      state = r.state
+      if (!r.tratado && effect.kind === 'board') state = { ...state, seguindo: '' }
     },
   })
   await app.run()
@@ -493,38 +418,22 @@ async function main(): Promise<void> {
     const { effect, state: next } = handle(line, state)
     state = next
     if (effect.kind === 'quit') break
-    if (effect.kind === 'help') help()
-    else if (effect.kind === 'board') await boardAoVivo(state)
-    else if (effect.kind === 'cards') listCards(effect.text ?? '', state.repo)
-    else if (effect.kind === 'watch') watch(effect.id ?? '')
-    else if (effect.kind === 'plan') state = showPlan(effect.id ?? '', state)
-    else if (effect.kind === 'reopen-repo') {
+    if (effect.kind === 'board') { await boardAoVivo(state); continue }
+    if (effect.kind === 'reopen-repo') {
       state = { ...state, repo: await escolherProjeto(ask) }
       fleet(state)
-    } else if (effect.kind === 'error') say(dim('  ' + (effect.text ?? '')))
-    else if (effect.kind === 'approve-preview') {
-      const r = core.approvePreview(effect.id ?? '')
-      say(dim(r.ok ? `  #${effect.id} preview aprovado — segue para o polimento` : `  ${r.reason}`))
-      if (r.ok) fleet(state)
-    } else if (effect.kind === 'reject-preview') {
-      const motivo = effect.text ?? ''
-      const r = core.rejectPreview(effect.id ?? '', motivo)
-      say(dim(r.ok ? `  #${effect.id} ${motivo ? 'vai corrigir: ' + motivo : 'vai refazer'}` : `  ${r.reason}`))
-      if (r.ok) fleet(state)
-    } else if (effect.kind === 'halt') {
-      const r = core.halt(effect.id ?? '', effect.text ?? '')
-      say(dim(r ? `  #${effect.id} parado` : `  card #${effect.id} nao encontrado`))
-    } else if (effect.kind === 'submit') {
-      if (!state.repo) { say(dim('  defina o repo-alvo primeiro: /repo <owner/nome>')); continue }
-      const id = core.submit({ title: effect.text ?? '', repo: state.repo })
-      say(dim(`  card #${id} criado`))
-      state = showPlan(id, state)
-    } else if (effect.kind === 'approve-plan') {
-      const r = core.approvePlan(effect.id ?? '')
-      say(dim(r.ok ? `  #${effect.id} aprovado e na fila` : `  ${r.reason}`))
-      if (r.ok && !daemonPid()) say(dim('  daemon offline — vai rodar quando voce subir com `hii start`'))
-      if (r.ok) fleet(state)
+      continue
     }
+    if (effect.kind === 'submit') {
+      if (!state.repo) { say(dim('  defina o repo-alvo primeiro: /repo <owner/nome>')); continue }
+      const novoId = core.submit({ title: effect.text ?? '', repo: state.repo })
+      say(dim(`  card #${novoId} criado`))
+      state = showPlan(novoId, state)
+      continue
+    }
+    const passo = await dispatch(effect, state, ioDo({ log: (l) => say(l) }, (l) => say(dim('  ' + l))))
+    state = passo.state
+    if (effect.kind === 'approve-plan' && !daemonPid()) say(dim('  daemon offline — vai rodar quando voce subir com `hii start`'))
   }
   rl.close()
   say(dim('  sessao encerrada — os cards seguem rodando'))
