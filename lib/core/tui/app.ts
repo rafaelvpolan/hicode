@@ -55,28 +55,42 @@ export function createApp(term: Terminal, dados: AppHooks): App {
   const extras: string[] = []
   let sugestoes: string[] = []
   let sugIdx = -1
+  let sujo = true
+  let quadro: { fixo: string[]; corpo: string[]; rodape: string[] } = { fixo: [], corpo: [], rodape: [] }
   let input: InputState = newInput()
   let sair = false
   let resolver: (() => void) | null = null
   const screen = openScreen(term)
 
   const desenhar = (): void => {
-    const rodape = hooks.rodape()
+    const sugAnterior = sugestoes.join('\n')
     sugestoes = input.buffer.startsWith('/') && !input.buffer.includes('\n')
       ? hooks.onComplete(input.buffer)
       : []
     if (!sugestoes.length) sugIdx = -1
+    if (sugestoes.join('\n') !== sugAnterior) sujo = true
+    if (sujo) {
+      const rodape = hooks.rodape()
+      const ctx: CorpoContexto = {
+        navegando: input.navegando,
+        altura: Math.max(4, term.rows() - 6 - rodape.length - sugestoes.length),
+        sugerindo: sugestoes.length > 0,
+      }
+      const fixo = hooks.fixo(ctx)
+      const rolante = ctx.navegando === 'board' ? hooks.corpo(ctx) : [...hooks.corpo(ctx), ...extras]
+      const sobra = Math.max(1, ctx.altura - fixo.length)
+      quadro = { fixo, corpo: rolante.slice(-sobra), rodape }
+      sujo = false
+    }
+    const rodape = quadro.rodape
     const ctx: CorpoContexto = {
       navegando: input.navegando,
       altura: Math.max(4, term.rows() - 6 - rodape.length - sugestoes.length),
       sugerindo: sugestoes.length > 0,
     }
-    const fixo = hooks.fixo(ctx)
-    const rolante = ctx.navegando === 'board' ? hooks.corpo(ctx) : [...hooks.corpo(ctx), ...extras]
-    const sobra = Math.max(1, ctx.altura - fixo.length)
     screen.draw({
       header: hooks.header(),
-      corpo: [...fixo, ...rolante.slice(-sobra)],
+      corpo: [...quadro.fixo, ...quadro.corpo],
       input: ctx.navegando === 'board' ? '' : input.buffer,
       cursor: ctx.navegando === 'board' ? 0 : input.cursor,
       dica: hooks.dica(ctx),
@@ -91,6 +105,7 @@ export function createApp(term: Terminal, dados: AppHooks): App {
   const log = (linha: string): void => {
     for (const l of linha.split('\n')) extras.push(linkificar(l))
     if (extras.length > 500) extras.splice(0, extras.length - 500)
+    sujo = true
     if (!emLote) desenhar()
   }
 
@@ -166,20 +181,24 @@ export function createApp(term: Terminal, dados: AppHooks): App {
       return true
     }
     if (a.kind === 'nav') {
+      sujo = true
       if (!hooks.onNav(a.dir, a.modo)) input = pararNavegacao(input)
       return true
     }
     if (a.kind === 'entrar') {
       const modo = a.modo
       input = pararNavegacao(input)
+      sujo = true
       hooks.onEntrar(modo)
       return true
     }
     if (a.kind === 'aba') {
+      sujo = true
       hooks.onAba(a.dir)
       return true
     }
     if (a.kind === 'limpar') {
+      sujo = true
       const motivo = hooks.podeLimpar()
       if (motivo) log(`  ${motivo}`)
       else extras.length = 0
@@ -208,12 +227,13 @@ export function createApp(term: Terminal, dados: AppHooks): App {
     return a.kind === 'redraw'
   }
 
-  const timer = setInterval(desenhar, hooks.intervalMs)
+  const timer = setInterval(() => { sujo = true; desenhar() }, hooks.intervalMs)
 
   return {
     log,
     abrirBoard: (): void => {
       input = { ...input, navegando: 'board' }
+      sujo = true
       if (!hooks.onNav(1, 'board')) input = pararNavegacao(input)
       desenhar()
     },

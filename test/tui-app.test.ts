@@ -356,3 +356,41 @@ test('app funciona sem os hooks opcionais — nao explode em runtime', () => {
   t.tecla('\x0c')
   expect(t.tela()).toContain('hii')
 })
+
+test('digitar nao recalcula o corpo — so o quadro muda', () => {
+  const t = fakeTerminal()
+  let calculos = 0
+  void app(t, { corpo: () => { calculos++; return ['board'] } }).run()
+  const inicial = calculos
+  for (const c of 'uma tarefa qualquer') t.tecla(c)
+  expect(calculos).toBe(inicial)
+  expect(t.tela()).toContain('uma tarefa qualquer')
+})
+
+test('log novo recalcula o corpo', () => {
+  const t = fakeTerminal()
+  let calculos = 0
+  const a = app(t, { corpo: () => { calculos++; return ['board'] } })
+  void a.run()
+  const inicial = calculos
+  a.log('  algo aconteceu')
+  expect(calculos).toBeGreaterThan(inicial)
+})
+
+test('entrar em modo board recalcula o corpo', () => {
+  const t = fakeTerminal()
+  let calculos = 0
+  void app(t, { corpo: () => { calculos++; return ['board'] }, onNav: () => true }).run()
+  const inicial = calculos
+  t.tecla('\x1b[D')
+  expect(calculos).toBeGreaterThan(inicial)
+})
+
+test('sugestao nova recalcula o corpo (a altura muda)', () => {
+  const t = fakeTerminal()
+  let calculos = 0
+  void app(t, { corpo: () => { calculos++; return ['board'] }, onComplete: () => ['/rm'] }).run()
+  const inicial = calculos
+  t.tecla('/')
+  expect(calculos).toBeGreaterThan(inicial)
+})

@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { ROOT, reposFile } from '../lib/runner/config'
-import { allCards, listRepos, normalizeId, readCard, repoPath, repoRegistered } from '../lib/runner/card-store'
+import { allCards, listRepos, normalizeId, readCard, repoPath, repoRegistered, findCardFile } from '../lib/runner/card-store'
 import { hasDevServer, previewPort, httpOk, ensurePreview, waitHttp, stopPreview } from '../lib/runner/preview'
 import { PREVIEW_BASE_PORT } from '../lib/runner/config'
 import * as core from '../lib/core/actions'
@@ -25,6 +25,8 @@ import { handle, newSession, planShown, respondido, seguir, perguntando } from '
 import { dispatch } from '../lib/core/dispatch'
 import type { DispatchIO } from '../lib/core/dispatch'
 import { cardsPerguntando, pendencia } from '../lib/core/responder'
+import { memoTempo, memoArquivo } from '../lib/core/cache'
+import type { PipelineStep } from '../lib/runner/pipeline/types'
 import { renderOpcoesRodape } from '../lib/core/render/clarify'
 import { renderSugestoes, prefixoComum } from '../lib/core/render/sugestoes'
 import { etiquetaDoProjeto, corDoProjeto, nomeCurto } from '../lib/core/render/projeto'
@@ -56,7 +58,7 @@ function dim(s: string): string {
 }
 
 function projetos(): ReturnType<typeof resumirProjetos> {
-  return resumirProjetos(repoStatus().map(r => ({ name: r.name, cloneOk: r.cloneOk })), allCards())
+  return resumirProjetos(repoStatus().map(r => ({ name: r.name, cloneOk: r.cloneOk })), todosOsCards())
 }
 
 async function escolherProjeto(ask: (q: string) => Promise<string | null>): Promise<string> {
@@ -79,23 +81,39 @@ async function escolherProjeto(ask: (q: string) => Promise<string | null>): Prom
   }
 }
 
-function atividadeDe(id: string): ReturnType<typeof parseLog> {
-  try {
-    return parseLog(readFileSync(join(cardsDir(), 'runs', `${normalizeId(id)}.live.log`), 'utf8'))
-  } catch {
-    return []
-  }
-}
+const atividadeDe = memoArquivo(
+  (id) => join(cardsDir(), 'runs', `${normalizeId(id)}.live.log`),
+  (id: string): ReturnType<typeof parseLog> => {
+    try {
+      return parseLog(readFileSync(join(cardsDir(), 'runs', `${normalizeId(id)}.live.log`), 'utf8'))
+    } catch {
+      return []
+    }
+  },
+)
+
+const planoDoCard = memoArquivo(
+  (id) => join(cardsDir(), findCardFile(id) ?? 'inexistente'),
+  (id: string): PipelineStep[] => {
+    const card = readCard(id)
+    if (!card) return []
+    const objetivo = extractObjetivo(card.body) || card.fm.title
+    return planSteps(
+      { title: card.fm.title, objetivo, risk: card.fm.risk, surface: card.fm.surface, override: card.fm.steps },
+      passosAtivos(),
+    ).steps
+  },
+)
+
+const passosAtivos = memoTempo(() => activeSteps(), 5000)
+const todosOsCards = memoTempo(() => allCards(), 250)
+const reposRegistrados = memoTempo(() => listRepos(), 2000)
 
 function passosDe(c: Fields): ReturnType<typeof passosDoCard> {
-  const card = readCard(String(c.id ?? ''))
-  if (!card) return []
-  const objetivo = extractObjetivo(card.body) || card.fm.title
-  const plano = planSteps(
-    { title: card.fm.title, objetivo, risk: card.fm.risk, surface: card.fm.surface, override: card.fm.steps },
-    activeSteps(),
-  )
-  return passosDoCard(c, plano.steps, readRunSteps(String(c.id ?? '')))
+  const id = String(c.id ?? '')
+  const steps = planoDoCard(id)
+  if (!steps.length) return []
+  return passosDoCard(c, steps, readRunSteps(id))
 }
 
 function planoDe(id: string, ativo = false, subindo = false): string {
@@ -140,7 +158,7 @@ function seguimento(state: SessionState): string[] {
 
 function custoDoDia(repo: string): string {
   const hoje = new Date().toISOString().slice(0, 10)
-  const t = allCards()
+  const t = todosOsCards()
     .filter(c => (!repo || c.repo === repo) && String(c.updated ?? '').startsWith(hoje))
     .reduce((a, c) => a + (parseFloat(String(c.cost_usd ?? '0')) || 0), 0)
   return t ? t.toFixed(2) : ''
@@ -168,7 +186,7 @@ function rodapeDa(state: SessionState, noRodape = false): string[] {
     custoHoje: custoDoDia(state.repo),
     divergentes: papeisDivergentes(),
   }, { color, width: largura })
-  const cards = allCards()
+  const cards = todosOsCards()
   const rodando = emExecucao(cards, state.repo, Date.now(), id => ultimoAgente(atividadeDe(id)))
   const marcado = {
     color, now: Date.now(), width: largura,
@@ -197,7 +215,7 @@ function dicaDa(state: SessionState, sugerindo = false): string {
   if (state.removendo) return 'enter confirma  n cancela'
   if (state.perguntando) return '↓ escolhe  numero responde  enter confirma'
   if (state.perguntando) return 'numero responde  ctrl+j quebra linha'
-  const esperando = cardsPerguntando(allCards(), state.repo)
+  const esperando = cardsPerguntando(todosOsCards(), state.repo)
   if (esperando.length) return `/ask responde #${esperando[0]}  ctrl+c sai`
   if (state.seguindo) return '/board volta  ctrl+c sai'
   return '/help  ctrl+j quebra linha  ctrl+l limpa  ctrl+c sai'
@@ -210,14 +228,14 @@ function ordemDoRodape(state: SessionState): string[] {
     const p = pendencia(state.perguntando)
     if (p) return p.atual.options.map((_, i) => `op:${i + 1}`)
   }
-  const cards = allCards()
+  const cards = todosOsCards()
   const rodando = emExecucao(cards, state.repo, Date.now(), () => '').map(e => e.id)
   const espera = esperandoVoce(cards, state.repo).map(e => e.id)
   return [...rodando, ...espera.filter(id => !rodando.includes(id))]
 }
 
 function navegar(state: SessionState, dir: -1 | 1, modo: ModoNavegacao): boolean {
-  const ordem = modo === 'rodape' ? ordemDoRodape(state) : ordemDoBoard(allCards(), state.repo)
+  const ordem = modo === 'rodape' ? ordemDoRodape(state) : ordemDoBoard(todosOsCards(), state.repo)
   if (!ordem.length) return false
   const atual = ordem.indexOf(selecionado)
   const proximo = atual < 0 ? 0 : atual + dir
@@ -234,23 +252,23 @@ function opcoesDoBoard(state: SessionState): Parameters<typeof renderBoard>[1] {
 }
 
 function board(state: SessionState): string {
-  return renderBoard(allCards(), opcoesDoBoard(state))
+  return renderBoard(todosOsCards(), opcoesDoBoard(state))
 }
 
 function boardNavegavel(state: SessionState, altura: number): string[] {
-  const cards = allCards()
-  const abas = renderAbas(abasDe(listRepos().map(r => r.name), cards), state.repo, { color })
+  const cards = todosOsCards()
+  const abas = renderAbas(abasDe(reposRegistrados().map(r => r.name), cards), state.repo, { color })
   const cabecalho = [
     `  ${color ? ACC : ''}board${color ? RESET : ''} ${dim(abas.length ? '· ↑↓ move · tab troca de projeto · enter abre · → volta' : '· ↑↓ move · enter abre · → volta a escrever')}`,
     '',
     ...abas,
   ]
-  const corpo = renderBoardJanela(allCards(), opcoesDoBoard(state), Math.max(4, altura - cabecalho.length))
+  const corpo = renderBoardJanela(todosOsCards(), opcoesDoBoard(state), Math.max(4, altura - cabecalho.length))
   return [...cabecalho, ...corpo]
 }
 
 function avisoRepos(state: SessionState): void {
-  const registrados = listRepos()
+  const registrados = reposRegistrados()
   if (!registrados.length) {
     say(dim(`  nenhum repo-alvo registrado em ${reposFile()}`))
     say(dim('  copie o modelo e ajuste o `path` para o clone local:'))
@@ -273,15 +291,15 @@ function avisoRepos(state: SessionState): void {
 
 function completer(line: string): [string[], string] {
   return complete(line, {
-    repos: listRepos().map(r => r.name),
-    cards: allCards().map(c => String(c.id ?? '')).filter(Boolean),
+    repos: reposRegistrados().map(r => r.name),
+    cards: todosOsCards().map(c => String(c.id ?? '')).filter(Boolean),
     statuses: [...STATUSES],
   })
 }
 
 function fleet(state: SessionState): void {
   say('')
-  say(renderFleet(allCards().filter(c => !state.repo || c.repo === state.repo), { color, repo: state.repo, daemon: daemonStatus() }))
+  say(renderFleet(todosOsCards().filter(c => !state.repo || c.repo === state.repo), { color, repo: state.repo, daemon: daemonStatus() }))
   say('')
 }
 
@@ -307,7 +325,7 @@ function showPlan(id: string, state: SessionState): SessionState {
 
 function listCards(filtro: string, repo: string): void {
   const wanted = filtro.trim().toUpperCase()
-  const cards = allCards()
+  const cards = todosOsCards()
     .filter(c => !repo || c.repo === repo)
     .filter(c => !wanted || String(c.status ?? '') === wanted)
   if (!cards.length) return say(dim(wanted ? `nenhum card em ${wanted}` : 'nenhum card'))
@@ -381,7 +399,7 @@ function start(): void {
 }
 
 async function listarPreviews(limpar: boolean): Promise<string[]> {
-  const cards = allCards()
+  const cards = todosOsCards()
   const vivos: string[] = []
   for (const c of cards) {
     const url = c.preview_url || ''
@@ -505,7 +523,7 @@ async function tui(state0: SessionState): Promise<void> {
     prompt: () => '› ',
     legenda: () => etiquetaDoProjeto(state.repo, {
       color,
-      indice: listRepos().findIndex(r => r.name === state.repo),
+      indice: reposRegistrados().findIndex(r => r.name === state.repo),
       detalhe: state.seguindo ? `tarefa #${state.seguindo}` : '',
     }),
     rodape: () => rodapeDa(state, modoAtual === 'rodape'),
@@ -519,7 +537,7 @@ async function tui(state0: SessionState): Promise<void> {
     onInterrupt: () => { sairPedido = true; return true },
     onNav: (dir, modo) => navegar(state, dir, modo),
     onAba: (dir) => {
-      const nomes = listRepos().map(r => r.name)
+      const nomes = reposRegistrados().map(r => r.name)
       if (nomes.length < 2) return
       const i = nomes.indexOf(state.repo)
       const proximo = nomes[(i + dir + nomes.length) % nomes.length] ?? state.repo
@@ -527,7 +545,7 @@ async function tui(state0: SessionState): Promise<void> {
       selecionado = ''
     },
     podeLimpar: () => {
-      const rodando = emExecucao(allCards(), state.repo, Date.now(), () => '')
+      const rodando = emExecucao(todosOsCards(), state.repo, Date.now(), () => '')
       if (!rodando.length) return ''
       const ids = rodando.map(e => `#${e.id}`).join(' ')
       return `${ids} em execucao — a area so limpa quando terminar`
