@@ -62,6 +62,9 @@ Com mais de um projeto registrado, a sessão **abre pela lista de projetos** —
 cada um tem, quantos esperam você, quantos rodam e quantos pararam. Você entra em um e tudo depois
 disso é **escopado a ele**: board, `/cards`, a faixa da frota. Com um projeto só, entra direto.
 
+**Colar funciona** — link, texto ou bloco inteiro. Colagem grande vira um marcador compacto
+(`[colado #1 · 47 linhas]`) e só expande no envio, então o input não vira uma parede de texto.
+
 Duas garantias de desenho:
 
 - **O REPL é cliente, nunca um segundo motor.** Ele não processa a fila e não chama IA: pede o

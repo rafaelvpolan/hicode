@@ -1,6 +1,7 @@
 import { openScreen } from './screen'
 import type { Terminal } from './screen'
 import { newInput, keypress, aplicarCompletar } from './input'
+import { tokenize, agruparColagem } from './keys'
 import type { InputState } from './input'
 
 export interface AppHooks {
@@ -47,19 +48,28 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
     if (sair) return
     sair = true
     clearInterval(timer)
-    term.offKey(onKey)
+    term.offKey(onChunk)
     screen.close()
     resolver?.()
   }
 
+  const onChunk = (chunk: string): void => {
+    if (sair) return
+    for (const token of agruparColagem(tokenize(chunk))) {
+      onKey(token)
+      if (sair) return
+    }
+  }
+
   const onKey = (key: string): void => {
     if (sair) return
+    const exibido = input.buffer
     const r = keypress(input, key)
     input = r.state
     const a = r.action
     if (a.kind === 'submit') {
       if (a.line.trim() || a.line === '') {
-        log(`${hooks.prompt()}${a.line}`)
+        log(`${hooks.prompt()}${exibido}`)
         void Promise.resolve(hooks.onLine(a.line)).then(desenhar)
       }
       desenhar()
@@ -87,7 +97,7 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
     log,
     run: () => new Promise<void>((resolve) => {
       resolver = resolve
-      term.onKey(onKey)
+      term.onKey(onChunk)
       desenhar()
     }),
   }

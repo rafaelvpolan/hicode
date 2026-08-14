@@ -1,10 +1,16 @@
+import { ehCola, textoDaCola } from './keys'
+
 export interface InputState {
   buffer: string
   cursor: number
   history: string[]
   histIdx: number
   draft: string
+  pastes: string[]
 }
+
+export const LIMITE_COLA = Number(process.env.HICODE_PASTE_INLINE_MAX || 120)
+const RE_MARCADOR = /\[colado #(\d+)[^\]]*\]/g
 
 export type InputAction =
   | { kind: 'none' }
@@ -20,7 +26,27 @@ export interface KeyResult {
 }
 
 export function newInput(history: string[] = []): InputState {
-  return { buffer: '', cursor: 0, history, histIdx: history.length, draft: '' }
+  return { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [] }
+}
+
+function inserirTexto(state: InputState, texto: string): InputState {
+  const buffer = state.buffer.slice(0, state.cursor) + texto + state.buffer.slice(state.cursor)
+  return limpo(state, buffer, state.cursor + texto.length)
+}
+
+export function colar(state: InputState, bruto: string): InputState {
+  const texto = bruto.replace(/\r\n?/g, '\n')
+  const linhas = texto.split('\n').length
+  const inline = texto.length <= LIMITE_COLA && linhas === 1
+  if (inline) return inserirTexto(state, texto.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ''))
+  const pastes = [...state.pastes, texto]
+  const medida = linhas > 1 ? `${linhas} linhas` : `${texto.length} chars`
+  const marcador = `[colado #${pastes.length} · ${medida}]`
+  return { ...inserirTexto(state, marcador), pastes }
+}
+
+export function expandir(state: InputState, linha: string): string {
+  return linha.replace(RE_MARCADOR, (m, n: string) => state.pastes[Number(n) - 1] ?? m)
 }
 
 const ENTER = ['\r', '\n']
@@ -67,8 +93,8 @@ export function keypress(state: InputState, key: string): KeyResult {
       ? [...state.history, line]
       : state.history
     return {
-      state: { buffer: '', cursor: 0, history, histIdx: history.length, draft: '' },
-      action: { kind: 'submit', line },
+      state: { buffer: '', cursor: 0, history, histIdx: history.length, draft: '', pastes: [] },
+      action: { kind: 'submit', line: expandir(state, line) },
     }
   }
   if (key === '\x03') return { state, action: { kind: 'interrupt' } }
@@ -99,9 +125,15 @@ export function keypress(state: InputState, key: string): KeyResult {
   if (END.includes(key)) return { state: limpo(state, state.buffer, state.buffer.length), action: { kind: 'redraw' } }
   if (key === UP) return navegarHistorico(state, -1)
   if (key === DOWN) return navegarHistorico(state, 1)
+  if (ehCola(key)) {
+    return { state: colar(state, textoDaCola(key)), action: { kind: 'redraw' } }
+  }
   if (imprimivel(key)) {
     const buffer = state.buffer.slice(0, state.cursor) + key + state.buffer.slice(state.cursor)
     return { state: limpo(state, buffer, state.cursor + 1), action: { kind: 'redraw' } }
+  }
+  if (key.length > 1 && [...key].every(c => c.charCodeAt(0) >= 32)) {
+    return { state: colar(state, key), action: { kind: 'redraw' } }
   }
   return { state, action: { kind: 'none' } }
 }

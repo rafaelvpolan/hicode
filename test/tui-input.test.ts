@@ -139,3 +139,77 @@ test('aplicarCompletar troca so a ultima palavra', () => {
   expect(aplicarCompletar(digitar('/repo acme/a'), 'acme/api').buffer).toBe('/repo acme/api')
   expect(aplicarCompletar(digitar('/re'), '/repo').buffer).toBe('/repo')
 })
+
+import { colar, expandir, LIMITE_COLA } from '../lib/core/tui/input'
+import { tokenize, marcarCola, ehCola, textoDaCola, agruparColagem } from '../lib/core/tui/keys'
+
+test('REGRESSAO colar texto curto entra inteiro no input', () => {
+  const s = keypress(newInput(), marcarCola('https://github.com/org/repo/pull/18')).state
+  expect(s.buffer).toBe('https://github.com/org/repo/pull/18')
+})
+
+test('REGRESSAO colar sem marcador de bracketed paste ainda funciona', () => {
+  const r = keypress(newInput(), 'texto colado direto pelo terminal')
+  expect(r.state.buffer).toContain('texto colado direto')
+})
+
+test('colagem longa vira marcador compacto e expande no envio', () => {
+  const grande = 'linha\n'.repeat(40)
+  const s = colar(newInput(), grande)
+  expect(s.buffer).toMatch(/\[colado #1 · 41 linhas\]/)
+  expect(s.buffer.length).toBeLessThan(40)
+  expect(expandir(s, s.buffer)).toBe(grande.replace(/\r\n?/g, '\n'))
+})
+
+test('colagem de uma linha muito longa tambem compacta, medindo chars', () => {
+  const s = colar(newInput(), 'x'.repeat(LIMITE_COLA + 50))
+  expect(s.buffer).toContain('chars')
+  expect(expandir(s, s.buffer).length).toBe(LIMITE_COLA + 50)
+})
+
+test('duas colagens viram marcadores distintos e ambas expandem', () => {
+  let s = colar(newInput(), 'a\nb\nc\nd')
+  s = colar(s, 'e\nf\ng\nh')
+  expect(s.buffer).toContain('#1')
+  expect(s.buffer).toContain('#2')
+  const cheio = expandir(s, s.buffer)
+  expect(cheio).toContain('a\nb\nc\nd')
+  expect(cheio).toContain('e\nf\ng\nh')
+})
+
+test('enter entrega o texto EXPANDIDO', () => {
+  const s = colar(newInput(), 'muitas\nlinhas\naqui\nmesmo')
+  const r = keypress(s, '\r')
+  expect(r.action.kind).toBe('submit')
+  expect(r.action.kind === 'submit' && r.action.line).toContain('muitas\nlinhas')
+})
+
+test('tokenize separa sequencia de escape de caractere solto', () => {
+  expect(tokenize('ab\x1b[Acd')).toEqual(['a', 'b', '\x1b[A', 'c', 'd'])
+})
+
+test('tokenize extrai a colagem entre os marcadores do terminal', () => {
+  const t = tokenize('\x1b[200~texto colado\x1b[201~')
+  expect(t.length).toBe(1)
+  expect(ehCola(t[0] ?? '')).toBe(true)
+  expect(textoDaCola(t[0] ?? '')).toBe('texto colado')
+})
+
+test('tokenize aguenta colagem sem o marcador de fim', () => {
+  const t = tokenize('\x1b[200~sem fim')
+  expect(textoDaCola(t[0] ?? '')).toBe('sem fim')
+})
+
+test('tokenize preserva emoji e acento como um token cada', () => {
+  expect(tokenize('áé')).toEqual(['á', 'é'])
+})
+
+test('agruparColagem junta rajada de imprimiveis, mas nao digitacao curta', () => {
+  expect(agruparColagem(['a', 'b', 'c'])).toEqual(['a', 'b', 'c'])
+  const rajada = [...'texto colado sem bracketed paste']
+  expect(agruparColagem(rajada).length).toBe(1)
+})
+
+test('agruparColagem nao junta quando ha tecla de controle no meio', () => {
+  expect(agruparColagem(['a', 'b', 'c', 'd', 'e', '\x1b[A']).length).toBe(6)
+})
