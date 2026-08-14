@@ -22,6 +22,8 @@ import type { Fields } from '../lib/card'
 import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daemon'
 import { handle, newSession, planShown } from '../lib/core/session'
 import { complete } from '../lib/core/complete'
+import { createApp } from '../lib/core/tui/app'
+import { nodeTerminal } from '../lib/core/tui/screen'
 import { STATUSES } from '../lib/card'
 import type { SessionState } from '../lib/core/session'
 
@@ -227,6 +229,85 @@ function start(): void {
   spawnSync(sh, ['start'], { stdio: 'inherit' })
 }
 
+async function tui(state0: SessionState): Promise<void> {
+  let state = state0
+  const term = nodeTerminal()
+  let sairPedido = false
+  const app = createApp(term, {
+    header: () => `hii · ${state.repo || '(sem projeto)'}   daemon ${daemonStatus()}`,
+    corpo: () => board(state).split('\n'),
+    dica: () => '/help  ctrl+c sai',
+    prompt: () => '› ',
+    intervalMs: 1500,
+    onComplete: (linha) => completer(linha)[0],
+    onInterrupt: () => { sairPedido = true; return true },
+    onLine: async (linha) => {
+      const { effect, state: next } = handle(linha, state)
+      state = next
+      const diga = (s: string): void => app.log('  ' + s)
+      if (effect.kind === 'quit') { sairPedido = true; return }
+      if (effect.kind === 'help') { diga('escreva a tarefa · /board /cards /plan /watch /ok /no /halt /repo /quit'); return }
+      if (effect.kind === 'error') return diga(effect.text ?? '')
+      if (effect.kind === 'cards') {
+        const alvo = (effect.text ?? '').trim().toUpperCase()
+        const lista = allCards().filter(c => (!state.repo || c.repo === state.repo) && (!alvo || c.status === alvo))
+        if (!lista.length) return diga(alvo ? `nenhum card em ${alvo}` : 'nenhum card')
+        for (const c of lista) diga(`#${String(c.id).padStart(3, '0')} ${String(c.status).padEnd(12)} ${String(c.title ?? '').slice(0, 46)}`)
+        return
+      }
+      if (effect.kind === 'watch') {
+        const card = readCard(effect.id ?? '')
+        if (!card) return diga(`card #${effect.id} nao encontrado`)
+        for (const l of card.body.split('\n').filter(l => /^\d{4}-/.test(l.trim())).slice(-8)) diga(l.slice(0, 110))
+        if (card.fm.preview_url) diga(`preview → ${card.fm.preview_url}`)
+        return
+      }
+      if (effect.kind === 'plan') {
+        const card = readCard(effect.id ?? '')
+        if (!card) return diga(`card #${effect.id} nao encontrado`)
+        const alvo = repoPath(card.fm.repo ?? '')
+        const plano = buildPlan({ card, hasDevServer: existsSync(alvo) && hasDevServer(alvo) })
+        for (const l of renderPlan(plano, { color: true }).split('\n')) app.log(l)
+        const st = card.fm.status ?? 'INBOX'
+        if (core.canApprovePlan(st)) { state = planShown(state, effect.id ?? ''); diga('enter aprova e enfileira') }
+        else diga(`#${effect.id} esta em ${st} — plano so para leitura`)
+        return
+      }
+      if (effect.kind === 'approve-plan') {
+        const r = core.approvePlan(effect.id ?? '')
+        return diga(r.ok ? `#${effect.id} aprovado e na fila` : r.reason)
+      }
+      if (effect.kind === 'approve-preview') {
+        const r = core.approvePreview(effect.id ?? '')
+        return diga(r.ok ? `#${effect.id} preview aprovado — segue para o polimento` : r.reason)
+      }
+      if (effect.kind === 'reject-preview') {
+        const r = core.rejectPreview(effect.id ?? '', effect.text ?? '')
+        return diga(r.ok ? `#${effect.id} ${effect.text ? 'vai corrigir' : 'vai refazer'}` : r.reason)
+      }
+      if (effect.kind === 'halt') {
+        const r = core.halt(effect.id ?? '', effect.text ?? '')
+        return diga(r ? `#${effect.id} parado` : `card #${effect.id} nao encontrado`)
+      }
+      if (effect.kind === 'submit') {
+        if (!state.repo) return diga('sem projeto — /repo <owner/nome>')
+        const id = core.submit({ title: effect.text ?? '', repo: state.repo })
+        diga(`card #${id} criado`)
+        const card = readCard(id)
+        if (card) {
+          const alvo = repoPath(card.fm.repo ?? '')
+          for (const l of renderPlan(buildPlan({ card, hasDevServer: existsSync(alvo) && hasDevServer(alvo) }), { color: true }).split('\n')) app.log(l)
+          state = planShown(state, id)
+          diga('enter aprova e enfileira · outra tarefa descarta')
+        }
+        return
+      }
+    },
+  })
+  await app.run()
+  if (sairPedido) say(dim('  sessao encerrada — os cards seguem rodando'))
+}
+
 async function main(): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout, completer })
   const lines = rl[Symbol.asyncIterator]()
@@ -240,6 +321,11 @@ async function main(): Promise<void> {
   await ensureDaemon(ask)
   let state = newSession(await escolherProjeto(ask))
   avisoRepos(state)
+  if (color) {
+    rl.close()
+    await tui(state)
+    return
+  }
   fleet(state)
 
   for (;;) {
