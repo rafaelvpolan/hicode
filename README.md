@@ -361,9 +361,18 @@ restart no meio do caminho:
 | `EXECUTING` `CORRECTING` `SPECCED` | reexecutado | o job foi interrompido; a fila reprocessa |
 | `EXECUTED` | → `EXECUTING` | estado transitório sem consumidor — um card só fica aqui se o preview não concluiu ou foi **rejeitado sem worktree**; reexecuta em vez de ficar órfão |
 
-**Worktree idempotente** — `ensureWorktree` sempre parte de `origin/<base>` limpo e **nunca trava
-por sobra de estado**: roda `git worktree prune`, remove o path-alvo (e apaga diretório-fantasma
-não-registrado), **remove qualquer outro worktree que segure a mesma branch** e só então recria.
+**Toda task parte da base ATUALIZADA — e falha se não conseguir.** `ensureWorktree` faz
+`fetch origin/<base>`, **verifica o resultado** e cria a branch de `origin/<base>` recém-buscado.
+Se o fetch falhar (rede, credencial), o card **para** em vez de nascer de estado velho — antes o
+erro do fetch era descartado e a branch saía de um `origin/main` em cache, silenciosamente. O
+commit de origem fica gravado no card (`base_commit`), então dá para auditar de onde a branch saiu.
+
+Card com **spec** reaproveita o worktree; nesse caminho o motor faz `fetch` + integra o que a base
+andou (`refreshFromBase`) antes de executar. Conflito na integração para o card com o motivo.
+
+**Worktree idempotente** — `ensureWorktree` **nunca trava por sobra de estado**: roda
+`git worktree prune`, remove o path-alvo (e apaga diretório-fantasma não-registrado), **remove
+qualquer outro worktree que segure a mesma branch** e só então recria.
 
 **Timeout & HALT** — cada chamada de IA é morta em `HICODE_RUN_TIMEOUT_MS` (default **15 min**)
 com `SIGTERM`→`SIGKILL`; **no timeout o worktree é preservado** p/ inspeção/retomada. Um card em

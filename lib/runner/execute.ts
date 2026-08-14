@@ -6,7 +6,7 @@ import { cardsDir, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
 import { clarify, writeClarify } from './clarify'
 import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
+import { ensureWorktree, refreshFromBase, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
 import { ensurePreview, hasDevServer, inspectPreview, previewPort, stopPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
@@ -121,8 +121,15 @@ export async function handleExecute(id: string): Promise<void> {
     if (reuse) {
       await runGit(wt, ['reset', '--hard', 'HEAD'])
       await runGit(wt, ['clean', '-fd', '-e', 'node_modules'])
+      const up = await refreshFromBase(wt, base)
+      if (!up.ok) {
+        patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED nao consegui partir de ${base} atualizado: ${up.detail}`)
+        return
+      }
+      patchCard(id, {}, `${isoNow()} base: ${up.detail} (worktree do spec reaproveitado)`)
     } else {
-      await ensureWorktree(target, wt, branch, base)
+      const info = await ensureWorktree(target, wt, branch, base)
+      patchCard(id, { base_commit: info.baseCommit }, `${isoNow()} base: branch criada de origin/${base}@${info.baseCommit}`)
     }
   } catch (e) {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED ${String((e as Error)?.message ?? e).slice(0, 140)}`)

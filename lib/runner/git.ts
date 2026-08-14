@@ -81,9 +81,40 @@ async function worktreesHoldingBranch(target: string, branch: string): Promise<s
   return worktreePathsForBranch(String(r.stdout || ''), branch)
 }
 
-export async function ensureWorktree(target: string, wt: string, branch: string, base: string): Promise<string> {
+export interface WorktreeInfo {
+  path: string
+  baseCommit: string
+}
+
+export interface RefreshResult {
+  ok: boolean
+  changed: boolean
+  detail: string
+}
+
+export async function refreshFromBase(wt: string, base: string): Promise<RefreshResult> {
+  const f = await withGitLock(() => runGit(wt, ['fetch', 'origin', base]))
+  if (f.err) return { ok: false, changed: false, detail: `fetch origin/${base} falhou: ${String(f.stderr || '').slice(0, 120)}` }
+  const atras = Number((await runGit(wt, ['rev-list', '--count', `HEAD..origin/${base}`])).stdout.trim()) || 0
+  if (!atras) return { ok: true, changed: false, detail: `ja atualizado com origin/${base}` }
+  const m = await runGit(wt, ['merge', '--no-edit', `origin/${base}`])
+  if (m.err) {
+    await runGit(wt, ['merge', '--abort'])
+    return { ok: false, changed: false, detail: `conflito ao integrar ${atras} commit(s) de origin/${base}` }
+  }
+  return { ok: true, changed: true, detail: `integrou ${atras} commit(s) de origin/${base}` }
+}
+
+export async function ensureWorktree(target: string, wt: string, branch: string, base: string): Promise<WorktreeInfo> {
   return withGitLock(async () => {
-    await runGit(target, ['fetch', 'origin', base])
+    const f = await runGit(target, ['fetch', 'origin', base])
+    if (f.err) {
+      throw new Error(`fetch origin/${base} falhou — a branch nasceria de estado velho: ${String(f.stderr || '').slice(0, 120)}`)
+    }
+    const ref = await runGit(target, ['rev-parse', `origin/${base}`])
+    if (ref.err || !ref.stdout.trim()) {
+      throw new Error(`origin/${base} nao existe no remoto — confira a branch base do alvo em config/repos.json`)
+    }
     await runGit(target, ['worktree', 'prune'])
     if (existsSync(wt)) {
       await runGit(target, ['worktree', 'remove', '--force', wt])
@@ -99,7 +130,7 @@ export async function ensureWorktree(target: string, wt: string, branch: string,
     if (!existsSync(nm) && existsSync(join(target, 'node_modules'))) {
       try { symlinkSync(join(target, 'node_modules'), nm, 'dir') } catch { void 0 }
     }
-    return wt
+    return { path: wt, baseCommit: ref.stdout.trim().slice(0, 7) }
   })
 }
 
