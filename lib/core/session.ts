@@ -23,7 +23,7 @@ export interface Reply {
   state: SessionState
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/quit'] as const
+export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/project', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
   return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '' }
@@ -106,6 +106,7 @@ function command(line: string, state: SessionState): Reply {
         ? reply({ kind: 'reject-preview', id: rest[0], text: rest.slice(1).join(' ') }, cleared)
         : reply({ kind: 'error', text: 'uso: /no <id> [o que corrigir]' }, state)
     case 'repo':
+    case 'project':
     case 'projeto':
       return arg
         ? reply({ kind: 'none' }, { ...state, repo: arg })

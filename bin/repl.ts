@@ -27,6 +27,7 @@ import type { DispatchIO } from '../lib/core/dispatch'
 import { cardsPerguntando, pendencia } from '../lib/core/responder'
 import { renderOpcoesRodape } from '../lib/core/render/clarify'
 import { renderSugestoes, prefixoComum } from '../lib/core/render/sugestoes'
+import { etiquetaDoProjeto, corDoProjeto, nomeCurto } from '../lib/core/render/projeto'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { renderCabecalhoTarefa } from '../lib/core/render/tarefa'
 import { subPrompts } from '../lib/core/instruir'
@@ -493,7 +494,7 @@ async function tui(state0: SessionState): Promise<void> {
   }
 
   const app = createApp(term, {
-    header: () => `hii · ${state.repo || '(sem projeto)'}${state.seguindo ? ` · seguindo #${state.seguindo}` : ''}   daemon ${daemonStatus()}`,
+    header: () => `${color ? ACC : ''}hii${color ? RESET : ''}${dim(`   daemon ${daemonStatus()}`)}`,
     corpo: (ctx) => {
       modoAtual = ctx.navegando
       if (ctx.navegando === 'board') return boardNavegavel(state, ctx.altura)
@@ -502,6 +503,11 @@ async function tui(state0: SessionState): Promise<void> {
     fixo: (ctx) => (state.seguindo && ctx.navegando !== 'board' ? cabecalhoDaTarefa(state) : []),
     dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · ← board' : dicaDa(state, ctx.sugerindo)),
     prompt: () => '› ',
+    legenda: () => etiquetaDoProjeto(state.repo, {
+      color,
+      indice: listRepos().findIndex(r => r.name === state.repo),
+      detalhe: state.seguindo ? `tarefa #${state.seguindo}` : '',
+    }),
     rodape: () => rodapeDa(state, modoAtual === 'rodape'),
     intervalMs: 400,
     onComplete: (linha) => completer(linha)[0],

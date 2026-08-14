@@ -73,6 +73,7 @@ export interface FrameInput {
   input: string
   corInput?: (linha: string) => string
   sugestoes?: string[]
+  legenda?: string
   cursor: number
   dica: string
   prompt: string
@@ -100,7 +101,8 @@ export function renderFrame(f: FrameInput): Frame {
   const alturaEntrada = entrada.length
   const rodape = f.rodape ?? []
   const sugestoes = f.sugestoes ?? []
-  const alturaCorpo = Math.max(MIN_CORPO, f.rows - 3 - alturaEntrada - rodape.length - sugestoes.length)
+  const moldura = f.legenda === undefined ? 0 : 2
+  const alturaCorpo = Math.max(MIN_CORPO, f.rows - 3 - alturaEntrada - rodape.length - sugestoes.length - moldura)
   const visiveis = f.corpo.slice(-alturaCorpo)
   const lines: string[] = []
   lines.push(padVisible('  ' + truncVisible(f.header, largura - 2), largura))
@@ -111,21 +113,32 @@ export function renderFrame(f: FrameInput): Frame {
   }
   lines.push('  └' + '─'.repeat(interno) + '┘')
   for (const sg of sugestoes) lines.push(padVisible('  ' + truncVisible(sg, largura - 2), largura))
+  const comMoldura = f.legenda !== undefined
+  if (comMoldura) {
+    const rotulo = f.legenda ? ` ${truncVisible(f.legenda, Math.max(4, interno - 4))} ` : ''
+    const sobra = Math.max(0, interno - 1 - visibleLen(rotulo))
+    lines.push('  ┌─' + rotulo + '─'.repeat(sobra) + '┐')
+  }
   const recuo = ' '.repeat(visibleLen(f.prompt))
   const primeira = lines.length + 1
+  const dentro = comMoldura ? interno - 2 : largura - 4
   entrada.forEach((linha, i) => {
     const prefixo = i === 0 ? f.prompt : recuo
     const dica = i === entrada.length - 1 && f.dica
-      ? padVisible('', Math.max(0, largura - 4 - visibleLen(prefixo) - visibleLen(linha) - visibleLen(f.dica))) + f.dica
+      ? padVisible('', Math.max(0, dentro - visibleLen(prefixo) - visibleLen(linha) - visibleLen(f.dica))) + f.dica
       : ''
     const pintada = f.corInput ? f.corInput(linha) : linha
-    lines.push(padVisible('  ' + prefixo + pintada + dica, largura))
+    const conteudo = prefixo + pintada + dica
+    lines.push(comMoldura
+      ? '  │ ' + padVisible(truncVisible(conteudo, interno - 2), interno - 2) + ' │'
+      : padVisible('  ' + conteudo, largura))
   })
+  if (comMoldura) lines.push('  └' + '─'.repeat(interno) + '┘')
   for (const r of rodape) lines.push(padVisible('  ' + truncVisible(r, largura - 2), largura))
   const pos = posicaoNoTexto(f.input, f.cursor)
   return {
     lines,
     cursorRow: primeira + pos.linha,
-    cursorCol: 3 + visibleLen(f.prompt) + pos.coluna,
+    cursorCol: (comMoldura ? 5 : 3) + visibleLen(f.prompt) + pos.coluna,
   }
 }

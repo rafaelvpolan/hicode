@@ -40,6 +40,7 @@ function app(term: Fake, over: Partial<Parameters<typeof createApp>[1]> = {}): R
     corpo: () => ['#020 selo beta'],
     dica: () => '/help',
     prompt: () => '› ',
+    legenda: () => '',
     onLine: () => {},
     onComplete: () => [],
     onInterrupt: () => true,
@@ -333,4 +334,25 @@ test('abrirBoard entra na tela do board', () => {
   expect(t.tela()).toContain('normal')
   a.abrirBoard()
   expect(t.tela()).toContain('TELA DO BOARD')
+})
+
+test('app funciona sem os hooks opcionais — nao explode em runtime', () => {
+  const t = fakeTerminal()
+  const a = createApp(t, {
+    header: () => 'hii',
+    corpo: () => ['x'],
+    dica: () => '',
+    prompt: () => '› ',
+    rodape: () => [],
+    intervalMs: 100000,
+    onComplete: () => [],
+    onInterrupt: () => true,
+    onLine: () => {},
+  })
+  void a.run()
+  t.tecla('/')
+  t.tecla('\x1b[B')
+  t.tecla('\t')
+  t.tecla('\x0c')
+  expect(t.tela()).toContain('hii')
 })

@@ -20,6 +20,7 @@ export const AJUDA_DO_COMANDO: Record<string, string> = {
   '/halt': 'para a tarefa (mesmo que /stop)',
   '/rm': 'apaga tarefas e limpa o que fica atras',
   '/repo': 'troca de projeto',
+  '/project': 'troca de projeto (mesmo que /repo)',
   '/quit': 'sai — as tarefas seguem rodando',
 }
 

@@ -15,20 +15,21 @@ export interface CorpoContexto {
 export interface AppHooks {
   header: () => string
   corpo: (ctx: CorpoContexto) => string[]
-  fixo: (ctx: CorpoContexto) => string[]
+  fixo?: (ctx: CorpoContexto) => string[]
   dica: (ctx: CorpoContexto) => string
   prompt: () => string
+  legenda?: () => string
   rodape: () => string[]
   onLine: (linha: string) => Promise<void> | void
   onComplete: (linha: string) => string[]
-  sugestoes: (opcoes: string[], selecionado: number) => string[]
-  prefixoComum: (opcoes: string[]) => string
+  sugestoes?: (opcoes: string[], selecionado: number) => string[]
+  prefixoComum?: (opcoes: string[]) => string
   corInput?: (linha: string) => string
   onInterrupt: () => boolean
-  onNav: (dir: -1 | 1, modo: ModoNavegacao) => boolean
-  onEntrar: (modo: ModoNavegacao) => void
-  onAba: (dir: -1 | 1) => void
-  podeLimpar: () => string
+  onNav?: (dir: -1 | 1, modo: ModoNavegacao) => boolean
+  onEntrar?: (modo: ModoNavegacao) => void
+  onAba?: (dir: -1 | 1) => void
+  podeLimpar?: () => string
   intervalMs: number
 }
 
@@ -38,7 +39,19 @@ export interface App {
   abrirBoard: () => void
 }
 
-export function createApp(term: Terminal, hooks: AppHooks): App {
+const PADRAO = {
+  fixo: (): string[] => [],
+  legenda: (): string | undefined => undefined,
+  sugestoes: (): string[] => [],
+  prefixoComum: (): string => '',
+  podeLimpar: (): string => '',
+  onNav: (): boolean => false,
+  onEntrar: (): void => {},
+  onAba: (): void => {},
+}
+
+export function createApp(term: Terminal, dados: AppHooks): App {
+  const hooks = { ...PADRAO, ...dados }
   const extras: string[] = []
   let sugestoes: string[] = []
   let sugIdx = -1
@@ -70,6 +83,7 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
       prompt: hooks.prompt(),
       corInput: hooks.corInput,
       sugestoes: hooks.sugestoes(sugestoes, sugIdx),
+      legenda: hooks.legenda(),
       rodape,
     })
   }
