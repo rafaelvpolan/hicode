@@ -57,6 +57,7 @@ function usage(): void {
     '  repo rm <owner/nome>     remove do registro (nao toca no clone)',
     '  repo ls                  lista os alvos e o estado de cada clone',
     '  contract [caminho]       redetecta o contrato do alvo (stack, comandos, pacotes)',
+    '  doctor                   confere gh, IA, daemon, push e contrato de cada alvo',
     '',
     'Tarefas e integracao:',
     '  sync                     sincroniza tarefas externas (HICODE_TASK_SYNC)',
@@ -138,6 +139,8 @@ async function main(): Promise<number> {
       return script('card', args)
     case 'contract':
       return script('contract', args.slice(1))
+    case 'doctor':
+      return script('doctor', args.slice(1))
     case undefined:
       return spawnSync('bun', [join(ROOT, 'bin', 'repl.ts')], { stdio: 'inherit', cwd: ROOT }).status ?? 0
     default:

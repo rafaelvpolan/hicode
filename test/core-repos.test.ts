@@ -106,3 +106,28 @@ test('isGitRepo e detectBranch nao lancam em caminho invalido', () => {
   expect(isGitRepo(join(BASE, 'nada'))).toBe(false)
   expect(detectBranch(join(BASE, 'nada'))).toBe('main')
 })
+
+test('doctor: clone ausente e erro com conserto acionavel', async () => {
+  const { checkGitPush } = await import('../lib/core/doctor')
+  const c = checkGitPush(join(BASE, 'nao-existe'), 'acme/x')
+  expect(c.severidade).toBe('erro')
+  expect(c.conserto).toContain('hii repo add')
+})
+
+test('doctor: contrato ausente e aviso, nao erro', async () => {
+  const { checkContract } = await import('../lib/core/doctor')
+  const c = checkContract(join(BASE, 'sem-contrato'))
+  expect(c.severidade).toBe('aviso')
+  expect(c.conserto).toContain('hii contract')
+})
+
+test('doctor: contrato sem build nem test avisa que os gates serao pulados', async () => {
+  const { checkContract } = await import('../lib/core/doctor')
+  const dir = clone()
+  writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'sem-scripts' }))
+  const { syncContract } = await import('../lib/contract/store')
+  syncContract(dir, NOW)
+  const c = checkContract(dir)
+  expect(c.severidade).toBe('aviso')
+  expect(c.detalhe).toContain('sem build nem test')
+})

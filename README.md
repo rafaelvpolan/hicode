@@ -82,6 +82,7 @@ hii approve <id>     # aprova o preview (PREVIEW -> PREVIEW_OK)
 hii approve <id> --plan   # aprova o plano e enfileira (READY -> EXECUTING)
 hii reject <id> [o que]   # rejeita o preview; com motivo, pede correção
 hii halt <id> [motivo]    # para o card
+hii doctor           # confere gh, IA, daemon, push e contrato — ANTES de gastar token
 hii init [caminho]   # provisiona .hii/ num repo-alvo (default: cwd)
 hii hooks install [caminho]   # instala o gate de pre-push num repo (default: cwd)
 hii hooks uninstall [caminho] # remove o pre-push
@@ -194,6 +195,30 @@ versionado lá é `.hii/rules.md` e `.hii/config.json`.
 > **Por que isso importa para o custo:** antes, o prompt afirmava um stack fixo. Num alvo que não
 > batia, a IA escrevia código errado e o motor pagava reajuste para consertar. Detectar é grátis;
 > adivinhar é caro.
+
+### Passo 2c — `hii doctor` (antes de gastar o primeiro token)
+
+```bash
+hii doctor
+```
+
+Confere, de forma determinística: `gh` instalado e autenticado · CLIs de IA dos papéis em uso ·
+daemon · **se o `git push` autentica de verdade** · contrato de cada alvo. Sai com código 1 se
+houver erro, então serve em CI.
+
+O check de push **não** é `git ls-remote`: em repo público a leitura passa sem credencial e daria
+um "ok" falso. É `git push --dry-run`, que autentica sem escrever nada.
+
+> **Por que existe:** um card real rodou implementação, polimento, build, sync, revalidação e
+> gate — e morreu no `git push` por falta de credencial. Custo do que foi jogado fora: **US$ 1,71**.
+> O `doctor` detecta isso em 1 segundo, e o motor agora faz esse mesmo preflight **antes** da fase
+> de polimento: se o push não vai funcionar, o card para sem gastar.
+
+Conserto mais comum (git com remote HTTPS e sem credential helper):
+
+```bash
+gh auth setup-git    # faz o git usar o token que o gh já tem
+```
 
 ### Passo 3 — Subir o motor
 

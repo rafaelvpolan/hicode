@@ -15,6 +15,7 @@ import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
 import { runCodefoxGate, persistGate, buildPrBody, gateOutcome, gateHaltReason } from './codefox-gate'
 import { ensureContract } from '../contract/store'
+import { podeAbrirPr } from '../core/doctor'
 import { affectedPackage, resolveCommand } from './commands'
 import type { Contract, PackageInfo } from '../contract/types'
 
@@ -180,6 +181,12 @@ export async function handleFinish(id: string): Promise<void> {
   const resumeFrom = card.fm.resume_from ?? ''
   if (resumeFrom) patchCard(id, { resume_from: '' }, `${isoNow()} retomando finish a partir de ${resumeFrom}`)
   const desc = extractObjetivo(card.body) || card.fm.title
+  const preflight = podeAbrirPr(target, repoName)
+  if (preflight.severidade === 'erro') {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED preflight: ${preflight.detalhe}${preflight.conserto ? ` — conserto: ${preflight.conserto}` : ''} (nada foi gasto no polimento)`)
+    process.stdout.write(`[runner] #${id}: HALTED preflight — ${preflight.detalhe}\n`)
+    return
+  }
   const contract = ensureContract(target, isoNow())
   const changed = (await runGit(wt, ['diff', '--name-only', `origin/${base}...HEAD`])).stdout.split('\n').filter(Boolean)
   const pkg = affectedPackage(contract, changed)
