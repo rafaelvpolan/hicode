@@ -143,6 +143,14 @@ export function ultimoAgente(atividades: Atividade[]): string {
   return so[so.length - 1]?.nome ?? ''
 }
 
+export function ultimaAcao(atividades: Atividade[]): string {
+  const uteis = atividades.filter(a => a.tipo !== 'texto' && a.tipo !== 'sessao' && a.tipo !== 'fim')
+  const ultima = uteis[uteis.length - 1]
+  if (!ultima) return ''
+  const alvo = ultima.alvo ? ` ${ultima.alvo.split('/').pop() ?? ultima.alvo}` : ''
+  return `${ultima.nome}${alvo}`.slice(0, 40)
+}
+
 export function resumo(atividades: Atividade[]): string {
   const conta = (t: TipoAtividade): number => atividades.filter(a => a.tipo === t).length
   const agentes = agentesUsados(atividades)

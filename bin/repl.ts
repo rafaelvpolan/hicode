@@ -32,11 +32,13 @@ import { renderSugestoes, prefixoComum } from '../lib/core/render/sugestoes'
 import { etiquetaDoProjeto, corDoProjeto, nomeCurto } from '../lib/core/render/projeto'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { renderCabecalhoTarefa, renderParada } from '../lib/core/render/tarefa'
+import { renderProcessos } from '../lib/core/render/processos'
+import { idadeDe } from '../lib/core/render/board'
 import { subPrompts } from '../lib/core/instruir'
 import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
-import { parseLog, formatar, resumo, ultimoAgente } from '../lib/core/activity'
+import { parseLog, formatar, resumo, ultimoAgente, ultimaAcao } from '../lib/core/activity'
 import { linhaPropriedades, linhasExecucao, emExecucao, linhasEspera, esperandoVoce } from '../lib/core/render/rodape'
 import { providerNameFor, modelFor } from '../lib/ai/registry'
 import { readFileSync } from 'node:fs'
@@ -148,7 +150,20 @@ function cabecalhoDaTarefa(state: SessionState): string[] {
     temDevServer: temDev,
     vivo: previewVivo.get(state.seguindo) ?? false,
   })
-  return cab
+  const passos = passosDe(card.fm)
+  if (!passos.length) return cab
+  const at = atividadeDe(state.seguindo)
+  const status = String(card.fm.status ?? '')
+  const processos = renderProcessos(passos, {
+    color,
+    width: Math.max(40, (Number(process.stdout.columns) || 78) - 6),
+    metricas: readRunSteps(state.seguindo) ?? {},
+    agente: ultimoAgente(at),
+    ferramenta: ultimaAcao(at),
+    desde: idadeDe(card.fm.updated, Date.now()),
+    parado: ['HALTED', 'PAUSED', 'CLARIFY'].includes(status),
+  })
+  return [...cab, ...processos, '']
 }
 
 function seguimento(state: SessionState): string[] {
