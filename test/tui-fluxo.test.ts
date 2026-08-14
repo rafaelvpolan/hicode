@@ -61,6 +61,7 @@ async function sessao(teclas: string[]): Promise<{ saida: string; state: Session
     onNav: () => false,
     onEntrar: () => {},
     podeLimpar: () => '',
+    fixo: () => [],
     onLine: async (linha) => {
       const r = handle(linha, state)
       state = r.state
@@ -132,6 +133,7 @@ test('FLUXO TUI: erro dentro do onLine aparece na tela', async () => {
     onNav: () => false,
     onEntrar: () => {},
     podeLimpar: () => '',
+    fixo: () => [],
     onLine: async () => { throw new Error('explodiu de proposito') },
   })
   const rodando = app.run()
@@ -168,6 +170,7 @@ test('ctrl+l limpa a area quando nada roda', async () => {
     rodape: () => [], intervalMs: 100000, onComplete: () => [], onInterrupt: () => true,
     onNav: () => false, onEntrar: () => {}, onLine: () => {},
     podeLimpar: () => '',
+    fixo: () => [],
   })
   const rodando = app.run()
   app.log('  linha antiga que deve sumir')
@@ -190,6 +193,7 @@ test('ctrl+l NAO limpa enquanto uma tarefa executa, e explica', async () => {
     rodape: () => [], intervalMs: 100000, onComplete: () => [], onInterrupt: () => true,
     onNav: () => false, onEntrar: () => {}, onLine: () => {},
     podeLimpar: () => '#031 em execucao — a area so limpa quando terminar',
+    fixo: () => [],
   })
   const rodando = app.run()
   app.log('  linha antiga que deve ficar')
@@ -200,4 +204,25 @@ test('ctrl+l NAO limpa enquanto uma tarefa executa, e explica', async () => {
   const tela = stripAnsi(term.saida.join(''))
   expect(tela).toContain('linha antiga que deve ficar')
   expect(tela).toContain('#031 em execucao')
+})
+
+test('cabecalho fixo nao rola para fora quando o log e longo', async () => {
+  const term = fakeTerminal()
+  const cabecalho = ['  #022 executing  remova o selo beta', '  prompt   remova o selo']
+  const app = createApp(term, {
+    header: () => 'hii', corpo: () => [], dica: () => '', prompt: () => '› ',
+    rodape: () => [], intervalMs: 100000, onComplete: () => [], onInterrupt: () => true,
+    onNav: () => false, onEntrar: () => {}, onLine: () => {}, podeLimpar: () => '',
+    fixo: () => cabecalho,
+  })
+  const rodando = app.run()
+  for (let i = 0; i < 60; i++) app.log(`  linha de log ${i}`)
+  await new Promise(r => setTimeout(r, 10))
+  const tela = stripAnsi(term.saida.join('').split('\x1b[H').pop() ?? '')
+  term.tecla('\x03')
+  await rodando
+  expect(tela).toContain('#022 executing')
+  expect(tela).toContain('prompt')
+  expect(tela).toContain('linha de log 59')
+  expect(tela).not.toContain('linha de log 0\n')
 })

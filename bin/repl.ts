@@ -112,7 +112,7 @@ function planoDe(id: string, ativo = false, subindo = false): string {
 
 const previewVivo = new Map<string, boolean>()
 
-function seguimento(state: SessionState): string[] {
+function cabecalhoDaTarefa(state: SessionState): string[] {
   const card = readCard(state.seguindo)
   if (!card) return [`card #${state.seguindo} nao encontrado`]
   const alvo = repoPath(card.fm.repo ?? '')
@@ -127,9 +127,12 @@ function seguimento(state: SessionState): string[] {
     temDevServer: temDev,
     vivo: previewVivo.get(state.seguindo) ?? false,
   })
+  return cab
+}
+
+function seguimento(state: SessionState): string[] {
   const at = atividadeDe(state.seguindo)
-  const corpo = at.length ? at.slice(-200).map(formatar) : ['  aguardando a IA…']
-  return [...cab, ...corpo]
+  return at.length ? at.slice(-200).map(formatar) : ['  aguardando a IA…']
 }
 
 function custoDoDia(repo: string): string {
@@ -450,6 +453,7 @@ async function tui(state0: SessionState): Promise<void> {
       if (ctx.navegando === 'board') return boardNavegavel(state, ctx.altura)
       return state.seguindo ? seguimento(state) : board(state).split('\n')
     },
+    fixo: (ctx) => (state.seguindo && ctx.navegando !== 'board' ? cabecalhoDaTarefa(state) : []),
     dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · ← board' : dicaDa(state)),
     prompt: () => '› ',
     rodape: () => rodapeDa(state, modoAtual === 'rodape'),

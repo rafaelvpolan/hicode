@@ -46,6 +46,7 @@ function app(term: Fake, over: Partial<Parameters<typeof createApp>[1]> = {}): R
     onNav: () => false,
     onEntrar: () => {},
     podeLimpar: () => '',
+    fixo: () => [],
     rodape: () => [],
     intervalMs: 100000,
     ...over,

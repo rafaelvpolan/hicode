@@ -14,6 +14,7 @@ export interface CorpoContexto {
 export interface AppHooks {
   header: () => string
   corpo: (ctx: CorpoContexto) => string[]
+  fixo: (ctx: CorpoContexto) => string[]
   dica: (ctx: CorpoContexto) => string
   prompt: () => string
   rodape: () => string[]
@@ -44,10 +45,12 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
       navegando: input.navegando,
       altura: Math.max(4, term.rows() - 6 - rodape.length),
     }
-    const corpo = hooks.corpo(ctx)
+    const fixo = hooks.fixo(ctx)
+    const rolante = ctx.navegando === 'board' ? hooks.corpo(ctx) : [...hooks.corpo(ctx), ...extras]
+    const sobra = Math.max(1, ctx.altura - fixo.length)
     screen.draw({
       header: hooks.header(),
-      corpo: ctx.navegando === 'board' ? corpo : [...corpo, ...extras],
+      corpo: [...fixo, ...rolante.slice(-sobra)],
       input: ctx.navegando === 'board' ? '' : input.buffer,
       cursor: ctx.navegando === 'board' ? 0 : input.cursor,
       dica: hooks.dica(ctx),
