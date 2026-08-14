@@ -57,6 +57,7 @@ export interface FrameInput {
   cursor: number
   dica: string
   prompt: string
+  rodape: string[]
 }
 
 export interface Frame {
@@ -78,7 +79,8 @@ export function renderFrame(f: FrameInput): Frame {
   const interno = largura - 4
   const entrada = f.input.split('\n')
   const alturaEntrada = entrada.length
-  const alturaCorpo = Math.max(MIN_CORPO, f.rows - 3 - alturaEntrada)
+  const rodape = f.rodape ?? []
+  const alturaCorpo = Math.max(MIN_CORPO, f.rows - 3 - alturaEntrada - rodape.length)
   const visiveis = f.corpo.slice(-alturaCorpo)
   const lines: string[] = []
   lines.push(padVisible('  ' + truncVisible(f.header, largura - 2), largura))
@@ -97,6 +99,7 @@ export function renderFrame(f: FrameInput): Frame {
       : ''
     lines.push(padVisible('  ' + prefixo + linha + dica, largura))
   })
+  for (const r of rodape) lines.push(padVisible('  ' + truncVisible(r, largura - 2), largura))
   const pos = posicaoNoTexto(f.input, f.cursor)
   return {
     lines,

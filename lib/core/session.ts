@@ -6,6 +6,7 @@ export type EffectKind =
 export interface SessionState {
   repo: string
   pendingPlan: string
+  seguindo: string
 }
 
 export interface Effect {
@@ -22,7 +23,11 @@ export interface Reply {
 export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/watch', '/agents', '/halt', '/plan', '/repo', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '' }
+  return { repo, pendingPlan: '', seguindo: '' }
+}
+
+export function seguir(state: SessionState, id: string): SessionState {
+  return { ...state, seguindo: id }
 }
 
 function reply(effect: Effect, state: SessionState): Reply {
@@ -39,12 +44,15 @@ function command(line: string, state: SessionState): Reply {
     case '?':
       return reply({ kind: 'help' }, state)
     case 'board':
-      return reply({ kind: 'board' }, state)
+      return reply({ kind: 'board' }, { ...state, seguindo: '' })
     case 'cards':
     case 'ls':
       return reply({ kind: 'cards', text: arg }, state)
     case 'watch':
-      return arg ? reply({ kind: 'watch', id: arg }, state) : reply({ kind: 'error', text: 'uso: /watch <id>' }, state)
+    case 'seguir':
+      return arg
+        ? reply({ kind: 'watch', id: arg }, { ...state, seguindo: arg })
+        : reply({ kind: 'none' }, { ...state, seguindo: '' })
     case 'halt':
       return rest[0]
         ? reply({ kind: 'halt', id: rest[0], text: rest.slice(1).join(' ') || 'parado pelo humano' }, cleared)

@@ -116,3 +116,35 @@ test('REGRESSAO colunas alinham com e sem cor (escape nao conta como largura)', 
   expect(linha(comCor, 'Layout')).toBe(linha(semCor, 'Layout'))
   expect(linha(comCor, 'Pilha')).toBe(linha(semCor, 'Pilha'))
 })
+
+test('plano mostra a URL do preview que vai subir', () => {
+  const p = buildPlan({
+    card: card({ title: 'hero novo', repo: 'org/app' }),
+    hasDevServer: true,
+    previewUrl: 'http://localhost:5220',
+  })
+  const t = renderPlan(p)
+  expect(t).toContain('Preview')
+  expect(t).toContain('http://localhost:5220')
+  expect(t).toContain('sobe quando executar')
+})
+
+test('plano distingue preview ja no ar', () => {
+  const p = buildPlan({
+    card: card({ title: 'hero', repo: 'org/app' }),
+    hasDevServer: true,
+    previewUrl: 'http://localhost:5220',
+    previewAtivo: true,
+  })
+  expect(renderPlan(p)).toContain('no ar agora')
+})
+
+test('alvo sem dev server nao promete preview', () => {
+  const p = buildPlan({ card: card({ title: 'x', repo: 'org/app' }), hasDevServer: false, previewUrl: 'http://x' })
+  expect(renderPlan(p)).not.toContain('Preview')
+})
+
+test('com cor, a URL do preview vira link clicavel', () => {
+  const p = buildPlan({ card: card({ title: 'x', repo: 'org/app' }), hasDevServer: true, previewUrl: 'http://localhost:5220' })
+  expect(renderPlan(p, { color: true })).toContain('\x1b]8;;http://localhost:5220')
+})

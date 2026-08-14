@@ -17,6 +17,8 @@ export interface PlanFlags {
 }
 
 export interface Plan {
+  previewUrl: string
+  previewAtivo: boolean
   id: string
   title: string
   objetivo: string
@@ -35,6 +37,8 @@ export interface PlanInput {
   hasDevServer: boolean
   fileCount?: number
   sliceLimit?: number
+  previewUrl?: string
+  previewAtivo?: boolean
 }
 
 const SUBJETIVO = /\b(?:melhor\w*|chamativ\w*|bonit\w*|moderniz\w*|refin\w*|aparencia|estil\w*|design|visual\w*|layout|ux)\b/
@@ -69,6 +73,8 @@ export function buildPlan(input: PlanInput): Plan {
     all,
   )
   return {
+    previewUrl: input.hasDevServer ? (input.previewUrl ?? '') : '',
+    previewAtivo: !!input.previewAtivo,
     id: card.fm.id ?? '',
     title: card.fm.title ?? '',
     objetivo,

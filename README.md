@@ -28,19 +28,28 @@ bun link             # registra os binários `hii` e `hicode` no PATH (~/.bun/bi
 aprova — tudo no terminal:
 
 ```
-$ hii
-
-  hicode — motor de tarefas   /help para os comandos
-
-hicode · org/app   daemon online (pid 48213)
-2 ativo(s) · 1 esperando voce
-
-  #039 ████··  polir   #041 ██····  executar
-
-› FAQ acordeão acessível na home        ← texto livre cria o card e mostra o plano
-› ⏎                                     ← enter aprova o plano e enfileira
-› /board                                ← quadro completo da frota
+hii · org/app · seguindo #021          daemon online (pid 48213)
+┌──────────────────────────────────────────────────────────────┐
+│ seguindo #021 · EXECUTING · adicionar selo beta no hero       │
+│   vitro, frontiteto · 1 skill(s) · 9 arquivo(s)               │
+│   preview → http://localhost:5221                             │
+│                                                              │
+│ ◆ agente vitro — criar o selo no hero                        │
+│ ✦ skill frontend-design                                      │
+│ · edit src/App.vue                                            │
+│ $ bash npm run build                                          │
+└──────────────────────────────────────────────────────────────┘
+› _                                        /board volta  ctrl+c sai
+ia claude/opus · esforco medium · projeto org/app · gasto US$4.08
+⠇ #021 adicionar selo beta no hero  executing · vitro · 2min
 ```
+
+**Abaixo do input** ficam fixas as propriedades em uso (provedor/modelo, esforço, projeto, gasto
+do dia — e um destaque quando algum papel usa provedor diferente) e as **tarefas em execução**,
+com spinner, agente atual e há quanto tempo. Continua visível enquanto você digita.
+
+**Seguir a execução:** `/watch <id>` troca o corpo pelo **stream da IA ao vivo** — agente, skill,
+arquivo, comando — e `/board` volta. Aprovar um plano já entra em modo seguir automaticamente.
 
 | Comando | O quê |
 |---|---|

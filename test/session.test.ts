@@ -41,10 +41,23 @@ test('/help, /board e /cards', () => {
   expect(c.effect.text).toBe('HALTED')
 })
 
-test('/watch e /plan exigem id', () => {
-  expect(handle('/watch', base).effect.kind).toBe('error')
-  expect(handle('/watch 42', base).effect.id).toBe('42')
+test('/plan exige id', () => {
   expect(handle('/plan', base).effect.kind).toBe('error')
+})
+
+test('/watch <id> entra em modo seguir', () => {
+  const r = handle('/watch 42', base)
+  expect(r.effect.kind).toBe('watch')
+  expect(r.state.seguindo).toBe('42')
+})
+
+test('/watch sem id para de seguir', () => {
+  const seguindo = { ...base, seguindo: '42' }
+  expect(handle('/watch', seguindo).state.seguindo).toBe('')
+})
+
+test('/board sai do modo seguir', () => {
+  expect(handle('/board', { ...base, seguindo: '42' }).state.seguindo).toBe('')
 })
 
 test('/halt aceita motivo opcional e limpa plano pendente', () => {

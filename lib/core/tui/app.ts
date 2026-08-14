@@ -10,6 +10,7 @@ export interface AppHooks {
   corpo: () => string[]
   dica: () => string
   prompt: () => string
+  rodape: () => string[]
   onLine: (linha: string) => Promise<void> | void
   onComplete: (linha: string) => string[]
   onInterrupt: () => boolean
@@ -36,6 +37,7 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
       cursor: input.cursor,
       dica: hooks.dica(),
       prompt: hooks.prompt(),
+      rodape: hooks.rodape(),
     })
   }
 

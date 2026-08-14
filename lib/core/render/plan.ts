@@ -1,4 +1,5 @@
 import type { Plan, PlanWave } from '../plan'
+import { link } from '../tui/layout'
 
 const DIM = '\x1b[2m'
 const BOLD = '\x1b[1m'
@@ -57,6 +58,11 @@ export function renderPlan(plan: Plan, opts: Partial<RenderOptions> = {}): strin
   out.push('')
   out.push(`    ${'Objetivo'.padEnd(10)} ${oneLine(plan.objetivo, o.width - 16)}`)
   out.push(`    ${'Alvo'.padEnd(10)} ${oneLine(plan.repo, o.width - 16)}`)
+  if (plan.previewUrl) {
+    const rotulo = plan.previewAtivo ? 'no ar agora' : 'sobe quando executar'
+    const url = o.color ? link(plan.previewUrl) : plan.previewUrl
+    out.push(`    ${'Preview'.padEnd(10)} ${url}  ${paint(rotulo, DIM, o)}`)
+  }
   out.push(flag('Layout', plan.layout.on, plan.layout.reason, o))
   out.push(flag('Pilha', plan.pilha.on, plan.pilha.reason, o))
   out.push('')

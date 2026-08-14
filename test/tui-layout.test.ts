@@ -2,7 +2,7 @@ import { test, expect } from 'bun:test'
 import { renderFrame, stripAnsi, visibleLen, truncVisible, padVisible } from '../lib/core/tui/layout'
 
 const quadro = (over: Partial<Parameters<typeof renderFrame>[0]> = {}): ReturnType<typeof renderFrame> =>
-  renderFrame({ rows: 10, cols: 40, header: 'hii', corpo: [], input: '', cursor: 0, dica: '', prompt: '› ', ...over })
+  renderFrame({ rows: 10, cols: 40, header: 'hii', corpo: [], input: '', cursor: 0, dica: '', prompt: '› ', rodape: [], ...over })
 
 test('visibleLen ignora escape ANSI', () => {
   expect(visibleLen('\x1b[32mok\x1b[0m')).toBe(2)
@@ -139,4 +139,22 @@ test('so a primeira linha do input leva o prompt', () => {
   const [pen, ult] = f.lines.slice(-2).map(l => stripAnsi(l))
   expect(pen?.trimStart().startsWith('›')).toBe(true)
   expect(ult?.trimStart().startsWith('›')).toBe(false)
+})
+
+test('rodape aparece abaixo do input, sem mover o cursor do input', () => {
+  const f = quadro({ rows: 14, input: 'tarefa', cursor: 6, rodape: ['ia claude · esforco medium', '⠋ #021 rodando'] })
+  const ultimas = f.lines.slice(-2).map(l => stripAnsi(l))
+  expect(ultimas[0]).toContain('ia claude')
+  expect(ultimas[1]).toContain('#021 rodando')
+  expect(f.cursorRow).toBe(f.lines.length - 2)
+})
+
+test('rodape nao quebra o alinhamento do quadro', () => {
+  const f = quadro({ rows: 14, cols: 58, rodape: ['linha curta', 'outra linha de rodape um pouco maior'] })
+  expect(new Set(f.lines.map(l => visibleLen(l))).size).toBe(1)
+})
+
+test('rodape longo e truncado dentro da largura', () => {
+  const f = quadro({ cols: 40, rodape: ['x'.repeat(200)] })
+  expect(visibleLen(f.lines[f.lines.length - 1] ?? '')).toBe(40)
 })
