@@ -6,6 +6,14 @@ import { tokenizeParcial, agruparColagem } from './keys'
 import { linkificar } from './layout'
 import type { InputState } from './input'
 
+interface ErroLancado {
+  message?: string
+}
+
+function mensagemDoErro(e: ErroLancado): string {
+  return e?.message ? e.message : String(e)
+}
+
 export interface CorpoContexto {
   navegando: ModoNavegacao
   altura: number
@@ -179,7 +187,7 @@ export function createApp(term: Terminal, dados: AppHooks): App {
         const linha = a.line
         fila = fila
           .then(() => hooks.onLine(linha))
-          .catch((e: unknown) => { log(`  erro: ${e instanceof Error ? e.message : String(e)}`) })
+          .catch((e: ErroLancado) => { log(`  erro: ${mensagemDoErro(e)}`) })
           .then(desenhar)
         void fila
       }
