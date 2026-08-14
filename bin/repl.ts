@@ -20,8 +20,9 @@ import { planSteps } from '../lib/runner/analyze'
 import { extractObjetivo } from '../lib/card'
 import type { Fields } from '../lib/card'
 import { daemonStatus, daemonPid, readPrefs, writePrefs } from '../lib/core/daemon'
-import { handle, newSession, planShown, seguir, perguntando, respondido } from '../lib/core/session'
+import { handle, newSession, planShown, seguir, perguntando, respondido, removendo } from '../lib/core/session'
 import { pendencia, responder, cardsPerguntando } from '../lib/core/responder'
+import { planejarRemocao, remover } from '../lib/core/remover'
 import { renderPergunta } from '../lib/core/render/clarify'
 import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
@@ -151,6 +152,7 @@ function rodapeDa(state: SessionState): string[] {
 }
 
 function dicaDa(state: SessionState): string {
+  if (state.removendo) return 's confirma  outra tecla cancela'
   if (state.perguntando) return 'numero responde  ctrl+j quebra linha'
   const esperando = cardsPerguntando(allCards(), state.repo)
   if (esperando.length) return `/ask responde #${esperando[0]}  ctrl+c sai`
@@ -330,7 +332,7 @@ async function tui(state0: SessionState): Promise<void> {
       state = next
       const diga = (s: string): void => app.log('  ' + s)
       if (effect.kind === 'quit') { sairPedido = true; return }
-      if (effect.kind === 'help') { diga('escreva a tarefa · /board /cards /plan /watch /ask /ok /no /halt /repo /quit'); return }
+      if (effect.kind === 'help') { diga('escreva a tarefa · /board /cards /plan /watch /ask /ok /no /rm /halt /repo /quit'); return }
       if (effect.kind === 'error') return diga(effect.text ?? '')
       if (effect.kind === 'cards') {
         const alvo = (effect.text ?? '').trim().toUpperCase()
@@ -373,6 +375,24 @@ async function tui(state0: SessionState): Promise<void> {
       if (effect.kind === 'approve-preview') {
         const r = core.approvePreview(effect.id ?? '')
         return diga(r.ok ? `#${effect.id} preview aprovado — segue para o polimento` : r.reason)
+      }
+      if (effect.kind === 'rm') {
+        const p = planejarRemocao(effect.id ?? '')
+        if (!p) return diga(`card #${effect.id} nao encontrado`)
+        if (p.bloqueio && effect.text !== 'force') return diga(p.bloqueio)
+        diga(`apagar #${p.id} "${p.titulo.slice(0, 44)}" (${p.status})?`)
+        if (p.worktree) diga(dim('  vai remover o worktree e parar o preview'))
+        for (const a of p.avisos) diga(dim(`  ${a}`))
+        state = removendo(state, p.id)
+        diga('s confirma · qualquer outra tecla cancela')
+        return
+      }
+      if (effect.kind === 'confirm-rm') {
+        if (effect.text !== 'sim') return diga('cancelado')
+        const r = await remover(effect.id ?? '', true)
+        if (!r.ok) return diga(r.reason)
+        diga(`#${effect.id} apagado — ${r.limpou.join(', ')}`)
+        return
       }
       if (effect.kind === 'ask') {
         const alvo = effect.id || cardsPerguntando(allCards(), state.repo)[0] || ''

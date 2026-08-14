@@ -2,13 +2,14 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'discard-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm'
 
 export interface SessionState {
   repo: string
   pendingPlan: string
   seguindo: string
   perguntando: string
+  removendo: string
 }
 
 export interface Effect {
@@ -22,10 +23,10 @@ export interface Reply {
   state: SessionState
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/watch', '/agents', '/halt', '/plan', '/repo', '/quit'] as const
+export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/watch', '/agents', '/halt', '/plan', '/repo', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '', seguindo: '', perguntando: '' }
+  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '' }
 }
 
 export function perguntando(state: SessionState, id: string): SessionState {
@@ -34,6 +35,10 @@ export function perguntando(state: SessionState, id: string): SessionState {
 
 export function respondido(state: SessionState): SessionState {
   return { ...state, perguntando: '' }
+}
+
+export function removendo(state: SessionState, id: string): SessionState {
+  return { ...state, removendo: id, pendingPlan: '', perguntando: '' }
 }
 
 export function seguir(state: SessionState, id: string): SessionState {
@@ -69,6 +74,11 @@ function command(line: string, state: SessionState): Reply {
         : reply({ kind: 'error', text: 'uso: /halt <id> [motivo]' }, state)
     case 'plan':
       return arg ? reply({ kind: 'plan', id: arg }, state) : reply({ kind: 'error', text: 'uso: /plan <id>' }, state)
+    case 'rm':
+    case 'apagar':
+      return rest[0]
+        ? reply({ kind: 'rm', id: rest[0], text: rest[1] === '--force' ? 'force' : '' }, cleared)
+        : reply({ kind: 'error', text: 'uso: /rm <id> — apaga o card e limpa worktree e preview' }, state)
     case 'ask':
     case 'responder':
       return arg
@@ -106,12 +116,17 @@ function command(line: string, state: SessionState): Reply {
 export function handle(raw: string, state: SessionState): Reply {
   const line = raw.trim()
   if (!line) {
+    if (state.removendo) return reply({ kind: 'confirm-rm', id: state.removendo, text: '' }, { ...state, removendo: '' })
     if (state.perguntando) return reply({ kind: 'answer', id: state.perguntando, text: '' }, state)
     return state.pendingPlan
       ? reply({ kind: 'approve-plan', id: state.pendingPlan }, { ...state, pendingPlan: '' })
       : reply({ kind: 'none' }, state)
   }
   if (line.startsWith('/')) return command(line, state)
+  if (state.removendo) {
+    const sim = /^(s|sim|y|yes)$/i.test(line)
+    return reply({ kind: 'confirm-rm', id: state.removendo, text: sim ? 'sim' : '' }, { ...state, removendo: '' })
+  }
   if (state.perguntando) {
     return reply({ kind: 'answer', id: state.perguntando, text: line }, state)
   }

@@ -236,3 +236,30 @@ test('abrir pergunta descarta plano pendente para nao aprovar por engano', () =>
 test('respondido limpa o estado de pergunta', () => {
   expect(respondido(perguntando(base, '022')).perguntando).toBe('')
 })
+
+import { removendo } from '../lib/core/session'
+
+test('/rm exige id e pede confirmacao antes de apagar', () => {
+  expect(handle('/rm', base).effect.kind).toBe('error')
+  const r = handle('/rm 23', base)
+  expect(r.effect.kind).toBe('rm')
+  expect(r.effect.id).toBe('23')
+})
+
+test('so "s" confirma a remocao; qualquer outra coisa cancela', () => {
+  const s = removendo(base, '023')
+  expect(handle('s', s).effect.text).toBe('sim')
+  expect(handle('sim', s).effect.text).toBe('sim')
+  expect(handle('n', s).effect.text).toBe('')
+  expect(handle('', s).effect.text).toBe('')
+  expect(handle('qualquer coisa', s).effect.text).toBe('')
+})
+
+test('confirmacao de remocao nao deixa o estado preso', () => {
+  expect(handle('n', removendo(base, '023')).state.removendo).toBe('')
+})
+
+test('remocao pendente nao vira card novo nem aprova plano', () => {
+  const r = handle('outra tarefa', removendo(planShown(base, '042'), '023'))
+  expect(r.effect.kind).toBe('confirm-rm')
+})
