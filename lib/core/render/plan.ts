@@ -58,10 +58,11 @@ export function renderPlan(plan: Plan, opts: Partial<RenderOptions> = {}): strin
   out.push('')
   out.push(`    ${'Objetivo'.padEnd(10)} ${oneLine(plan.objetivo, o.width - 16)}`)
   out.push(`    ${'Alvo'.padEnd(10)} ${oneLine(plan.repo, o.width - 16)}`)
-  if (plan.previewUrl) {
-    const rotulo = plan.previewAtivo ? 'no ar agora' : 'sobe quando executar'
-    const url = o.color ? link(plan.previewUrl) : plan.previewUrl
-    out.push(`    ${'Preview'.padEnd(10)} ${url}  ${paint(rotulo, DIM, o)}`)
+  if (plan.previewUrl || plan.previewRotulo) {
+    const rotulo = plan.previewComando ? `${plan.previewRotulo} — ${plan.previewComando} sobe` : plan.previewRotulo
+    const url = plan.previewUrl ? (o.color ? link(plan.previewUrl) : plan.previewUrl) : ''
+    const corpo = url ? `${url}  ${paint(rotulo, DIM, o)}` : paint(rotulo, DIM, o)
+    out.push(`    ${'Preview'.padEnd(10)} ${corpo}`)
   }
   out.push(flag('Layout', plan.layout.on, plan.layout.reason, o))
   out.push(flag('Pilha', plan.pilha.on, plan.pilha.reason, o))

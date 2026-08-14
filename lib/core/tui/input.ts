@@ -24,6 +24,7 @@ export type InputAction =
   | { kind: 'complete'; line: string }
   | { kind: 'nav'; dir: -1 | 1; modo: ModoNavegacao }
   | { kind: 'entrar'; modo: ModoNavegacao }
+  | { kind: 'limpar' }
 
 export interface KeyResult {
   state: InputState
@@ -57,6 +58,7 @@ export function expandir(state: InputState, linha: string): string {
 const ENTER = ['\r', '\x1b[13u', '\x1b[27;1;13~']
 const ESC = '\x1b'
 const ESC_CSI = '\x1b[27u'
+const LIMPAR = ['\x0c', '\x1b[108;5u', '\x1b[27;5;108~']
 const INTERRUPT = ['\x03', '\x1b[99;5u', '\x1b[27;5;99~']
 const EOF_TECLA = ['\x04', '\x1b[100;5u', '\x1b[27;5;100~']
 const BACKSPACE = ['\x7f']
@@ -159,6 +161,7 @@ export function keypress(state: InputState, key: string): KeyResult {
       : { state, action: { kind: 'eof' } }
   }
   if (key === '\t') return { state, action: { kind: 'complete', line: state.buffer } }
+  if (LIMPAR.includes(key)) return { state, action: { kind: 'limpar' } }
   if (BACKSPACE.includes(key)) {
     if (!state.cursor) return { state, action: { kind: 'none' } }
     const buffer = state.buffer.slice(0, state.cursor - 1) + state.buffer.slice(state.cursor)

@@ -60,6 +60,7 @@ async function sessao(teclas: string[]): Promise<{ saida: string; state: Session
     onInterrupt: () => true,
     onNav: () => false,
     onEntrar: () => {},
+    podeLimpar: () => '',
     onLine: async (linha) => {
       const r = handle(linha, state)
       state = r.state
@@ -130,6 +131,7 @@ test('FLUXO TUI: erro dentro do onLine aparece na tela', async () => {
     onInterrupt: () => true,
     onNav: () => false,
     onEntrar: () => {},
+    podeLimpar: () => '',
     onLine: async () => { throw new Error('explodiu de proposito') },
   })
   const rodando = app.run()
@@ -157,4 +159,45 @@ test('REGRESSAO corrida: varios comandos em sequencia rapida mantem o estado', a
   expect(saida).not.toContain('SUBMIT')
   expect(existsSync(join(dir, '027-x.md'))).toBe(false)
   expect(existsSync(join(dir, '028-x.md'))).toBe(false)
+})
+
+test('ctrl+l limpa a area quando nada roda', async () => {
+  const term = fakeTerminal()
+  const app = createApp(term, {
+    header: () => 'hii', corpo: () => [], dica: () => '', prompt: () => '› ',
+    rodape: () => [], intervalMs: 100000, onComplete: () => [], onInterrupt: () => true,
+    onNav: () => false, onEntrar: () => {}, onLine: () => {},
+    podeLimpar: () => '',
+  })
+  const rodando = app.run()
+  app.log('  linha antiga que deve sumir')
+  term.tecla('\x0c')
+  await new Promise(r => setTimeout(r, 10))
+  const antes = stripAnsi(term.saida.join(''))
+  term.saida.length = 0
+  term.tecla('x')
+  await new Promise(r => setTimeout(r, 10))
+  term.tecla('\x03')
+  await rodando
+  expect(antes).toContain('linha antiga')
+  expect(stripAnsi(term.saida.join(''))).not.toContain('linha antiga')
+})
+
+test('ctrl+l NAO limpa enquanto uma tarefa executa, e explica', async () => {
+  const term = fakeTerminal()
+  const app = createApp(term, {
+    header: () => 'hii', corpo: () => [], dica: () => '', prompt: () => '› ',
+    rodape: () => [], intervalMs: 100000, onComplete: () => [], onInterrupt: () => true,
+    onNav: () => false, onEntrar: () => {}, onLine: () => {},
+    podeLimpar: () => '#031 em execucao — a area so limpa quando terminar',
+  })
+  const rodando = app.run()
+  app.log('  linha antiga que deve ficar')
+  term.tecla('\x0c')
+  await new Promise(r => setTimeout(r, 10))
+  term.tecla('\x03')
+  await rodando
+  const tela = stripAnsi(term.saida.join(''))
+  expect(tela).toContain('linha antiga que deve ficar')
+  expect(tela).toContain('#031 em execucao')
 })

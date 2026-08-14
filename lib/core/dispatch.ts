@@ -15,6 +15,7 @@ export interface DispatchIO {
   dim: (texto: string) => string
   color: boolean
   largura: () => number
+  subirPreview: (id: string) => Promise<string>
   plano: (id: string) => Promise<string[]>
   atividade: (id: string) => string[]
 }
@@ -106,6 +107,10 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       if (texto !== 'sim') { io.log('cancelado — nada foi apagado'); return state }
       const r = await removerLote(id.split(/\s+/), true)
       for (const l of renderResultado(r.apagados, r.falhas, { color: io.color, width: io.largura() })) io.log(l)
+      return state
+    }
+    case 'preview': {
+      io.log(await io.subirPreview(id))
       return state
     }
     case 'ask': {

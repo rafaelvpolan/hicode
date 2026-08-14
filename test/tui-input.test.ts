@@ -470,3 +470,16 @@ test('seta direita sai de qualquer um dos dois modos', () => {
 test('seta para cima nunca entra em navegacao, so historico', () => {
   expect(keypress(newInput(['antiga']), '\x1b[A').state.navegando).toBe('')
 })
+
+test('ctrl+l pede limpeza da area', () => {
+  for (const k of ['\x0c', '\x1b[108;5u', '\x1b[27;5;108~']) {
+    expect(keypress(newInput(), k).action.kind).toBe('limpar')
+  }
+})
+
+test('ctrl+l nao mexe no que voce ja digitou', () => {
+  const s = digitar('meia tarefa')
+  const r = keypress(s, '\x0c')
+  expect(r.state.buffer).toBe('meia tarefa')
+  expect(r.state.cursor).toBe(11)
+})

@@ -22,6 +22,7 @@ export interface AppHooks {
   onInterrupt: () => boolean
   onNav: (dir: -1 | 1, modo: ModoNavegacao) => boolean
   onEntrar: (modo: ModoNavegacao) => void
+  podeLimpar: () => string
   intervalMs: number
 }
 
@@ -123,6 +124,12 @@ export function createApp(term: Terminal, hooks: AppHooks): App {
       const modo = a.modo
       input = pararNavegacao(input)
       hooks.onEntrar(modo)
+      return true
+    }
+    if (a.kind === 'limpar') {
+      const motivo = hooks.podeLimpar()
+      if (motivo) log(`  ${motivo}`)
+      else extras.length = 0
       return true
     }
     if (a.kind === 'eof') { finalizar(); return false }

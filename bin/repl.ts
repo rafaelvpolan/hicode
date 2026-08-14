@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { ROOT, reposFile } from '../lib/runner/config'
 import { allCards, listRepos, normalizeId, readCard, repoPath, repoRegistered } from '../lib/runner/card-store'
-import { hasDevServer, previewPort, httpOk } from '../lib/runner/preview'
+import { hasDevServer, previewPort, httpOk, ensurePreview, waitHttp } from '../lib/runner/preview'
 import * as core from '../lib/core/actions'
 import { buildPlan } from '../lib/core/plan'
 import { renderPlan } from '../lib/core/render/plan'
@@ -166,7 +166,7 @@ function dicaDa(state: SessionState): string {
   const esperando = cardsPerguntando(allCards(), state.repo)
   if (esperando.length) return `/ask responde #${esperando[0]}  ctrl+c sai`
   if (state.seguindo) return '/board volta  ctrl+c sai'
-  return '/help  ctrl+j quebra linha  ctrl+c sai'
+  return '/help  ctrl+j quebra linha  ctrl+l limpa  ctrl+c sai'
 }
 
 let selecionado = ''
@@ -339,12 +339,33 @@ function start(): void {
   spawnSync(sh, ['start'], { stdio: 'inherit' })
 }
 
+async function subirPreview(id: string): Promise<string> {
+  const card = readCard(id)
+  if (!card) return `card #${id} nao encontrado`
+  const alvo = repoPath(card.fm.repo ?? '')
+  if (!existsSync(alvo)) return `clone de ${card.fm.repo} nao encontrado`
+  if (!hasDevServer(alvo)) return `${card.fm.repo} nao tem script de dev — nao ha preview`
+  const wt = card.fm.worktree ?? ''
+  if (!wt || !existsSync(wt)) {
+    return `#${id} ainda nao tem worktree — o preview sobe quando a tarefa executar`
+  }
+  const porta = previewPort(id)
+  const url = `http://localhost:${porta}`
+  if (await httpOk(url)) return `#${id} ja esta no ar → ${url}`
+  const handle = await ensurePreview(wt, porta, alvo, card.fm.preview_pid)
+  if (!handle.pid) return `nao consegui subir o preview de #${id}`
+  core.setPreviewPid(id, handle.pid)
+  const subiu = await waitHttp(url, 30)
+  return subiu ? `#${id} no ar → ${url}` : `#${id} iniciado (pid ${handle.pid}), mas ${url} ainda nao responde`
+}
+
 function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void): DispatchIO {
   return {
     log: (l) => (l.startsWith(' ') || l === '' ? app.log(l) : diga(l)),
     dim,
     color,
     largura: () => Math.max(40, (Number(process.stdout.columns) || 78) - 6),
+    subirPreview,
     plano: async (id) => {
       const card = readCard(id)
       const vivo = card?.fm.preview_url ? await httpOk(card.fm.preview_url) : false
@@ -377,6 +398,12 @@ async function tui(state0: SessionState): Promise<void> {
     onComplete: (linha) => completer(linha)[0],
     onInterrupt: () => { sairPedido = true; return true },
     onNav: (dir, modo) => navegar(state, dir, modo),
+    podeLimpar: () => {
+      const rodando = emExecucao(allCards(), state.repo, Date.now(), () => '')
+      if (!rodando.length) return ''
+      const ids = rodando.map(e => `#${e.id}`).join(' ')
+      return `${ids} em execucao — a area so limpa quando terminar`
+    },
     onEntrar: (modo) => {
       if (!selecionado) return
       const alvo = selecionado

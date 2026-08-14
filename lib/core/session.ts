@@ -2,7 +2,7 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview'
 
 export interface SessionState {
   repo: string
@@ -23,7 +23,7 @@ export interface Reply {
   state: SessionState
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/watch', '/agents', '/halt', '/plan', '/repo', '/quit'] as const
+export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
   return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '' }
@@ -82,6 +82,11 @@ function command(line: string, state: SessionState): Reply {
       return alvos.length
         ? reply({ kind: 'rm', id: alvos.join(' '), text: rest.includes('--force') ? 'force' : '' }, cleared)
         : reply({ kind: 'error', text: 'uso: /rm <id> [id...] — apaga os cards e limpa worktree e preview' }, state)
+    case 'preview':
+    case 'subir':
+      return rest[0]
+        ? reply({ kind: 'preview', id: rest[0] }, state)
+        : reply({ kind: 'error', text: 'uso: /preview <id> — sobe o dev server da tarefa' }, state)
     case 'ask':
     case 'responder':
       return arg

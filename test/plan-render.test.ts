@@ -117,21 +117,21 @@ test('REGRESSAO colunas alinham com e sem cor (escape nao conta como largura)', 
   expect(linha(comCor, 'Pilha')).toBe(linha(semCor, 'Pilha'))
 })
 
-test('plano mostra a URL do preview que vai subir', () => {
+test('plano mostra a URL quando ha worktree e o servidor esta parado', () => {
   const p = buildPlan({
-    card: card({ title: 'hero novo', repo: 'org/app' }),
+    card: card({ title: 'hero novo', repo: 'org/app', status: 'EXECUTED', worktree: '/wt' }),
     hasDevServer: true,
     previewUrl: 'http://localhost:5220',
   })
   const t = renderPlan(p)
   expect(t).toContain('Preview')
   expect(t).toContain('http://localhost:5220')
-  expect(t).toContain('sobe quando executar')
+  expect(t).toContain('parado')
 })
 
 test('plano distingue preview ja no ar', () => {
   const p = buildPlan({
-    card: card({ title: 'hero', repo: 'org/app' }),
+    card: card({ title: 'hero', repo: 'org/app', status: 'PREVIEW', worktree: '/wt' }),
     hasDevServer: true,
     previewUrl: 'http://localhost:5220',
     previewAtivo: true,
@@ -144,7 +144,37 @@ test('alvo sem dev server nao promete preview', () => {
   expect(renderPlan(p)).not.toContain('Preview')
 })
 
-test('com cor, a URL do preview vira link clicavel', () => {
-  const p = buildPlan({ card: card({ title: 'x', repo: 'org/app' }), hasDevServer: true, previewUrl: 'http://localhost:5220' })
+test('com cor, a URL viva do preview vira link clicavel', () => {
+  process.env.HICODE_HYPERLINKS = 'on'
+  const p = buildPlan({
+    card: card({ title: 'x', repo: 'org/app', status: 'PREVIEW', worktree: '/wt' }),
+    hasDevServer: true, previewUrl: 'http://localhost:5220', previewAtivo: true,
+  })
   expect(renderPlan(p, { color: true })).toContain('\x1b]8;;http://localhost:5220')
+  delete process.env.HICODE_HYPERLINKS
+})
+
+test('REGRESSAO plano nao mostra URL de preview que esta morto', () => {
+  const c = card({ title: 'x', repo: 'org/app', status: 'CLARIFY' })
+  const t = renderPlan(buildPlan({ card: c, hasDevServer: true, previewUrl: 'http://localhost:5222' }))
+  expect(t).not.toContain('localhost:5222')
+  expect(t).toContain('sobe quando a tarefa executar')
+})
+
+test('plano de tarefa entregue nao oferece link antigo', () => {
+  const c = card({ title: 'x', repo: 'org/app', status: 'MERGED', worktree: '/wt' })
+  const t = renderPlan(buildPlan({ card: c, hasDevServer: true, previewUrl: 'http://localhost:5220' }))
+  expect(t).not.toContain('localhost:5220')
+  expect(t).toContain('preview foi encerrado')
+})
+
+test('plano de tarefa com worktree parado ensina como subir', () => {
+  const c = card({ id: '022', title: 'x', repo: 'org/app', status: 'EXECUTED', worktree: '/wt' })
+  const t = renderPlan(buildPlan({ card: c, hasDevServer: true, previewUrl: 'http://localhost:5222' }))
+  expect(t).toContain('/preview 22 sobe')
+})
+
+test('projeto sem dev server nao ganha linha de Preview', () => {
+  const c = card({ title: 'x', repo: 'org/app', status: 'READY' })
+  expect(renderPlan(buildPlan({ card: c, hasDevServer: false, previewUrl: 'http://x' }))).not.toContain('Preview')
 })

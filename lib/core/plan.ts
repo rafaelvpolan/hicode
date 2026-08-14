@@ -1,4 +1,5 @@
 import { extractObjetivo } from '../card'
+import { estadoDoPreview } from './preview-estado'
 import type { Card } from '../card'
 import { planSteps } from '../runner/analyze'
 import { classifySurface } from '../runner/classify'
@@ -19,6 +20,8 @@ export interface PlanFlags {
 export interface Plan {
   previewUrl: string
   previewAtivo: boolean
+  previewRotulo: string
+  previewComando: string
   id: string
   title: string
   objetivo: string
@@ -72,9 +75,18 @@ export function buildPlan(input: PlanInput): Plan {
     { title: card.fm.title, objetivo, risk: card.fm.risk, surface, override: card.fm.steps },
     all,
   )
+  const preview = estadoDoPreview({
+    status: card.fm.status ?? 'INBOX',
+    worktree: card.fm.worktree ?? '',
+    url: input.previewUrl ?? '',
+    vivo: !!input.previewAtivo,
+    temDevServer: input.hasDevServer,
+  })
   return {
-    previewUrl: input.hasDevServer ? (input.previewUrl ?? '') : '',
-    previewAtivo: !!input.previewAtivo,
+    previewUrl: preview.url,
+    previewAtivo: preview.situacao === 'no-ar',
+    previewRotulo: preview.situacao === 'sem-superficie' ? '' : preview.rotulo,
+    previewComando: preview.comando ? `/${preview.comando} ${Number(card.fm.id)}` : '',
     id: card.fm.id ?? '',
     title: card.fm.title ?? '',
     objetivo,
