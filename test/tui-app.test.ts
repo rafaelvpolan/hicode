@@ -152,3 +152,39 @@ test('depois de fechar, tecla nao redesenha mais', () => {
   t.tecla('a')
   expect(t.saida.length).toBe(antes)
 })
+
+test('REGRESSAO colar desenha UMA vez, nao uma por caractere', () => {
+  const t = fakeTerminal()
+  void app(t).run()
+  const antes = t.saida.length
+  t.tecla('\x1b[200~um texto colado razoavelmente longo\x1b[201~')
+  const quadros = t.saida.length - antes
+  expect(quadros).toBeLessThanOrEqual(3)
+  expect(t.tela()).toContain('um texto colado razoavelmente longo')
+})
+
+test('REGRESSAO rajada sem bracketed paste tambem desenha uma vez', () => {
+  const t = fakeTerminal()
+  void app(t).run()
+  const antes = t.saida.length
+  t.tecla('rajada de caracteres colados sem marcador')
+  expect(t.saida.length - antes).toBeLessThanOrEqual(3)
+})
+
+test('digitacao normal continua redesenhando por tecla', () => {
+  const t = fakeTerminal()
+  void app(t).run()
+  const antes = t.saida.length
+  t.tecla('a')
+  t.tecla('b')
+  expect(t.saida.length).toBeGreaterThan(antes)
+})
+
+test('link no log vira clicavel sem quebrar o quadro', () => {
+  const t = fakeTerminal(12, 60)
+  const a = app(t)
+  void a.run()
+  a.log('preview → http://localhost:5220')
+  expect(t.saida.join('')).toContain('\x1b]8;;http://localhost:5220')
+  expect(t.tela()).toContain('localhost:5220')
+})

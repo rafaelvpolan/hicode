@@ -28,16 +28,43 @@ const MARCA: Record<Passo['estado'], string> = {
   pulado: '·',
 }
 
-const COR_PASSO: Record<Passo['estado'], string> = {
-  feito: GREEN,
-  agora: CYAN,
-  pendente: DIM,
-  pulado: DIM,
+const MAGENTA = '\x1b[35m'
+const AZUL = '\x1b[34m'
+
+export const COR_DO_PASSO: Record<string, string> = {
+  Arquitetura: MAGENTA,
+  Testes: GREEN,
+  Seguranca: RED,
+  Segurança: RED,
+  Review: CYAN,
+  Limpeza: AZUL,
+}
+
+const PALETA = [MAGENTA, GREEN, RED, CYAN, AZUL, YELLOW]
+
+export function corDoPasso(label: string, indice = 0): string {
+  return COR_DO_PASSO[label] ?? PALETA[indice % PALETA.length] ?? CYAN
 }
 
 export function renderPassos(passos: Passo[], o: BoardOptions): string {
   if (!passos.length) return ''
-  return passos.map(p => paint(MARCA[p.estado], COR_PASSO[p.estado], o)).join('')
+  return passos.map((p, i) => {
+    const cor = p.estado === 'feito' || p.estado === 'agora' ? corDoPasso(p.label, i) : DIM
+    return paint(MARCA[p.estado], cor, o)
+  }).join('')
+}
+
+export function renderLegenda(passos: Passo[], o: BoardOptions): string {
+  if (!passos.length) return ''
+  const itens = passos.map((p, i) => {
+    const cor = corDoPasso(p.label, i)
+    const marca = paint(MARCA[p.estado], p.estado === 'pendente' || p.estado === 'pulado' ? DIM : cor, o)
+    const nome = p.estado === 'feito' || p.estado === 'agora'
+      ? paint(p.label.toLowerCase(), cor, o)
+      : paint(p.label.toLowerCase(), DIM, o)
+    return `${marca} ${nome}`
+  })
+  return '  ' + itens.join('   ')
 }
 
 export function legendaPassos(passos: Passo[]): string {
@@ -124,6 +151,11 @@ export function renderBoard(cards: Fields[], opts: Partial<BoardOptions> = {}): 
     out.push('')
     out.push(paint(`  ${g.rotulo} (${g.cards.length})`, g.rotulo === 'esperando voce' ? YELLOW : DIM, o))
     for (const c of g.cards.sort((a, b) => Number(a.id) - Number(b.id))) out.push(linha(c, o))
+  }
+  const referencia = meus.map(c => o.passosDe(c)).find(p => p.length)
+  if (referencia) {
+    out.push('')
+    out.push(renderLegenda(referencia.map(p => ({ ...p, estado: 'pendente' as const })), o))
   }
   return out.join('\n')
 }

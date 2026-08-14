@@ -62,8 +62,32 @@ Com mais de um projeto registrado, a sessão **abre pela lista de projetos** —
 cada um tem, quantos esperam você, quantos rodam e quantos pararam. Você entra em um e tudo depois
 disso é **escopado a ele**: board, `/cards`, a faixa da frota. Com um projeto só, entra direto.
 
-**Colar funciona** — link, texto ou bloco inteiro. Colagem grande vira um marcador compacto
-(`[colado #1 · 47 linhas]`) e só expande no envio, então o input não vira uma parede de texto.
+**Colar funciona** — link, texto ou bloco inteiro, **de uma vez só** (um redesenho, sem animação
+de tecla), inclusive quando o terminal parte a colagem em vários pedaços. Colagem grande vira um
+marcador compacto (`[colado #1 · 47 linhas]`) e só expande no envio.
+
+**URL vira clicável** (OSC 8) no log e no board — `ctrl+clique` no terminal que suportar; nos
+demais aparece como texto normal.
+
+**Teclas do input:**
+
+| Tecla | O quê |
+|---|---|
+| `ctrl+←` `ctrl+→` · `alt+←` `alt+→` · `esc b` `esc f` | move por palavra |
+| `ctrl+backspace` · `alt+backspace` | apaga a palavra anterior |
+| `alt+d` | apaga a palavra à frente |
+| `ctrl+u` · `ctrl+k` | apaga até o início · até o fim da linha |
+| `ctrl+a` `ctrl+e` · `home` `end` | início · fim |
+| `↑` `↓` | histórico (preserva o rascunho) |
+| `tab` | completa comando, projeto ou id de card |
+| **`alt+enter`** ou **`\` + `enter`** | **quebra linha** sem enviar |
+| `enter` | envia |
+
+> **Sobre `shift+enter`:** a maioria dos terminais **não distingue** `shift+enter` de `enter` — os
+> dois mandam o mesmo byte, então não há como diferenciar. Funciona em terminais com o protocolo
+> de teclado do Kitty (aceito aqui como `\x1b[13;2u`). Nos demais, use `alt+enter` ou terminar a
+> linha com `\`. `\x08` é tratado como `ctrl+backspace` (padrão do Windows Terminal e VS Code);
+> o backspace comum manda `\x7f`.
 
 Duas garantias de desenho:
 

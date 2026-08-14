@@ -213,3 +213,96 @@ test('agruparColagem junta rajada de imprimiveis, mas nao digitacao curta', () =
 test('agruparColagem nao junta quando ha tecla de controle no meio', () => {
   expect(agruparColagem(['a', 'b', 'c', 'd', 'e', '\x1b[A']).length).toBe(6)
 })
+
+import { tokenizeParcial } from '../lib/core/tui/keys'
+
+test('REGRESSAO colagem partida em chunks nao vira duas colagens', () => {
+  const a = tokenizeParcial('\x1b[200~primeira parte ')
+  expect(a.tokens).toEqual([])
+  expect(a.pendente).toContain('primeira parte')
+  const b = tokenizeParcial('segunda parte\x1b[201~', a.pendente)
+  expect(b.pendente).toBe('')
+  expect(b.tokens.length).toBe(1)
+  expect(textoDaCola(b.tokens[0] ?? '')).toBe('primeira parte segunda parte')
+})
+
+test('chunk normal nao deixa pendencia', () => {
+  const r = tokenizeParcial('abc')
+  expect(r.pendente).toBe('')
+  expect(r.tokens).toEqual(['a', 'b', 'c'])
+})
+
+test('colagem completa num chunk so nao fica pendente', () => {
+  const r = tokenizeParcial('\x1b[200~tudo junto\x1b[201~')
+  expect(r.pendente).toBe('')
+  expect(textoDaCola(r.tokens[0] ?? '')).toBe('tudo junto')
+})
+
+import { inicioDaPalavra, fimDaPalavra } from '../lib/core/tui/input'
+
+test('ctrl+seta move por palavra', () => {
+  let s = digitar('adicionar selo beta')
+  s = keypress(s, '\x1b[1;5D').state
+  expect(s.cursor).toBe(15)
+  s = keypress(s, '\x1b[1;5D').state
+  expect(s.cursor).toBe(10)
+  s = keypress(s, '\x1b[1;5C').state
+  expect(s.cursor).toBe(14)
+})
+
+test('alt+seta e emacs (esc+b / esc+f) tambem movem por palavra', () => {
+  const s = digitar('um dois tres')
+  expect(keypress(s, '\x1bb').state.cursor).toBe(8)
+  expect(keypress(keypress(s, '\x01').state, '\x1bf').state.cursor).toBe(2)
+})
+
+test('ctrl+backspace e alt+backspace apagam a palavra anterior', () => {
+  for (const k of ['\x08', '\x1b\x7f', '\x1b[3;5~']) {
+    expect(keypress(digitar('selo beta agora'), k).state.buffer).toBe('selo beta ')
+  }
+})
+
+test('alt+d apaga a palavra a frente', () => {
+  let s = digitar('selo beta agora')
+  s = keypress(s, '\x01').state
+  expect(keypress(s, '\x1bd').state.buffer).toBe(' beta agora')
+})
+
+test('ctrl+k apaga ate o fim, ctrl+u ate o inicio', () => {
+  let s = digitar('inicio meio fim')
+  s = keypress(s, '\x1b[1;5D').state
+  expect(keypress(s, '\x0b').state.buffer).toBe('inicio meio ')
+  expect(keypress(s, '\x15').state.buffer).toBe('fim')
+})
+
+test('inicioDaPalavra e fimDaPalavra nao saem dos limites', () => {
+  expect(inicioDaPalavra('abc', 0)).toBe(0)
+  expect(fimDaPalavra('abc', 3)).toBe(3)
+})
+
+test('alt+enter e shift+enter (kitty) quebram linha em vez de enviar', () => {
+  for (const k of ['\x1b\r', '\x1b[13;2u']) {
+    const r = keypress(digitar('primeira'), k)
+    expect(r.action.kind).toBe('redraw')
+    expect(r.state.buffer).toBe('primeira\n')
+  }
+})
+
+test('barra invertida no fim + enter tambem quebra linha', () => {
+  const r = keypress(digitar('primeira\\'), '\r')
+  expect(r.action.kind).toBe('redraw')
+  expect(r.state.buffer).toBe('primeira\n')
+})
+
+test('enter normal depois da quebra envia as duas linhas', () => {
+  let s = keypress(digitar('linha um'), '\x1b\r').state
+  s = digitar('linha dois', s)
+  const r = keypress(s, '\r')
+  expect(r.action.kind).toBe('submit')
+  expect(r.action.kind === 'submit' && r.action.line).toBe('linha um\nlinha dois')
+})
+
+test('REGRESSAO \\x7f e backspace simples; \\x08 e ctrl+backspace (apaga palavra)', () => {
+  expect(keypress(digitar('abc'), '\x7f').state.buffer).toBe('ab')
+  expect(keypress(digitar('selo beta'), '\x08').state.buffer).toBe('selo ')
+})

@@ -127,3 +127,56 @@ test('lista de projetos numera e sinaliza clone ausente', () => {
 test('lista vazia orienta a registrar', () => {
   expect(renderProjetos([])).toContain('hii repo add')
 })
+
+import { renderPassos, renderLegenda, corDoPasso } from '../lib/core/render/board'
+
+const opcoes = { color: true, repo: '', daemon: '', now: 0, width: 80, passosDe: (): Passo[] => [] }
+
+test('cada passo tem cor propria, e a mesma sempre', () => {
+  expect(corDoPasso('Arquitetura')).not.toBe(corDoPasso('Testes'))
+  expect(corDoPasso('Testes')).toBe(corDoPasso('Testes'))
+})
+
+test('passo desconhecido ainda recebe cor da paleta', () => {
+  expect(corDoPasso('Passo Novo', 0)).toBeTruthy()
+})
+
+test('bolinha vazia enquanto pendente, cheia quando feita', () => {
+  const p: Passo[] = [{ label: 'Testes', estado: 'feito' }, { label: 'Review', estado: 'pendente' }]
+  const t = renderPassos(p, opcoes)
+  expect(t).toContain('●')
+  expect(t).toContain('○')
+})
+
+test('passo corrente aparece meio-cheio', () => {
+  expect(renderPassos([{ label: 'Testes', estado: 'agora' }], opcoes)).toContain('◐')
+})
+
+test('pendente sai sem cor propria; feito sai colorido', () => {
+  const pendente = renderPassos([{ label: 'Testes', estado: 'pendente' }], opcoes)
+  const feito = renderPassos([{ label: 'Testes', estado: 'feito' }], opcoes)
+  expect(pendente).toContain('\x1b[2m')
+  expect(feito).toContain(corDoPasso('Testes'))
+})
+
+test('legenda nomeia cada passo ao lado da sua bolinha', () => {
+  const l = renderLegenda([
+    { label: 'Arquitetura', estado: 'feito' },
+    { label: 'Testes', estado: 'pendente' },
+  ], opcoes)
+  expect(l).toContain('arquitetura')
+  expect(l).toContain('testes')
+})
+
+test('board mostra a legenda quando ha passos', () => {
+  const t = renderBoard([card({ id: '1', status: 'PREVIEW_OK' })], {
+    repo: 'org/app',
+    passosDe: () => [{ label: 'Testes', estado: 'feito' }, { label: 'Review', estado: 'pendente' }],
+  })
+  expect(t).toContain('testes')
+  expect(t).toContain('review')
+})
+
+test('board sem passos nao inventa legenda', () => {
+  expect(renderBoard([card({ id: '1' })], { repo: 'org/app', ...semPassos })).not.toContain('legenda')
+})

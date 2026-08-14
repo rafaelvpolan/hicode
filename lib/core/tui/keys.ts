@@ -28,6 +28,20 @@ function fimDaSequencia(chunk: string, i: number): number {
   return i + 1
 }
 
+export interface Parcial {
+  tokens: string[]
+  pendente: string
+}
+
+export function tokenizeParcial(chunk: string, pendenteAnterior = ''): Parcial {
+  const bruto = pendenteAnterior + chunk
+  const inicio = bruto.lastIndexOf(INICIO_COLA)
+  if (inicio >= 0 && bruto.indexOf(FIM_COLA, inicio) < 0) {
+    return { tokens: tokenize(bruto.slice(0, inicio)), pendente: bruto.slice(inicio) }
+  }
+  return { tokens: tokenize(bruto), pendente: '' }
+}
+
 export function tokenize(chunk: string): string[] {
   const out: string[] = []
   let i = 0
