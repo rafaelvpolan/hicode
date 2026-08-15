@@ -81,9 +81,40 @@ async function worktreesHoldingBranch(target: string, branch: string): Promise<s
   return worktreePathsForBranch(String(r.stdout || ''), branch)
 }
 
-export async function ensureWorktree(target: string, wt: string, branch: string, base: string): Promise<string> {
+export interface WorktreeInfo {
+  path: string
+  baseCommit: string
+}
+
+export interface RefreshResult {
+  ok: boolean
+  changed: boolean
+  detail: string
+}
+
+export async function refreshFromBase(wt: string, base: string): Promise<RefreshResult> {
+  const f = await withGitLock(() => runGit(wt, ['fetch', 'origin', base]))
+  if (f.err) return { ok: false, changed: false, detail: `fetch origin/${base} falhou: ${String(f.stderr || '').slice(0, 120)}` }
+  const atras = Number((await runGit(wt, ['rev-list', '--count', `HEAD..origin/${base}`])).stdout.trim()) || 0
+  if (!atras) return { ok: true, changed: false, detail: `ja atualizado com origin/${base}` }
+  const m = await runGit(wt, ['merge', '--no-edit', `origin/${base}`])
+  if (m.err) {
+    await runGit(wt, ['merge', '--abort'])
+    return { ok: false, changed: false, detail: `conflito ao integrar ${atras} commit(s) de origin/${base}` }
+  }
+  return { ok: true, changed: true, detail: `integrou ${atras} commit(s) de origin/${base}` }
+}
+
+export async function ensureWorktree(target: string, wt: string, branch: string, base: string): Promise<WorktreeInfo> {
   return withGitLock(async () => {
-    await runGit(target, ['fetch', 'origin', base])
+    const f = await runGit(target, ['fetch', 'origin', base])
+    if (f.err) {
+      throw new Error(`fetch origin/${base} falhou — a branch nasceria de estado velho: ${String(f.stderr || '').slice(0, 120)}`)
+    }
+    const ref = await runGit(target, ['rev-parse', `origin/${base}`])
+    if (ref.err || !ref.stdout.trim()) {
+      throw new Error(`origin/${base} nao existe no remoto — confira a branch base do alvo em config/repos.json`)
+    }
     await runGit(target, ['worktree', 'prune'])
     if (existsSync(wt)) {
       await runGit(target, ['worktree', 'remove', '--force', wt])
@@ -99,7 +130,7 @@ export async function ensureWorktree(target: string, wt: string, branch: string,
     if (!existsSync(nm) && existsSync(join(target, 'node_modules'))) {
       try { symlinkSync(join(target, 'node_modules'), nm, 'dir') } catch { void 0 }
     }
-    return wt
+    return { path: wt, baseCommit: ref.stdout.trim().slice(0, 7) }
   })
 }
 
@@ -111,4 +142,50 @@ export async function worktreeOnBranch(wt: string, branch: string): Promise<bool
 
 export async function removeWorktree(target: string, wt: string): Promise<void> {
   if (wt && existsSync(wt)) await withGitLock(() => runGit(target, ['worktree', 'remove', '--force', wt]))
+}
+
+export type WorktreeFate = 'discard' | 'keep-for-inspection'
+
+export async function settleWorktree(target: string, wt: string, fate: WorktreeFate): Promise<void> {
+  if (fate === 'discard') await removeWorktree(target, wt)
+}
+
+export type PushFailureReason = 'none' | 'no-anchor' | 'diverged' | 'other'
+
+export interface PushResult {
+  ok: boolean
+  forced: boolean
+  detail: string
+  failureReason: PushFailureReason
+  pushedSha: string
+}
+
+function trimmed(s: string): string {
+  return s.replace(/[\r\n]+/g, ' ').trim().slice(0, 220)
+}
+
+function isNonFastForward(stderr: string): boolean {
+  return /\[rejected\]|non-fast-forward|fetch first|stale info/i.test(stderr)
+}
+
+async function shaRemotoAtual(wt: string, branch: string): Promise<string> {
+  const r = await runGit(wt, ['ls-remote', 'origin', `refs/heads/${branch}`])
+  if (r.err) return ''
+  return (r.stdout.trim().split(/\s+/)[0] ?? '').trim()
+}
+
+export async function pushOwnedBranch(wt: string, branch: string, knownRemoteSha: string, donoComprovado = false): Promise<PushResult> {
+  return withGitLock(async () => {
+    const head = await runGit(wt, ['rev-parse', 'HEAD'])
+    const localSha = head.stdout.trim()
+    const first = await runGit(wt, ['push', '--no-verify', '-u', 'origin', branch])
+    if (!first.err) return { ok: true, forced: false, detail: '', failureReason: 'none', pushedSha: localSha }
+    const detail = trimmed(String(first.stderr || ''))
+    if (!isNonFastForward(detail)) return { ok: false, forced: false, detail, failureReason: 'other', pushedSha: '' }
+    const ancora = knownRemoteSha || (donoComprovado ? await shaRemotoAtual(wt, branch) : '')
+    if (!ancora) return { ok: false, forced: false, detail, failureReason: 'no-anchor', pushedSha: '' }
+    const forced = await runGit(wt, ['push', '--no-verify', `--force-with-lease=${branch}:${ancora}`, '-u', 'origin', branch])
+    if (!forced.err) return { ok: true, forced: true, detail: '', failureReason: 'none', pushedSha: localSha }
+    return { ok: false, forced: true, detail: trimmed(String(forced.stderr || '')), failureReason: 'diverged', pushedSha: '' }
+  })
 }

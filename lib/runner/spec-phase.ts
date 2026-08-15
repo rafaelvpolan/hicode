@@ -35,7 +35,8 @@ export async function handleSpec(id: string): Promise<void> {
   const wt = card.fm.worktree || worktreePath(target, id, slug)
   patchCard(id, { branch, worktree: wt }, `${isoNow()} SPECCED: preparando worktree para o spec`)
   try {
-    await ensureWorktree(target, wt, branch, base)
+    const info = await ensureWorktree(target, wt, branch, base)
+    patchCard(id, { base_commit: info.baseCommit }, `${isoNow()} base: branch criada de origin/${base}@${info.baseCommit}`)
   } catch (e) {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} SPECCED->HALTED ${String((e as Error)?.message ?? e).slice(0, 140)}`)
     return
@@ -57,7 +58,7 @@ export async function handleSpec(id: string): Promise<void> {
     attempt++
   }
   if (!v.ok) {
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} SPECCED->HALTED spec reprovado no openspec validate --strict apos ${MAX_REAJUSTE} reajuste(s): ${v.issues.slice(0, 3).join('; ')}`)
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} SPECCED->HALTED spec reprovado no openspec validate --strict apos ${MAX_REAJUSTE} reajuste(s): ${v.issues.slice(0, 3).join('; ')} (worktree mantido p/ inspecao)`)
     return
   }
   await stageAll(wt)

@@ -17,25 +17,125 @@ O hicode é o **plano de controle**: ele roda na raiz deste repo e gerencia **ou
 
 ## Como rodar
 
-O motor é controlado pelo CLI global **`hicode`** (registrado com `bun link`):
-
 ```bash
 bun install          # dependências do motor (raiz)
-bun link             # registra o binário `hicode` no PATH (~/.bun/bin)
-
-hicode start         # sobe o daemon do motor
-hicode status        # daemon online? + board de progresso dos cards
-hicode watch         # progresso dos cards ao vivo
-hicode stop | restart
-hicode run           # motor em foreground (não daemoniza)
-hicode once          # processa a fila uma vez e sai
-hicode sync          # sincroniza tarefas externas (ver Pluggabilidade)
-hii init [caminho] # provisiona .hii/ num repo-alvo (default: cwd)
-hicode hooks install [caminho]   # instala o gate de pre-push num repo (default: cwd)
-hicode hooks uninstall [caminho] # remove o pre-push
+bun link             # registra os binários `hii` e `hicode` no PATH (~/.bun/bin)
 ```
 
-O painel (opcional, para testar/visualizar):
+### `hii` — a sessão interativa (porta canônica)
+
+`hii` **sem argumento** abre a sessão. É onde se cria tarefa, responde pergunta, lê o plano e
+aprova — tudo no terminal:
+
+```
+hii · org/app · seguindo #021          daemon online (pid 48213)
+┌──────────────────────────────────────────────────────────────┐
+│ seguindo #021 · EXECUTING · adicionar selo beta no hero       │
+│   vitro, frontiteto · 1 skill(s) · 9 arquivo(s)               │
+│   preview → http://localhost:5221                             │
+│                                                              │
+│ ◆ agente vitro — criar o selo no hero                        │
+│ ✦ skill frontend-design                                      │
+│ · edit src/App.vue                                            │
+│ $ bash npm run build                                          │
+└──────────────────────────────────────────────────────────────┘
+› _                                        /board volta  ctrl+c sai
+ia claude/opus · esforco medium · projeto org/app · gasto US$4.08
+⠇ #021 adicionar selo beta no hero  executing · vitro · 2min
+```
+
+**Abaixo do input** ficam fixas as propriedades em uso (provedor/modelo, esforço, projeto, gasto
+do dia — e um destaque quando algum papel usa provedor diferente) e as **tarefas em execução**,
+com spinner, agente atual e há quanto tempo. Continua visível enquanto você digita.
+
+**Seguir a execução:** `/watch <id>` troca o corpo pelo **stream da IA ao vivo** — agente, skill,
+arquivo, comando — e `/board` volta. Aprovar um plano já entra em modo seguir automaticamente.
+
+| Comando | O quê |
+|---|---|
+| *texto livre* | cria o card e **mostra o plano**; nada executa antes da aprovação |
+| `⏎` (enter) | aprova o plano pendente e enfileira |
+| `/board` | **quadro do projeto AO VIVO** — tela cheia, atualiza sozinho, `q` volta |
+| `/cards [STATUS]` | lista, opcionalmente filtrando (`/cards HALTED`) |
+| `/plan <id>` | reexibe o plano de um card |
+| `/watch <id>` | últimas transições do card + link do preview |
+| `/agents <id>` | **agentes, skills e ferramentas** que rodaram no card |
+| **`/ok <id>`** | **aprova o preview que você viu no dev server** |
+| **`/no <id> [o que]`** | rejeita o preview; com motivo, pede correção em vez de refazer |
+| `/halt <id> [motivo]` | para um card |
+| `/repo` | troca de projeto (reabre a lista); `/repo <nome>` vai direto |
+| `20` ou `#20` | mostra o plano do card 20 — **número puro consulta, não cria tarefa** |
+| `/quit` | sai — **não** derruba o daemon nem os cards |
+
+Com mais de um projeto registrado, a sessão **abre pela lista de projetos** — com quantos cards
+cada um tem, quantos esperam você, quantos rodam e quantos pararam. Você entra em um e tudo depois
+disso é **escopado a ele**: board, `/cards`, a faixa da frota. Com um projeto só, entra direto.
+
+**Colar funciona** — link, texto ou bloco inteiro, **de uma vez só** (um redesenho, sem animação
+de tecla), inclusive quando o terminal parte a colagem em vários pedaços. Colagem grande vira um
+marcador compacto (`[colado #1 · 47 linhas]`) e só expande no envio.
+
+**URL vira clicável** (OSC 8) no log e no board — `ctrl+clique` no terminal que suportar; nos
+demais aparece como texto normal.
+
+**Teclas do input:**
+
+| Tecla | O quê |
+|---|---|
+| `ctrl+←` `ctrl+→` · `alt+←` `alt+→` · `esc b` `esc f` | move por palavra |
+| `ctrl+backspace` · `alt+backspace` | apaga a palavra anterior |
+| `alt+d` | apaga a palavra à frente |
+| `ctrl+u` · `ctrl+k` | apaga até o início · até o fim da linha |
+| `ctrl+a` `ctrl+e` · `home` `end` | início · fim |
+| `↑` `↓` | histórico (preserva o rascunho) |
+| `tab` | completa comando, projeto ou id de card |
+| **`alt+enter`** ou **`\` + `enter`** | **quebra linha** sem enviar |
+| `enter` | envia |
+
+> **Sobre `shift+enter`:** a maioria dos terminais **não distingue** `shift+enter` de `enter` — os
+> dois mandam o mesmo byte, então não há como diferenciar. Funciona em terminais com o protocolo
+> de teclado do Kitty (aceito aqui como `\x1b[13;2u`). Nos demais, use `alt+enter` ou terminar a
+> linha com `\`. `\x08` é tratado como `ctrl+backspace` (padrão do Windows Terminal e VS Code);
+> o backspace comum manda `\x7f`.
+
+Duas garantias de desenho:
+
+- **O REPL é cliente, nunca um segundo motor.** Ele não processa a fila e não chama IA: pede o
+  plano ao core, que é determinístico (0 token). Dois processos na mesma fila é o furo que o
+  lock de instância existe para impedir.
+- **Sair não derruba trabalho.** `/quit` e `ctrl+D` encerram a sessão; os cards seguem no daemon.
+  Para parar um card, `/halt`.
+
+Se o daemon estiver offline ao abrir a sessão, ele **pergunta uma vez** se deve subir — e aceita
+`sempre`/`nunca`, gravando a preferência em `cards/runs/.repl.json`. Sem TTY (pipe, CI) não
+pergunta: avisa e segue.
+
+### `hii <comando>` — modo script e CI
+
+```bash
+hii start            # sobe o daemon do motor
+hii status           # daemon online? + board de progresso dos cards
+hii watch            # progresso dos cards ao vivo
+hii stop | restart
+hii run              # motor em foreground (não daemoniza)
+hii once             # processa a fila uma vez e sai
+hii sync             # sincroniza tarefas externas (ver Pluggabilidade)
+hii approve <id>     # aprova o preview (PREVIEW -> PREVIEW_OK)
+hii approve <id> --plan   # aprova o plano e enfileira (READY -> EXECUTING)
+hii reject <id> [o que]   # rejeita o preview; com motivo, pede correção
+hii halt <id> [motivo]    # para o card
+hii doctor           # confere gh, IA, daemon, push e contrato — ANTES de gastar token
+hii archive          # arquiva os entregues acima do teto (10 por projeto)
+hii archive ls       # o que está arquivado
+hii archive restore <id>   # traz um card de volta
+hii init [caminho]   # provisiona .hii/ num repo-alvo (default: cwd)
+hii hooks install [caminho]   # instala o gate de pre-push num repo (default: cwd)
+hii hooks uninstall [caminho] # remove o pre-push
+```
+
+`hicode` continua valendo como alias de `hii`.
+
+O painel (opcional, para visualizar e revisar diff):
 
 ```bash
 bun run panel        # Nuxt em http://localhost:4318
@@ -47,6 +147,9 @@ Suíte de qualidade do próprio hicode:
 bun run test         # tsc --noEmit + lint no-any + testes (bun test) + typecheck do painel
 bun run test:unit    # só os testes unitários
 ```
+
+> O `typecheck:panel` exige as dependências do painel instaladas (`cd panel && bun install`).
+> Sem elas o comando falha com `nuxt: command not found` — e **não** é um typecheck que passou.
 
 ---
 
@@ -68,13 +171,29 @@ cada card.
 
 ### Passo 2 — Registrar o repo-alvo no motor
 
-O motor precisa achar o clone local do alvo. Adicione uma entrada em **`config/repos.json`**:
+Pelo CLI — **determinístico, 0 token**:
+
+```bash
+hii repo add owner/repo-alvo --path /caminho/do/clone
+hii repo ls          # estado de cada alvo (clone ok? contrato gerado?)
+hii repo rm owner/repo-alvo
+```
+
+Sem `--path`, procura o clone **irmão** deste repo (`../<nome>`). O `add` faz tudo numa passada:
+
+1. **valida** que o clone existe e é um repositório git — falha aqui, não depois em `HALTED`;
+2. **detecta a branch base** pelo próprio git (`origin/HEAD`, senão a branch atual);
+3. **provisiona `.hii/`** no alvo (o mesmo que `hii init`);
+4. **gera o contrato** — stack, gerenciador de pacotes, comandos e pacotes do alvo.
+
+O registro é **configuração de máquina**, então `config/repos.json` **não é versionado**
+(`config/repos.example.json` é o modelo). Editar à mão continua valendo:
 
 ```json
 [
   {
     "name": "owner/repo-alvo",
-    "path": "/caminho/do/repo-alvo",
+    "path": "/caminho/absoluto/do/clone-local",
     "branch": "main"
   }
 ]
@@ -86,13 +205,72 @@ O motor precisa achar o clone local do alvo. Adicione uma entrada em **`config/r
 - `branch` — base branch do alvo (default `main`).
 
 > Sem um `path` válido (nem irmão), o card vai para `HALTED` com `repo nao encontrado`.
+> A sessão `hii` **avisa na abertura** quando o registro está vazio, quando o repo da sessão não
+> está registrado, ou quando o `path` aponta para um clone que não existe — antes de você gastar
+> uma execução para descobrir.
+
+Para apontar o registro para outro lugar (ex.: perfis por máquina), use `HICODE_REPOS_FILE`.
+
+### Passo 2b — O contrato do alvo (detecção determinística, 0 token)
+
+`hii repo add` já gera; para redetectar depois de mudar dependências:
+
+```bash
+hii contract /caminho/do/alvo     # escreve <alvo>/.hii/contract.json
+hii contract /caminho --json      # a estrutura crua
+```
+
+O que ele descobre **sem gastar um token** — lendo lockfile, `package.json`, `tsconfig` e configs:
+
+| Campo | De onde sai |
+|---|---|
+| `packageManager` | lockfile (`bun.lock` › `pnpm-lock.yaml` › `yarn.lock` › `package-lock.json`) |
+| `shape` | `single` · `workspaces` (globs de workspace) · `poly` (projetos irmãos sem raiz comum) |
+| `packages[]` | nome, caminho, framework, linguagem, **gerenciador próprio**, scripts, porta de dev |
+| `commands` | build/test/lint/typecheck/dev **derivados dos scripts que existem** — script ausente vira comando vazio, nunca um chute |
+| `stack` | a frase que vai no prompt (ex.: `Vite + Vue 3 + TypeScript (pnpm)`) |
+| `hash` | das fontes — regenera só quando elas mudam |
+
+O `poly` cobre a forma "pasta com vários projetos independentes, cada um com seu gerenciador" —
+onde nenhum comando fixo funcionaria.
+
+`contract.json` é **derivado e gitignorado** no alvo (regenera em menos de 1s); o que fica
+versionado lá é `.hii/rules.md` e `.hii/config.json`.
+
+> **Por que isso importa para o custo:** antes, o prompt afirmava um stack fixo. Num alvo que não
+> batia, a IA escrevia código errado e o motor pagava reajuste para consertar. Detectar é grátis;
+> adivinhar é caro.
+
+### Passo 2c — `hii doctor` (antes de gastar o primeiro token)
+
+```bash
+hii doctor
+```
+
+Confere, de forma determinística: `gh` instalado e autenticado · CLIs de IA dos papéis em uso ·
+daemon · **se o `git push` autentica de verdade** · contrato de cada alvo. Sai com código 1 se
+houver erro, então serve em CI.
+
+O check de push **não** é `git ls-remote`: em repo público a leitura passa sem credencial e daria
+um "ok" falso. É `git push --dry-run`, que autentica sem escrever nada.
+
+> **Por que existe:** um card real rodou implementação, polimento, build, sync, revalidação e
+> gate — e morreu no `git push` por falta de credencial. Custo do que foi jogado fora: **US$ 1,71**.
+> O `doctor` detecta isso em 1 segundo, e o motor agora faz esse mesmo preflight **antes** da fase
+> de polimento: se o push não vai funcionar, o card para sem gastar.
+
+Conserto mais comum (git com remote HTTPS e sem credential helper):
+
+```bash
+gh auth setup-git    # faz o git usar o token que o gh já tem
+```
 
 ### Passo 3 — Subir o motor
 
 ```bash
-hicode start        # daemon em background
-hicode status       # daemon on? + board dos cards
-# alternativas: hicode run (foreground) · hicode once (processa a fila 1x e sai)
+hii start        # daemon em background
+hii status       # daemon on? + board dos cards
+# alternativas: hii run (foreground) · hii once (processa a fila 1x e sai)
 ```
 
 ### Passo 4 — Criar os cards (as tarefas)
@@ -101,11 +279,13 @@ O **card** (`cards/<NNN-slug>.md`) é a tarefa. Ele nasce por um destes caminhos
 
 | Caminho | Comando / ação | Status inicial |
 |---|---|---|
+| **REPL** (recomendado) | `hii` → escrever a tarefa → ler o plano → `⏎` | `READY` → `EXECUTING` |
 | **Painel** | `bun run panel` → criar card na UI | `READY` |
-| **Sync externo** | `HICODE_TASK_SYNC=github-issues HICODE_GH_REPO=owner/repo hicode sync` | `READY` |
+| **Sync externo** | `HICODE_TASK_SYNC=github-issues HICODE_GH_REPO=owner/repo hii sync` | `READY` |
 | **Manual** | escrever `cards/<NNN-slug>.md` à mão | você define |
 
-Todo card precisa do campo `repo:` batendo com o `name` do Passo 2.
+Todo card precisa do campo `repo:` batendo com o `name` do Passo 2 — no REPL isso vem do
+`/repo` da sessão.
 
 ### Passo 5 — Iniciar o card (`READY → EXECUTING`)
 
@@ -113,31 +293,113 @@ Todo card precisa do campo `repo:` batendo com o `name` do Passo 2.
 > `CORRECTING`. Ele **não** puxa `READY`/`INBOX` sozinho — um card recém-criado **fica parado**
 > até ser promovido.
 
-Duas formas de promover:
+Três formas de promover:
 
-- **Painel** — botão **iniciar** no card (faz `READY → EXECUTING`).
+- **REPL** — o `⏎` que aprova o plano já promove (`READY → EXECUTING`).
+- **Painel** — botão **iniciar** no card.
 - **Manual** — trocar o `status:` do card para `EXECUTING`.
 
-A partir daí o motor roda o pipeline (executar → preview → aprovar → polir) e **para em
-`PR_OPEN`** — o merge é sempre humano.
+A partir daí o motor roda o pipeline e **para no `PREVIEW`**, esperando você.
+
+### Passo 5b — Aprovar o preview (a porta humana do meio)
+
+O motor deixa o **dev server vivo** e o link no card. Você abre, olha, e decide:
+
+| Onde | Aprovar | Rejeitar |
+|---|---|---|
+| **REPL** | `/ok <id>` | `/no <id> [o que corrigir]` |
+| **CLI** | `hii approve <id>` | `hii reject <id> [o que]` |
+| **Painel** | botão aprovar | botão recusar |
+
+**Aprovar e rejeitar são guardados por estado:** só valem para card em `PREVIEW`. Aprovar um
+card que já passou dessa fase é recusado com o motivo — antes isso reexecutava o trabalho e
+pagava de novo.
+
+Rejeitar **com motivo** e worktree válido pede **correção pontual** (`CORRECTING`); sem motivo,
+refaz a implementação inteira. Dizer o que está errado é mais barato que só dizer "não".
+
+Depois do `PREVIEW_OK` vem o polimento, e o motor **para em `PR_OPEN`** — o merge é sempre humano.
 
 ### Passo 6 — Acompanhar
 
 ```bash
-hicode watch        # board dos cards ao vivo no terminal
+hii                 # sessão: faixa da frota + /watch <id> + /board
+hii watch           # board dos cards ao vivo no terminal (sem sessão)
 bun run panel       # painel em http://localhost:4318 (preview, diffs, aprovar/recusar)
 ```
 
 ### Receita rápida (copiar e colar)
 
 ```bash
-hii init /caminho/do/repo-alvo     # 1. provisiona .hii/
-#            ↳ registre o alvo em config/repos.json           # 2. name/path/branch
-hicode start                          # 3. sobe o motor
-bun run panel                         # 4. criar o card na UI (http://localhost:4318)
-#            ↳ clicar "iniciar" no card  (READY → EXECUTING)  # 5. promove pro pipeline
-hicode watch                          # 6. acompanhar
+hii init /caminho/do/repo-alvo        # 1. provisiona .hii/ no alvo
+#   ↳ registre o alvo em config/repos.json                    # 2. name/path/branch
+hii start                             # 3. sobe o motor
+hii                                   # 4. sessão: escreva a tarefa
+#   ↳ leia o plano e tecle ⏎                                  # 5. aprova e enfileira
+#   ↳ /watch <id> acompanha; /board mostra a frota            # 6. acompanhar
 ```
+
+---
+
+## Ideação divergente na clareza da tarefa
+
+Quando o pedido é **de abordagem** ("como estruturar o cache", "melhor arquitetura para X"), o
+clarify deixa de só perguntar e passa a **gerar as opções**: N ramos isolados, cada um sob uma
+**lente cognitiva** diferente (inversão, atacante, 3h da manhã, US$0/1h, orçamento infinito,
+remoção de premissa, criança de 10 anos, regulador, speedrunner, logística), sem se enxergarem —
+o isolamento é o que evita ancoragem. Depois um **crítico que não gerou nenhuma delas** pontua
+novidade / viabilidade / aderência, marca uma **não-óbvia-mas-viável** e lista as **armadilhas**.
+
+A shortlist vira as opções da pergunta, e a armadilha entra no enunciado:
+
+```
+Qual abordagem seguir? (evitar: cache no cliente — invalida errado sob deploy)
+  › [inversão] pré-computar no build e servir estático   ← recomendado
+    [3h da manhã] TTL curto com fallback para o último bom
+    [US$0/1h] cabeçalho de cache no proxy que já existe
+```
+
+**Portão determinístico, antes de gastar token:** só roda em pedido aberto. Perfil `micro`/`enxuto`,
+resposta canônica (typo, renomear, bump) ou pedido que já diz "rápido/simples" **não ideiam** — e
+o motivo fica no log. Override no card: `ideate: on|off`.
+
+> **Custo:** são N+1 chamadas (padrão: 5). Adaptado de
+> [UditAkhourii/adhd](https://github.com/uditakhourii/adhd), implementado nativo em vez de instalar
+> a skill — assim funciona com qualquer provedor, entra na contabilidade de custo do card e obedece
+> ao portão do analisador. Os ganhos que o repositório original publica são auto-reportados,
+> julgados por LLM sobre 6 problemas: trate como promissor, não como medido.
+
+---
+
+## Acompanhar a execução
+
+**`/agents <id>`** lê o log de streaming da IA e mostra o que de fato rodou:
+
+```
+#021 — vitro, frontiteto · 1 skill(s) · 9 arquivo(s) · 2 comando(s)
+  ◇ sessao claude-opus-5
+  ◆ agente vitro — criar o selo no hero
+  ✦ skill frontend-design
+  · read src/App.vue
+  · edit src/App.vue
+  $ bash npm run build
+  ◇ concluido US$0.4078
+```
+
+Sai de `cards/runs/<id>.live.log`, que o adapter de streaming grava com cada
+`tool_use` — então **um `Task({"subagent_type":"vitro"})` é um agente Nexus sendo despachado**, e
+`Skill(...)` é uma skill. Nada disso precisou de instrumentação nova: o dado já existia, faltava
+ler.
+
+> O log **acumula** por card (com poda automática acima de 1MB). Antes ele era truncado a cada
+> chamada de IA, então ao entrar no polimento você perdia o registro da implementação.
+
+### Teto de cards por projeto
+
+Card entregue (`MERGED`/`DEPLOYED`) acima de **10 por projeto** vai para `cards/archive/` — o motor
+poda sozinho no tick. Card vivo **nunca** é arquivado: `PR_OPEN` espera merge, `HALTED` espera
+você, e em andamento é trabalho em curso. Se o teto estourar só com card vivo, o motor avisa em vez
+de mexer.
 
 ---
 
@@ -206,9 +468,18 @@ restart no meio do caminho:
 | `EXECUTING` `CORRECTING` `SPECCED` | reexecutado | o job foi interrompido; a fila reprocessa |
 | `EXECUTED` | → `EXECUTING` | estado transitório sem consumidor — um card só fica aqui se o preview não concluiu ou foi **rejeitado sem worktree**; reexecuta em vez de ficar órfão |
 
-**Worktree idempotente** — `ensureWorktree` sempre parte de `origin/<base>` limpo e **nunca trava
-por sobra de estado**: roda `git worktree prune`, remove o path-alvo (e apaga diretório-fantasma
-não-registrado), **remove qualquer outro worktree que segure a mesma branch** e só então recria.
+**Toda task parte da base ATUALIZADA — e falha se não conseguir.** `ensureWorktree` faz
+`fetch origin/<base>`, **verifica o resultado** e cria a branch de `origin/<base>` recém-buscado.
+Se o fetch falhar (rede, credencial), o card **para** em vez de nascer de estado velho — antes o
+erro do fetch era descartado e a branch saía de um `origin/main` em cache, silenciosamente. O
+commit de origem fica gravado no card (`base_commit`), então dá para auditar de onde a branch saiu.
+
+Card com **spec** reaproveita o worktree; nesse caminho o motor faz `fetch` + integra o que a base
+andou (`refreshFromBase`) antes de executar. Conflito na integração para o card com o motivo.
+
+**Worktree idempotente** — `ensureWorktree` **nunca trava por sobra de estado**: roda
+`git worktree prune`, remove o path-alvo (e apaga diretório-fantasma não-registrado), **remove
+qualquer outro worktree que segure a mesma branch** e só então recria.
 
 **Timeout & HALT** — cada chamada de IA é morta em `HICODE_RUN_TIMEOUT_MS` (default **15 min**)
 com `SIGTERM`→`SIGKILL`; **no timeout o worktree é preservado** p/ inspeção/retomada. Um card em
@@ -228,9 +499,25 @@ A fase de polimento é **dados**, não código: `config/pipeline.json` (override
   "gate": "none",        // none | test | verdict
   "enabled": true,
   "gated": true,         // se true, passa pelo Crivo antes de "pronto"
+  "needs": [],           // dependências — define as ondas do DAG
   "instruction": "..."   // %s = objetivo do card
 }
 ```
+
+**`needs` monta o DAG.** Steps sem dependência pendente entram na **mesma onda** e podem rodar em
+paralelo. No pipeline default, `testes` e `seguranca` dependem só de `arquitetura`, então formam
+uma onda paralela:
+
+```
+1. Arquitetura     rufus [crivo]
+2. ┌ Testes        testudo [crivo]   ← paralelo
+   └ Seguranca     escudo  [crivo]
+3. Review          crivo
+4. Limpeza         pura
+```
+
+Dependência que aponta para um step **pulado pelo perfil** não trava a onda; ciclo não entra em
+loop infinito (degrada para ordem de declaração).
 
 ### Gates reais
 
@@ -240,8 +527,21 @@ A fase de polimento é **dados**, não código: `config/pipeline.json` (override
 - **Gated Nexus** (`gated: true`) — o padrão do Nexus no motor: **agente → Crivo revisa o diff →
   se BLOCKED, reexecuta com o motivo (retry) → se persistir, HALT**. Determinístico e por
   subprocesso (mantém multi-provedor).
-- **Codefox** — gate adversarial final sobre o diff acumulado, antes do PR (só `BLOCKED` bloqueia).
+- **Codefox** — gate adversarial final sobre o diff acumulado, antes do PR.
 - **Spec (OpenSpec)** — `openspec validate --strict --json` como gate determinístico da fase de spec.
+
+**Todos os gates são fail-closed.** A distinção que importa é entre *o gate rodou e reprovou* e
+*o gate não rodou*:
+
+| Situação | Resultado |
+|---|---|
+| gate rodou → `APPROVED` / `CONDITIONAL` | segue (as perguntas do Crivo vão no corpo do PR) |
+| gate rodou → `BLOCKED` | **HALT** |
+| gate não rodou (timeout, erro, saída sem veredito) | **HALT** — "não concluiu", nunca aprovação por omissão |
+
+No gate **por step**, "não rodou" repete o **próprio gate** (`HICODE_GATE_RETRIES`) sem reexecutar
+o agente: o trabalho estava bom, quem quebrou foi o juiz — reexecutar o agente seria desperdício e
+ainda mentiria no prompt dizendo que o Crivo reprovou.
 
 ---
 
@@ -294,8 +594,24 @@ Plugins de **sync** (`lib/tasks/`) importam tarefas externas → cards e espelha
 O **painel Nuxt é o plugin local de referência**. Adapter incluído: **GitHub Issues**.
 
 ```bash
-HICODE_TASK_SYNC=github-issues HICODE_GH_REPO=owner/repo hicode sync
+HICODE_TASK_SYNC=github-issues HICODE_GH_REPO=owner/repo hii sync
 ```
+
+### Plugável em superfícies de controle (CLI, REPL, painel, MCP, bot)
+
+Quatro pontos de extensão, cada um com uma interface própria:
+
+| Extensão | Interface | Adapters incluídos |
+|---|---|---|
+| Origem do trabalho | `lib/tasks/` (`TaskSource` + registry) | GitHub Issues |
+| Provedor de IA | `lib/ai/` (`AiProvider` + registry) | claude · codex · opencode · ollama |
+| Passo de pipeline | `config/pipeline.json` (com `needs`) | 5 steps default |
+| **Superfície de controle** | `lib/core/actions` | REPL · painel Nuxt |
+
+Um cliente novo (MCP, bot de Slack, job de CI) implementa-se importando `lib/core/actions` —
+nenhum transporte é obrigatório. HTTP, gRPC ou MCP são camadas finas **em cima** desses verbos,
+adicionáveis depois sem tocar em cliente algum: pluggabilidade vem de um dono único do estado,
+não do protocolo.
 
 ---
 
@@ -308,15 +624,26 @@ HICODE_TASK_SYNC=github-issues HICODE_GH_REPO=owner/repo hicode sync
 | `HICODE_VERIFY_MODEL` / `HICODE_GATE_MODEL` | `sonnet` | modelo (claude) de verify/gate |
 | `HICODE_CODEX_MODEL` / `HICODE_OPENCODE_MODEL` / `HICODE_OLLAMA_MODEL` | — | modelo por provedor |
 | `HICODE_OLLAMA_URL` | `http://localhost:11434` | endpoint do Ollama |
-| `HICODE_VISUAL_AI` | `on` | `off` desliga o check visual por IA (só screenshot + humano) |
+| `HICODE_VISUAL_AI` | `off` | `on` liga o check visual por IA (default: só screenshot + humano) |
+| `HICODE_CLARIFY` | `on` | `off` desliga a fase de perguntas |
+| `HICODE_IDEATE_FRAMES` / `_IDEAS` / `_TOPK` | `4`/`5`/`3` | lentes, ideias por lente e tamanho da shortlist |
+| `HICODE_EVAL` | `on` | `off` desliga a nota de qualidade pós-preview |
+| `HICODE_PROJECT_MEMORY` | `on` | `off` não injeta nem grava `.hii/memory` |
 | `HICODE_TASK_SYNC` | `none` | plugin de sync de tarefas (`github-issues`) |
 | `HICODE_GH_REPO` | — | repo do adapter GitHub Issues |
 | `HICODE_CONCURRENCY` | `3` | cards em paralelo |
 | `HICODE_POLL_MS` | `5000` | intervalo do tick |
 | `HICODE_RUN_TIMEOUT_MS` | `900000` | timeout por chamada de IA (SIGTERM→SIGKILL; worktree preservado no timeout) |
 | `HICODE_PREVIEW_BASE` | `5200` | porta base dos previews |
-| `HICODE_{VERIFY,REAJUSTE,CONFLICT}_RETRIES` | `1`/`2`/`2` | retries |
+| `HICODE_{REAJUSTE,CONFLICT}_RETRIES` | `2`/`2` | retries de reajuste e de conflito |
+| `HICODE_GATE_RETRIES` | `1` | repetições do **gate** quando ele não conclui (não reexecuta o agente) |
 | `HICODE_GATE_DIFF_LIMIT` | `60000` | corte do diff enviado ao gate |
+| `HICODE_CARD_BUDGET_USD` | `0` | teto de custo por card (`0` = sem teto) |
+| `HICODE_CARDS_DIR` | `<root>/cards` | onde os cards vivem — usado pelos testes para isolar |
+| `HICODE_REPOS_FILE` | `<root>/config/repos.json` | registro de repos-alvo |
+| `HICODE_RUNNER_PIDFILE` | `<root>/.runner.pid` | pidfile do daemon |
+| `HICODE_LOCK_STALE_MS` | `15000` | idade a partir da qual um lock de card é considerado morto |
+| `HICODE_LOCK_TIMEOUT_MS` | `10000` | espera máxima por um lock antes de quebrá-lo |
 
 ---
 
@@ -324,28 +651,55 @@ HICODE_TASK_SYNC=github-issues HICODE_GH_REPO=owner/repo hicode sync
 
 ```
 runner.ts              entrypoint do processo do daemon (bun runner.ts)
-bin/hicode.ts          CLI global `hicode` (start/stop/status/watch/run/once/sync/init)
+bin/hii.ts             CLI `hii`/`hicode` — sem args abre o REPL, com args despacha
+bin/repl.ts            laço de I/O da sessão interativa (fino: a lógica está em lib/core)
+lib/core/              SUPERFÍCIE DE CONTROLE — o único dono das transições de estado
+  actions.ts           verbos: submit · transition · resumeFrom · approvePreview · halt
+                       requestCorrection · answerClarify · edit · setPreviewPid · remove
+  plan.ts              plano determinístico do card (0 token)
+  session.ts           dispatch do REPL (puro, testável sem TTY)
+  daemon.ts            pid real do daemon + preferência de autostart
+  render/              plan · fleet · phases — renderizadores puros
 lib/ai/                provider de IA: types · usage · registry · adapters/{claude,codex,opencode,ollama}
 lib/runner/            motor: queue · execute · finish · correct · merge · spec-phase · gated
-  pipeline/            steps configuráveis (types + config)
+  card-store.ts        updateCard — escritor único, com lock e rename atômico
+  file-lock.ts         lock por arquivo (O_EXCL) + escrita atômica
+  pipeline/            steps configuráveis (types + config + waves/DAG)
   progress.ts          board de progresso no terminal
   hicode-home.ts       resolve/provisiona o .hii/ do alvo
-  hooks.ts             instala/remove o pre-push (hicode hooks install)
-  codefox-gate.ts      gate adversarial Crivo (por-step e final)
+  hooks.ts             instala/remove o pre-push (hii hooks install)
+  codefox-gate.ts      gate adversarial Crivo (por-step e final) + gateOutcome
 lib/spec/openspec.ts   wrapper do OpenSpec (init/validate como gate determinístico)
 lib/tasks/             plugin de sync de tarefas (interface + registry + adapters/github-issues)
 lib/card/              domínio do card (frontmatter, tipos, helpers puros)
-config/pipeline.json   steps default (editável, 0 token)
-config/repos.json      repos-alvo geridos
+config/pipeline.json   steps default com `needs` (editável, 0 token)
+config/repos.example.json  modelo do registro de alvos (versionado)
+config/repos.json      registro local da maquina — NAO versionado (.gitignore)
 cards/                 cards (<NNN>.md) + runs/*.json + previews/  — dados
+lib/contract/          DETECCAO DETERMINISTICA do alvo (0 token): detect · probe · store
 scripts/               runner-daemon.sh (daemonização/PID) · check-no-any.mjs
+  setup/repo.mjs       `hii repo add|rm|ls` — registro do alvo, validado
+  setup/contract.mjs   `hii contract` — redetecta stack e comandos do alvo
   hooks/pre-push       gate de pre-push determinístico e portátil (versionado)
 test/                  testes (bun test)
 .github/workflows/     ci.yml (typecheck + lint + testes)
-panel/                 painel Nuxt (secundário, teste) — plugin local de referência
+panel/                 painel Nuxt — cliente fino de lib/core, não reimplementa card
 plano/                 o plano do projeto (00..05)
+docs/superpowers/specs/ design docs (contrato, multi-IA, gauntlet, loop governado)
 .claude/               agentes Nexus, skills, hooks
 ```
+
+### Quem pode escrever num card
+
+**Somente `lib/core/actions`**, que chama `updateCard` — o escritor único, com lock entre
+processos (`O_EXCL`) e escrita atômica (tmp + rename). Motor, painel e REPL são todos clientes.
+
+Isso não é preferência de estilo: sem o lock, três escritores concorrentes perdiam **49% das
+linhas de log** do card (medido: 614 de 1200 sobreviviam). E enquanto o painel reimplementava a
+escrita, a lista de estados dele divergiu da do motor — faltava `CORRECTING`.
+
+> Escrevendo um cliente novo (MCP, bot, CI)? Importe `lib/core/actions`. Nunca escreva o `.md`
+> direto — é o caminho que reintroduz a corrida e a divergência.
 
 ---
 
@@ -360,7 +714,7 @@ plano/                 o plano do projeto (00..05)
   typecheck + lint + testes em PRs para `main`.
 - **Gate de pre-push**: hook **determinístico e portátil** (`scripts/hooks/pre-push` — detecta o
   package manager e roda `test`/`typecheck`/`lint`), instalável em qualquer repo com
-  `hicode hooks install`. A **revisão adversarial (codefox)** fica no **PR** via `/pre-review`. O
+  `hii hooks install`. A **revisão adversarial (codefox)** fica no **PR** via `/pre-review`. O
   motor pusha com `--no-verify` (ele já se auto-gateia). Pular o hook: `git push --no-verify` ou
   `SKIP_HOOK=1 git push`.
 

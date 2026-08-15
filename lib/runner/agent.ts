@@ -2,13 +2,14 @@ import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo } from '../card'
 import type { Card, ImplementResult, VerifyResult } from '../card'
-import { CARDS_DIR, ROOT, RUN_TIMEOUT_MS, PROJECT_MEMORY } from './config'
+import { cardsDir, ROOT, RUN_TIMEOUT_MS, PROJECT_MEMORY } from './config'
 import { modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 import type { AiProvider } from '../ai/types'
 import { readProjectRules } from './hicode-home'
 import { repoPath } from './card-store'
 import { readProjectMemory } from './memory'
+import { readContract } from '../contract/store'
 import { DESIGN_SYSTEM_BRIEF } from './design'
 import { clarifyAnswersPrompt } from './clarify'
 import { resolveRefImages } from './refs'
@@ -25,19 +26,24 @@ function firstLine(s: string, max: number): string {
   return String(s || '').split('\n')[0]?.slice(0, max) ?? ''
 }
 
-function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean, clarifications: string, refImages: string[], memory: string): string {
+function stackOf(repo: string): string {
+  const c = repo ? readContract(repo) : null
+  return c?.stack ?? 'stack nao detectado — inspecione o projeto antes de editar'
+}
+
+function implementPrompt(provider: AiProvider, workdir: string, desc: string, feedback: string, rules: string, visual: boolean, clarifications: string, refImages: string[], memory: string, stack: string): string {
   const refs = refImages.length
     ? `REFERENCIAS DE DESIGN (${refImages.length}): abra CADA imagem abaixo com a tool Read e replique o design o mais FIEL possivel (layout, cores, tipografia, espacamento, componentes); extraia os tokens a partir delas. Imagens:\n${refImages.map(p => `- ${p}`).join('\n')}\n`
     : ''
   const head = provider.supportsAgents
     ? [
         'Use os AGENTES NEXUS deste projeto para implementar a tarefa abaixo (auto-construcao do hicode).',
-        `O codigo a alterar fica em: ${workdir} (Vite + Vue 3 + TypeScript). Edite os arquivos em src/ DESSE diretorio.`,
+        `O codigo a alterar fica em: ${workdir} — ${stack}. Edite os arquivos DESSE diretorio.`,
         'Roteie via Task: frontend/Vue/UI -> vitro (estrutura/design-system -> frontiteto); logica/feature -> limpio; banco -> radix; refactor -> rufus. NAO rode crivo/review nesta etapa (nao chame o crivo): a revisao adversarial e os gates rodam DEPOIS, na fase de polimento do motor. Apenas implemente.',
       ]
     : [
         'Implemente a tarefa abaixo (auto-construcao do hicode).',
-        `O codigo a alterar fica em: ${workdir} (Vite + Vue 3 + TypeScript). Edite os arquivos em src/ DESSE diretorio.`,
+        `O codigo a alterar fica em: ${workdir} — ${stack}. Edite os arquivos DESSE diretorio.`,
       ]
   return [
     rules ? `CONTEXTO DO PROJETO (.hii/rules.md — respeite):\n${rules}\n` : '',
@@ -62,17 +68,18 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
   if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '' }
   const id = card.fm.id ?? ''
   const refImages = provider.supportsVision ? await resolveRefImages(id) : []
-  const dirs = refImages.length ? [workdir, join(CARDS_DIR, 'refs', id)] : [workdir]
-  const memory = PROJECT_MEMORY ? readProjectMemory(repoPath(card.fm.repo ?? '')) : ''
+  const dirs = refImages.length ? [workdir, join(cardsDir(), 'refs', id)] : [workdir]
+  const target = repoPath(card.fm.repo ?? '')
+  const memory = PROJECT_MEMORY ? readProjectMemory(target) : ''
   const res = await provider.run({
-    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages, memory),
+    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages, memory, stackOf(target)),
     cwd: ROOT,
     dirs,
     mode: 'edit',
     useAgents: provider.supportsAgents,
     model: modelFor('implement'),
     timeoutMs: RUN_TIMEOUT_MS,
-    liveLog: id ? join(CARDS_DIR, 'runs', `${id}.live.log`) : undefined,
+    liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
   })
   const cost = res.cost ? res.cost.toFixed(4) : ''
   if (!res.ok) {
@@ -115,10 +122,10 @@ export async function verifyVisual(card: Card, shotPath: string): Promise<Verify
   return { ok: false, conclusive: false, reason: 'verify inconclusivo (sem veredito parseavel)', cost: res.cost, tokens }
 }
 
-function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction: string, rules: string): string {
+function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction: string, rules: string, stack: string): string {
   const head = provider.supportsAgents
-    ? `Use o agente Nexus ${agent} no projeto web em ${wt} (Vite + Vue 3 + TypeScript). Edite arquivos em src/ apenas se necessario.`
-    : `Atue no papel "${agent}" no projeto web em ${wt} (Vite + Vue 3 + TypeScript). Edite arquivos em src/ apenas se necessario.`
+    ? `Use o agente Nexus ${agent} no projeto em ${wt} — ${stack}. Edite arquivos apenas se necessario.`
+    : `Atue no papel "${agent}" no projeto em ${wt} — ${stack}. Edite arquivos apenas se necessario.`
   return [
     rules ? `CONTEXTO DO PROJETO (.hii/rules.md — respeite):\n${rules}\n` : '',
     head,
@@ -128,19 +135,19 @@ function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction
   ].join('\n')
 }
 
-export async function runStep(wt: string, agent: string, instruction: string, id = ''): Promise<StepResult> {
+export async function runStep(wt: string, agent: string, instruction: string, id = '', repo = ''): Promise<StepResult> {
   const t = Date.now()
   const provider = providerFor('step')
   if (!provider.agentic) return { time: 0, cost: 0, tokens: 0, ok: false, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use codex/opencode para steps que editam)` }
   const res = await provider.run({
-    prompt: stepPrompt(provider, wt, agent, instruction, readProjectRules(wt)),
+    prompt: stepPrompt(provider, wt, agent, instruction, readProjectRules(wt), stackOf(repo || wt)),
     cwd: ROOT,
     dirs: [wt],
     mode: 'edit',
     useAgents: provider.supportsAgents,
     model: modelFor('step'),
     timeoutMs: RUN_TIMEOUT_MS,
-    liveLog: id ? join(CARDS_DIR, 'runs', `${id}.live.log`) : undefined,
+    liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
   })
   return { time: Math.round((Date.now() - t) / 1000), cost: res.cost, tokens: sumTokens(res.usage), text: firstLine(res.text, 120), ok: res.ok }
 }

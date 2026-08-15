@@ -1,39 +1,21 @@
 import { isoNow } from '../card'
 import type { Job } from '../card'
 import { MAX_CONCURRENCY } from './config'
-import { cardsByStatus, patchCard } from './card-store'
+import { patchCard } from './card-store'
+import { reconcileStranded, pending, marcarEmVoo, liberar, quantosEmVoo } from './queue-state'
 import { handleExecute } from './execute'
 import { handleFinish } from './finish'
 import { handleCorrect } from './correct'
 import { handleSpec } from './spec-phase'
 import { checkMerged } from './merge'
+import { arquivar, precisaArquivar } from '../core/archive'
+import { recordTickSuccess, reportTickFailure } from './health'
 
-const active = new Set<string>()
+export { reconcileStranded, pending } from './queue-state'
 
-const FINISH_STATES = ['REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED']
-const RERUN_STATES = ['EXECUTING', 'CORRECTING', 'SPECCED']
-
-export function reconcileStranded(): void {
-  for (const s of FINISH_STATES) {
-    for (const c of cardsByStatus(s)) {
-      patchCard(c.id ?? '', { status: 'PREVIEW_OK' }, `${isoNow()} ${s}->PREVIEW_OK recuperado apos reinicio do daemon (finish reiniciado)`)
-      process.stdout.write(`[runner] #${c.id}: recuperado ${s}->PREVIEW_OK\n`)
-    }
-  }
-  for (const s of RERUN_STATES) {
-    for (const c of cardsByStatus(s)) {
-      patchCard(c.id ?? '', {}, `${isoNow()} ${s} interrompido por reinicio do daemon — sera reexecutado`)
-      process.stdout.write(`[runner] #${c.id}: ${s} interrompido, reexecutando apos reinicio\n`)
-    }
-  }
-  for (const c of cardsByStatus('EXECUTED')) {
-    patchCard(c.id ?? '', { status: 'EXECUTING' }, `${isoNow()} EXECUTED->EXECUTING recuperado (preview nao concluido ou rejeitado sem worktree — nao havia consumidor de EXECUTED)`)
-    process.stdout.write(`[runner] #${c.id}: recuperado EXECUTED->EXECUTING\n`)
-  }
-}
 
 export async function runJob(job: Job): Promise<void> {
-  active.add(job.id)
+  marcarEmVoo(job.id)
   try {
     if (job.kind === 'execute') await handleExecute(job.id)
     else if (job.kind === 'finish') await handleFinish(job.id)
@@ -42,22 +24,38 @@ export async function runJob(job: Job): Promise<void> {
   } catch (e) {
     patchCard(job.id, { status: 'HALTED' }, `${isoNow()} HALTED erro: ${String((e as Error)?.message ?? e)}`)
   } finally {
-    active.delete(job.id)
+    liberar(job.id)
   }
 }
 
-export function pending(): Job[] {
-  const ex: Job[] = cardsByStatus('EXECUTING').map(c => ({ kind: 'execute', id: c.id ?? '' }))
-  const fi: Job[] = cardsByStatus('PREVIEW_OK').map(c => ({ kind: 'finish', id: c.id ?? '' }))
-  const co: Job[] = cardsByStatus('CORRECTING').map(c => ({ kind: 'correct', id: c.id ?? '' }))
-  const sp: Job[] = cardsByStatus('SPECCED').map(c => ({ kind: 'spec', id: c.id ?? '' }))
-  return [...sp, ...ex, ...fi, ...co].filter(j => !active.has(j.id))
+function podar(): void {
+  if (!precisaArquivar()) return
+  const r = arquivar()
+  for (const m of r.movidos) {
+    process.stdout.write(`[runner] #${m.id}: arquivado (${m.status}) — teto de cards por projeto\n`)
+  }
 }
 
 export function tick(): void {
-  void checkMerged(Date.now())
-  for (const job of pending()) {
-    if (active.size >= MAX_CONCURRENCY) break
-    void runJob(job)
+  let ok = true
+  const merged = checkMerged(Date.now()).catch(e => {
+    reportTickFailure('checkMerged', e as Error)
+    ok = false
+  })
+  try {
+    podar()
+  } catch (e) {
+    reportTickFailure('podar', e as Error)
+    ok = false
   }
+  try {
+    for (const job of pending()) {
+      if (quantosEmVoo() >= MAX_CONCURRENCY) break
+      void runJob(job)
+    }
+  } catch (e) {
+    reportTickFailure('fila', e as Error)
+    ok = false
+  }
+  void merged.then(() => { if (ok) recordTickSuccess() })
 }

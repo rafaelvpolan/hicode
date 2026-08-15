@@ -1,15 +1,23 @@
 import { isoNow } from '../card'
 import type { StepMetric } from '../card'
-import { MAX_REAJUSTE } from './config'
+import { MAX_REAJUSTE, GATE_RETRIES } from './config'
 import { patchCard } from './card-store'
 import { runStep } from './agent'
-import { runGatedReview } from './codefox-gate'
+import { runGatedReview, withGateRetry } from './codefox-gate'
+import type { GateResult } from './codefox-gate'
 
 export interface GatedResult {
   metric: StepMetric
   ok: boolean
   text: string
   reason: string
+}
+
+function review(id: string, wt: string, base: string, desc: string, label: string): Promise<GateResult> {
+  return withGateRetry(
+    () => runGatedReview(wt, base, desc),
+    reason => patchCard(id, {}, `${isoNow()} gate crivo [${label}]: NAO EXECUTOU (${reason}) — repetindo o gate sem reexecutar o agente`),
+  )
 }
 
 export async function runGatedStep(id: string, wt: string, base: string, agent: string, instruction: string, desc: string, label: string): Promise<GatedResult> {
@@ -31,12 +39,15 @@ export async function runGatedStep(id: string, wt: string, base: string, agent: 
       attempt++
       continue
     }
-    const gate = await runGatedReview(wt, base, `${desc} — etapa "${label}" (${agent})`)
+    const gate = await review(id, wt, base, `${desc} — etapa "${label}" (${agent})`, label)
     cost += gate.cost
     tokens += gate.tokens
     patchCard(id, {}, `${isoNow()} gate crivo [${label}]: ${gate.ok ? gate.verdict : 'NAO EXECUTOU'}${gate.reason ? ` — ${gate.reason}` : ''}`)
-    if (gate.ok && gate.verdict !== 'BLOCKED') return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: true, text, reason: '' }
-    reason = gate.ok ? gate.reason : `crivo nao executou: ${gate.reason}`
+    if (!gate.ok) {
+      return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: false, text, reason: `crivo indisponivel apos ${GATE_RETRIES + 1} tentativa(s): ${gate.reason}` }
+    }
+    if (gate.verdict !== 'BLOCKED') return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: true, text, reason: '' }
+    reason = gate.reason
     attempt++
   }
   return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: false, text, reason }

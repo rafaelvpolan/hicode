@@ -1,30 +1,12 @@
-import { existsSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CardRecord, CardRisk, CardStatus, ClarifyQuestion } from '#shared/types'
-import {
-  CARDS_DIR, appendLog, ensure, findCardFile, isoNow, nextId,
-  serializeCard, setObjetivo, slugify, splitFrontMatter,
-} from './card-io'
+import type { CardRecord, CardRisk, CardStatus } from '#shared/types'
+import type { Fields } from '../../../lib/card'
+import * as core from '../../../lib/core/actions'
+import { CARDS_DIR, ensure } from './card-io'
 
-export interface CreateCardInput {
-  title: string
-  risk?: string
-  repo?: string
-  desc?: string
-}
-
-function createCard(input: CreateCardInput): Record<string, string> {
-  const id = nextId()
-  const slug = slugify(input.title)
-  const fm: Record<string, string> = {
-    id, slug, title: input.title,
-    status: 'READY', risk: input.risk === 'high' ? 'high' : 'low',
-    repo: input.repo || '', created: isoNow(), updated: isoNow(),
-  }
-  const objetivo = (input.desc && input.desc.trim()) ? input.desc.trim() : input.title
-  const body = `## Objetivo\n${objetivo}\n\n## Log de Estado\n${isoNow()} CREATED status=READY (sprint)`
-  writeFileSync(join(CARDS_DIR, `${id}-${slug}.md`), serializeCard(fm, Object.keys(fm), body) + '\n')
-  return { ...fm }
+function record(fields: Fields | null): CardRecord | null {
+  return fields ? { ...fields, file: fields.file ?? '' } : null
 }
 
 export interface SprintFeatureInput {
@@ -41,58 +23,22 @@ export interface CreateSprintResult {
 
 export function createSprint(repo: string, features: SprintFeatureInput[]): CreateSprintResult {
   ensure()
-  const created = (features || []).filter((f) => f && f.title).map((f) => createCard({ title: f.title, risk: f.risk, repo, desc: f.desc }))
-  return { ok: true, created: created.length, cards: created }
+  const cards = (features || [])
+    .filter((f) => f && f.title)
+    .map((f) => ({ id: core.submit({ title: f.title, risk: f.risk, repo, desc: f.desc }) }))
+  return { ok: true, created: cards.length, cards }
 }
 
 export function resumeFrom(id: string, step: string): CardRecord | null {
-  const f = findCardFile(id)
-  if (!f) return null
-  const p = join(CARDS_DIR, f)
-  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
-  const keys = order.length ? order : Object.keys(fm)
-  const from = fm.status || 'INBOX'
-  fm.resume_from = step
-  if (!keys.includes('resume_from')) keys.push('resume_from')
-  fm.status = 'PREVIEW_OK'
-  fm.updated = isoNow()
-  const nb = appendLog(body, `${isoNow()} ${from}->PREVIEW_OK replay a partir de ${step}`)
-  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
-  return { ...fm, file: f }
+  return record(core.resumeFrom(id, step))
 }
 
 export function transition(id: string, status: CardStatus, note?: string): CardRecord | null {
-  const f = findCardFile(id)
-  if (!f) return null
-  const p = join(CARDS_DIR, f)
-  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
-  const from = fm.status || 'INBOX'
-  fm.status = status
-  fm.updated = isoNow()
-  const nb = appendLog(body, `${isoNow()} ${from}->${status}${note ? ' ' + note : ''}`)
-  writeFileSync(p, serializeCard(fm, order, nb) + '\n')
-  return { ...fm, file: f }
+  return record(core.transition(id, status, note))
 }
 
 export function requestCorrection(id: string, file: string, instruction: string, line = '', lineText = ''): CardRecord | null {
-  const f = findCardFile(id)
-  if (!f) return null
-  const p = join(CARDS_DIR, f)
-  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
-  const keys = order.length ? order : Object.keys(fm)
-  const from = fm.status || 'INBOX'
-  if (from !== 'PREVIEW' || !fm.worktree || !existsSync(join(fm.worktree, '.git'))) return null
-  fm.correction = instruction
-  fm.correction_file = file
-  fm.correction_line = line
-  fm.correction_line_text = lineText.replace(/[\r\n]+/g, ' ')
-  fm.status = 'CORRECTING'
-  for (const key of ['correction', 'correction_file', 'correction_line', 'correction_line_text']) if (!keys.includes(key)) keys.push(key)
-  fm.updated = isoNow()
-  const anchor = file ? `${file}${line ? ':' + line : ''}` : '(geral)'
-  const nb = appendLog(body, `${isoNow()} ${from}->CORRECTING correção: ${anchor} — ${instruction.slice(0, 120)}`)
-  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
-  return { ...fm, file: f }
+  return record(core.requestCorrection(id, file, instruction, line, lineText))
 }
 
 export interface ClarifyAnswerInput {
@@ -101,33 +47,7 @@ export interface ClarifyAnswerInput {
 }
 
 export function answerClarify(id: string, answers: ClarifyAnswerInput[]): CardRecord | null {
-  const f = findCardFile(id)
-  if (!f) return null
-  const clarifyPath = join(CARDS_DIR, 'runs', `${id}.clarify.json`)
-  if (!existsSync(clarifyPath)) return null
-  let questions: ClarifyQuestion[]
-  try {
-    const parsed = JSON.parse(readFileSync(clarifyPath, 'utf8')) as ClarifyQuestion[]
-    questions = Array.isArray(parsed) ? parsed : []
-  } catch {
-    questions = []
-  }
-  for (const a of answers) {
-    const match = questions.find((q) => q.q === a.q)
-    if (match) match.answer = a.answer
-  }
-  writeFileSync(clarifyPath, JSON.stringify(questions, null, 2) + '\n')
-
-  const p = join(CARDS_DIR, f)
-  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
-  const keys = order.length ? order : Object.keys(fm)
-  fm.clarified = 'true'
-  if (!keys.includes('clarified')) keys.push('clarified')
-  fm.status = 'EXECUTING'
-  fm.updated = isoNow()
-  const nb = appendLog(body, `${isoNow()} CLARIFY->EXECUTING respondido (${answers.length} resposta(s))`)
-  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
-  return { ...fm, file: f }
+  return record(core.answerClarify(id, answers))
 }
 
 export interface EditCardFields {
@@ -137,45 +57,15 @@ export interface EditCardFields {
 }
 
 export function editCard(id: string, fields: EditCardFields): CardRecord | null {
-  const f = findCardFile(id)
-  if (!f) return null
-  const p = join(CARDS_DIR, f)
-  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
-  const keys = order.length ? order : Object.keys(fm)
-  if (typeof fields.title === 'string' && fields.title.trim()) { fm.title = fields.title.trim(); if (!keys.includes('title')) keys.push('title') }
-  if (fields.risk === 'high' || fields.risk === 'low') fm.risk = fields.risk
-  let nb = body
-  if (typeof fields.desc === 'string' && fields.desc.trim()) nb = setObjetivo(body, fields.desc.trim())
-  let logLine = `${isoNow()} EDIT tarefa via painel`
-  if (fm.status === 'EXECUTING') { fm.status = 'PAUSED'; logLine = `${isoNow()} EXECUTING->PAUSED editado (auto-pausa)` }
-  fm.updated = isoNow()
-  nb = appendLog(nb, logLine)
-  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
-  return { ...fm, file: f }
+  return record(core.edit(id, fields))
 }
 
 export function deleteCard(id: string): boolean {
-  const f = findCardFile(id)
-  if (!f) return false
-  rmSync(join(CARDS_DIR, f))
-  const prev = join(CARDS_DIR, 'previews', String(id))
-  if (existsSync(prev)) rmSync(prev, { recursive: true, force: true })
-  return true
+  return core.remove(id)
 }
 
 export function setPreviewPid(id: string, pid: number, hard = false): CardRecord | null {
-  const f = findCardFile(id)
-  if (!f) return null
-  const p = join(CARDS_DIR, f)
-  const { fm, order, body } = splitFrontMatter(readFileSync(p, 'utf8'))
-  const keys = order.length ? order : Object.keys(fm)
-  fm.preview_pid = String(pid)
-  if (!keys.includes('preview_pid')) keys.push('preview_pid')
-  fm.updated = isoNow()
-  const suffix = hard ? ', cache limpo' : ''
-  const nb = appendLog(body, `${isoNow()} RESET preview reiniciado (pid ${pid}${suffix})`)
-  writeFileSync(p, serializeCard(fm, keys, nb) + '\n')
-  return { ...fm, file: f }
+  return record(core.setPreviewPid(id, pid, hard))
 }
 
 export function previewFile(id: string): string | null {

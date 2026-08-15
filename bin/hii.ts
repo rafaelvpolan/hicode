@@ -17,6 +17,10 @@ function daemon(sub: string): number {
   return spawnSync(DAEMON, [sub], { stdio: 'inherit' }).status ?? 1
 }
 
+function script(name: string, extra: string[]): number {
+  return spawnSync('bun', [join(ROOT, 'scripts', 'setup', `${name}.mjs`), ...extra], { stdio: 'inherit', cwd: ROOT }).status ?? 1
+}
+
 function runnerBun(extra: string[]): number {
   return spawnSync('bun', [join(ROOT, 'runner.ts'), ...extra], { stdio: 'inherit', cwd: ROOT }).status ?? 1
 }
@@ -25,7 +29,11 @@ function usage(): void {
   process.stdout.write([
     'hii — plano de controle autonomo do hicode',
     '',
-    'Uso: hii <comando> [opcoes]',
+    'Uso: hii                  abre a sessao interativa (porta canonica)',
+    '     hii <comando>        modo script/CI',
+    '',
+    'Na sessao: escreva a tarefa em linguagem natural, leia o plano e tecle enter',
+    'para aprovar. /help lista os comandos; /quit sai sem derrubar os cards.',
     '',
     'Motor (daemon):',
     '  start                    inicia o motor em background (daemon)',
@@ -37,6 +45,29 @@ function usage(): void {
     'Acompanhamento:',
     '  status                   estado do daemon + progresso dos cards',
     '  watch                    progresso dos cards ao vivo (atualiza sozinho)',
+    '',
+    'Portas humanas do card:',
+    '  approve <id>             aprova o preview (PREVIEW -> PREVIEW_OK)',
+    '  approve <id> --plan      aprova o plano e enfileira (READY -> EXECUTING)',
+    '  reject <id> [o que]      rejeita o preview; com motivo, pede correcao',
+    '  halt <id> [motivo]       para o card',
+    '',
+    'Repo-alvo (deterministico, 0 token):',
+    '  repo add <owner/nome>    registra o alvo, valida o clone, provisiona .hii/ e gera o contrato',
+    '  repo rm <owner/nome>     remove do registro (nao toca no clone)',
+    '  repo ls                  lista os alvos e o estado de cada clone',
+    '  contract [caminho]       redetecta o contrato do alvo (stack, comandos, pacotes)',
+    '  doctor                   confere gh, IA, daemon, push e contrato de cada alvo',
+    '',
+    'Arquivo de cards (teto de 10 por projeto):',
+    '  board [repo] [--watch]   mostra o board das tarefas no terminal',
+    '  teclas                   mostra o que o seu terminal manda em cada tecla',
+    '  teclas --corrigir        ensina o Windows Terminal a mandar shift+enter',
+    '  rm <id> [id...] --yes    apaga os cards e limpa worktree, preview e runs',
+    '  archive                  arquiva os entregues mais antigos acima do teto',
+    '  archive --dry-run        mostra o que faria, sem mover',
+    '  archive ls               lista o que esta arquivado',
+    '  archive restore <id>     traz um card de volta',
     '',
     'Tarefas e integracao:',
     '  sync                     sincroniza tarefas externas (HICODE_TASK_SYNC)',
@@ -110,9 +141,33 @@ async function main(): Promise<number> {
     }
     case 'hooks':
       return hooks()
+    case 'repo':
+      return script('repo', args.slice(1))
+    case 'approve':
+    case 'reject':
+    case 'halt':
+      return script('card', args)
+    case 'contract':
+      return script('contract', args.slice(1))
+    case 'doctor':
+      return script('doctor', args.slice(1))
+    case 'teclas':
+      return args[1] === '--corrigir'
+        ? script('wt-shift-enter', args.slice(2))
+        : script('teclas', args.slice(1))
+    case 'board':
+    case 'quadro':
+      return script('board', args.slice(1))
+    case 'rm':
+    case 'apagar':
+      return script('rm', args.slice(1))
+    case 'archive':
+      return script('archive', args.slice(1))
+    case undefined:
+      return spawnSync('bun', [join(ROOT, 'bin', 'repl.ts')], { stdio: 'inherit', cwd: ROOT }).status ?? 0
     default:
       usage()
-      return cmd ? 1 : 0
+      return 1
   }
 }
 

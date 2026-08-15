@@ -1,0 +1,8 @@
+[
+  {
+    "name": "owner/repo-alvo",
+    "path": "/caminho/absoluto/do/clone-local",
+    "url": "https://github.com/owner/repo-alvo",
+    "branch": "main"
+  }
+]

@@ -2,10 +2,10 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 
 import { join } from 'node:path'
 import { isoNow } from '../card'
 import type { ImplementResult, Run, StepMap } from '../card'
-import { CARDS_DIR } from './config'
+import { cardsDir } from './config'
 
 export function writeRun(id: string, res: ImplementResult, durationS = 0, steps: StepMap | null = null): Run {
-  const dir = join(CARDS_DIR, 'runs')
+  const dir = join(cardsDir(), 'runs')
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   const u = res.usage
   const total = (u?.tokens_in || 0) + (u?.tokens_out || 0) + (u?.tokens_cache_create || 0)
@@ -29,7 +29,7 @@ export function writeRun(id: string, res: ImplementResult, durationS = 0, steps:
 }
 
 export function updateRunSteps(id: string, fsteps: StepMap): { tokens: number; cost: string } {
-  const dir = join(CARDS_DIR, 'runs')
+  const dir = join(cardsDir(), 'runs')
   if (!existsSync(dir)) return { tokens: 0, cost: '' }
   const files = readdirSync(dir).filter(f => f.startsWith(`${id}-`) && f.endsWith('.json')).sort()
   const last = files[files.length - 1]
@@ -56,4 +56,17 @@ export function updateRunSteps(id: string, fsteps: StepMap): { tokens: number; c
   r.duration_s = (Number(r.duration_s) || 0) + addTime
   writeFileSync(p, JSON.stringify(r, null, 2))
   return { tokens: r.tokens_total, cost: r.cost_usd }
+}
+
+export function readRunSteps(id: string): StepMap | null {
+  const dir = join(cardsDir(), 'runs')
+  if (!existsSync(dir)) return null
+  const files = readdirSync(dir).filter(f => f.startsWith(`${id}-`) && f.endsWith('.json')).sort()
+  const last = files[files.length - 1]
+  if (!last) return null
+  try {
+    return (JSON.parse(readFileSync(join(dir, last), 'utf8')) as Run).steps ?? null
+  } catch {
+    return null
+  }
 }

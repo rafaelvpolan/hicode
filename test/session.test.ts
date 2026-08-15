@@ -1,0 +1,414 @@
+import { test, expect } from 'bun:test'
+import { handle, newSession, planShown, seguir } from '../lib/core/session'
+import { renderFleet } from '../lib/core/render/fleet'
+import { isActive, waitsHuman, phaseLabel } from '../lib/core/render/phases'
+import type { Fields } from '../lib/card'
+
+const base = newSession('org/app')
+
+test('texto livre cria tarefa', () => {
+  const r = handle('FAQ acordeao na home', base)
+  expect(r.effect.kind).toBe('submit')
+  expect(r.effect.text).toBe('FAQ acordeao na home')
+})
+
+test('linha vazia sem plano pendente nao faz nada', () => {
+  expect(handle('', base).effect.kind).toBe('none')
+})
+
+test('enter com plano pendente aprova e limpa o pendente', () => {
+  const r = handle('', planShown(base, '042'))
+  expect(r.effect.kind).toBe('approve-plan')
+  expect(r.effect.id).toBe('042')
+  expect(r.state.pendingPlan).toBe('')
+})
+
+test('texto livre com plano pendente descarta o plano e cria outro card', () => {
+  const r = handle('outra tarefa', planShown(base, '042'))
+  expect(r.effect.kind).toBe('submit')
+  expect(r.state.pendingPlan).toBe('')
+})
+
+test('espaco em branco conta como enter, nao como tarefa', () => {
+  expect(handle('   ', planShown(base, '042')).effect.kind).toBe('approve-plan')
+})
+
+test('/help, /board e /cards', () => {
+  expect(handle('/help', base).effect.kind).toBe('help')
+  expect(handle('/board', base).effect.kind).toBe('board')
+  const c = handle('/cards HALTED', base)
+  expect(c.effect.kind).toBe('cards')
+  expect(c.effect.text).toBe('HALTED')
+})
+
+test('/plan exige id', () => {
+  expect(handle('/plan', base).effect.kind).toBe('error')
+})
+
+test('/watch <id> entra em modo seguir', () => {
+  const r = handle('/watch 42', base)
+  expect(r.effect.kind).toBe('watch')
+  expect(r.state.seguindo).toBe('42')
+})
+
+test('/watch sem id para de seguir', () => {
+  const seguindo = { ...base, seguindo: '42' }
+  expect(handle('/watch', seguindo).state.seguindo).toBe('')
+})
+
+test('/board sai do modo seguir', () => {
+  expect(handle('/board', { ...base, seguindo: '42' }).state.seguindo).toBe('')
+})
+
+test('/halt aceita motivo opcional e limpa plano pendente', () => {
+  const r = handle('/halt 42 conflito com main', planShown(base, '042'))
+  expect(r.effect.kind).toBe('halt')
+  expect(r.effect.id).toBe('42')
+  expect(r.effect.text).toBe('conflito com main')
+  expect(r.state.pendingPlan).toBe('')
+})
+
+test('/halt sem motivo usa texto padrao', () => {
+  expect(handle('/halt 42', base).effect.text).toBe('parado pelo humano')
+})
+
+test('/repo com nome pede validacao antes de trocar', () => {
+  const r = handle('/repo org/outro', base)
+  expect(r.effect.kind).toBe('pick-repo')
+  expect(r.effect.text).toBe('org/outro')
+})
+
+test('/repo sem argumento reabre a lista de projetos', () => {
+  expect(handle('/repo', base).effect.kind).toBe('reopen-repo')
+  expect(handle('/projeto', base).effect.kind).toBe('reopen-repo')
+})
+
+test('/quit e aliases', () => {
+  for (const c of ['/quit', '/exit', '/q']) expect(handle(c, base).effect.kind).toBe('quit')
+})
+
+test('comando desconhecido nao vira tarefa', () => {
+  const r = handle('/naoexiste', base)
+  expect(r.effect.kind).toBe('error')
+  expect(r.effect.text).toContain('desconhecido')
+})
+
+test('comando nao aprova plano pendente por acidente', () => {
+  expect(handle('/board', planShown(base, '042')).state.pendingPlan).toBe('042')
+})
+
+function card(over: Partial<Fields>): Fields {
+  return { id: '1', title: 't', status: 'READY', ...over }
+}
+
+test('phases: classifica ativo, esperando humano e rotulo', () => {
+  expect(isActive('EXECUTING')).toBe(true)
+  expect(isActive('PREVIEW')).toBe(false)
+  expect(waitsHuman('PREVIEW')).toBe(true)
+  expect(waitsHuman('CLARIFY')).toBe(true)
+  expect(phaseLabel('TESTS_GREEN')).toBe('Polir')
+})
+
+test('fleet: conta ativos e esperando separadamente', () => {
+  const t = renderFleet([
+    card({ id: '1', status: 'EXECUTING' }),
+    card({ id: '2', status: 'PREVIEW' }),
+    card({ id: '3', status: 'MERGED' }),
+  ], { repo: 'org/app', daemon: 'online (pid 1)' })
+  expect(t).toContain('1 ativo(s)')
+  expect(t).toContain('1 esperando voce')
+  expect(t).toContain('org/app')
+})
+
+test('fleet: card terminal nao aparece na faixa', () => {
+  const t = renderFleet([card({ id: '9', status: 'MERGED' })], {})
+  expect(t).not.toContain('#009')
+})
+
+test('fleet: HALTED e PAUSED aparecem com marca propria', () => {
+  const t = renderFleet([card({ id: '4', status: 'HALTED' }), card({ id: '5', status: 'PAUSED' })], {})
+  expect(t).toContain('parou')
+  expect(t).toContain('pausado')
+})
+
+test('fleet sem cor nao emite escape ANSI', () => {
+  const t = renderFleet([card({ id: '1', status: 'EXECUTING' })], { color: false })
+  expect(t).not.toContain('\x1b[')
+})
+
+test('fleet vazio ainda mostra cabecalho e daemon', () => {
+  const t = renderFleet([], { repo: 'org/app', daemon: 'offline' })
+  expect(t).toContain('daemon offline')
+  expect(t).toContain('0 ativo(s)')
+})
+
+import { complete } from '../lib/core/complete'
+import { canApprovePlan } from '../lib/core/actions'
+
+const ctx = { repos: ['acme/site', 'acme/api'], cards: ['019', '020'], statuses: ['READY', 'HALTED', 'PREVIEW'] }
+
+test('completar: barra sozinha lista os comandos', () => {
+  expect(complete('/', ctx)[0]).toContain('/repo')
+  expect(complete('/re', ctx)[0]).toEqual(['/repo'])
+})
+
+test('completar /repo sugere os repos registrados', () => {
+  expect(complete('/repo ', ctx)[0]).toEqual(['acme/site', 'acme/api'])
+  expect(complete('/repo acme/a', ctx)[0]).toEqual(['acme/api'])
+})
+
+test('completar /plan, /watch e /halt sugerem ids de card', () => {
+  for (const c of ['/plan ', '/watch ', '/halt ']) expect(complete(c, ctx)[0]).toEqual(['019', '020'])
+  expect(complete('/plan 02', ctx)[0]).toEqual(['020'])
+})
+
+test('completar /cards sugere estados, insensivel a caixa', () => {
+  expect(complete('/cards hal', ctx)[0]).toEqual(['HALTED'])
+})
+
+test('texto livre nao completa', () => {
+  expect(complete('adicionar um selo', ctx)[0]).toEqual([])
+})
+
+test('nao completa alem do primeiro argumento', () => {
+  expect(complete('/halt 020 motivo qual', ctx)[0]).toEqual([])
+})
+
+test('REGRESSAO canApprovePlan: so estado pre-execucao', () => {
+  for (const s of ['INBOX', 'READY', 'CLARIFY', 'SPECCED', 'PLAN_APPROVED', 'PAUSED']) {
+    expect(canApprovePlan(s)).toBe(true)
+  }
+  for (const s of ['EXECUTING', 'EXECUTED', 'PREVIEW', 'PREVIEW_OK', 'REVIEWED', 'PR_OPEN', 'MERGED', 'HALTED']) {
+    expect(canApprovePlan(s)).toBe(false)
+  }
+})
+
+test('REGRESSAO numero puro MOSTRA o card, nao cria tarefa chamada "20"', () => {
+  for (const entrada of ['20', '020', '#20', '7']) {
+    const r = handle(entrada, base)
+    expect(r.effect.kind).toBe('plan')
+    expect(r.effect.id).toBe(entrada.replace('#', ''))
+  }
+})
+
+test('texto que so comeca com numero ainda cria tarefa', () => {
+  const r = handle('2 selos no hero', base)
+  expect(r.effect.kind).toBe('submit')
+})
+
+test('numero longo demais para ser id vira tarefa', () => {
+  expect(handle('12345', base).effect.kind).toBe('submit')
+})
+
+import { perguntando, respondido } from '../lib/core/session'
+
+test('/ask sem id pega o card que estiver perguntando', () => {
+  expect(handle('/ask', base).effect.kind).toBe('ask')
+  expect(handle('/ask 22', base).effect.id).toBe('22')
+})
+
+test('com pergunta aberta, numero RESPONDE e nao abre plano', () => {
+  const s = perguntando(base, '022')
+  const r = handle('2', s)
+  expect(r.effect.kind).toBe('answer')
+  expect(r.effect.id).toBe('022')
+  expect(r.effect.text).toBe('2')
+})
+
+test('com pergunta aberta, enter vazio responde com o sugerido', () => {
+  const r = handle('', perguntando(base, '022'))
+  expect(r.effect.kind).toBe('answer')
+  expect(r.effect.text).toBe('')
+})
+
+test('com pergunta aberta, texto livre vira resposta e nao cria card', () => {
+  const r = handle('nenhum dos dois', perguntando(base, '022'))
+  expect(r.effect.kind).toBe('answer')
+  expect(r.effect.text).toBe('nenhum dos dois')
+})
+
+test('comando continua funcionando durante a pergunta', () => {
+  expect(handle('/board', perguntando(base, '022')).effect.kind).toBe('board')
+})
+
+test('abrir pergunta descarta plano pendente para nao aprovar por engano', () => {
+  expect(perguntando(planShown(base, '042'), '022').pendingPlan).toBe('')
+})
+
+test('respondido limpa o estado de pergunta', () => {
+  expect(respondido(perguntando(base, '022')).perguntando).toBe('')
+})
+
+import { removendo } from '../lib/core/session'
+
+test('/rm exige id e pede confirmacao antes de apagar', () => {
+  expect(handle('/rm', base).effect.kind).toBe('error')
+  const r = handle('/rm 23', base)
+  expect(r.effect.kind).toBe('rm')
+  expect(r.effect.id).toBe('23')
+})
+
+test('enter confirma a remocao, igual ao resto do hii', () => {
+  const s = removendo(base, '023')
+  expect(handle('', s).effect.text).toBe('sim')
+  expect(handle('s', s).effect.text).toBe('sim')
+  expect(handle('sim', s).effect.text).toBe('sim')
+})
+
+test('n cancela a remocao, em qualquer forma', () => {
+  const s = removendo(base, '023')
+  for (const nao of ['n', 'N', 'nao', 'não', 'no', 'cancelar']) {
+    expect(handle(nao, s).effect.text).toBe('')
+  }
+})
+
+test('confirmacao de remocao nao deixa o estado preso', () => {
+  expect(handle('n', removendo(base, '023')).state.removendo).toBe('')
+})
+
+test('remocao pendente nao vira card novo nem aprova plano', () => {
+  const r = handle('outra tarefa', removendo(planShown(base, '042'), '023'))
+  expect(r.effect.kind).toBe('confirm-rm')
+})
+
+test('enter confirma tanto o plano quanto a remocao — mesma tecla, mesmo sentido', () => {
+  expect(handle('', planShown(base, '042')).effect.kind).toBe('approve-plan')
+  expect(handle('', removendo(base, '023')).effect.text).toBe('sim')
+})
+
+test('/rm aceita varios ids e separa a flag', () => {
+  expect(handle('/rm 23 24 25', base).effect.id).toBe('23 24 25')
+  const f = handle('/rm 23 --force', base)
+  expect(f.effect.id).toBe('23')
+  expect(f.effect.text).toBe('force')
+})
+
+test('/rm so com flag ainda e erro', () => {
+  expect(handle('/rm --force', base).effect.kind).toBe('error')
+})
+
+test('/stop para a tarefa, igual /halt', () => {
+  for (const cmd of ['/stop', '/halt', '/parar']) {
+    const r = handle(`${cmd} 37`, base)
+    expect(r.effect.kind).toBe('halt')
+    expect(r.effect.id).toBe('37')
+    expect(r.effect.text).toBe('parado pelo humano')
+  }
+})
+
+test('/stop aceita motivo', () => {
+  expect(handle('/stop 37 travou no build', base).effect.text).toBe('travou no build')
+})
+
+test('/stop sem id explica o uso', () => {
+  const r = handle('/stop', base)
+  expect(r.effect.kind).toBe('error')
+  expect(r.effect.text).toContain('/stop <id>')
+})
+
+test('/stop limpa plano pendente para nao aprovar por engano', () => {
+  expect(handle('/stop 37', planShown(base, '042')).state.pendingPlan).toBe('')
+})
+
+test('completar sugere ids em /stop, /rm e /ask tambem', () => {
+  for (const c of ['/stop ', '/rm ', '/ask ']) expect(complete(c, ctx)[0]).toEqual(['019', '020'])
+})
+
+test('dentro da tarefa, texto vira instrucao e NAO tarefa nova', () => {
+  const dentro = seguir(base, '022')
+  const r = handle('tira tambem o selo do hero', dentro)
+  expect(r.effect.kind).toBe('instruct')
+  expect(r.effect.id).toBe('022')
+  expect(r.effect.text).toBe('tira tambem o selo do hero')
+})
+
+test('fora da tarefa, o mesmo texto cria tarefa', () => {
+  expect(handle('tira tambem o selo do hero', base).effect.kind).toBe('submit')
+})
+
+test('comando dentro da tarefa continua sendo comando', () => {
+  const dentro = seguir(base, '022')
+  expect(handle('/board', dentro).effect.kind).toBe('board')
+  expect(handle('/rm 23', dentro).effect.kind).toBe('rm')
+})
+
+test('numero dentro da tarefa ainda abre o plano', () => {
+  expect(handle('20', seguir(base, '022')).effect.kind).toBe('plan')
+})
+
+import { retomando } from '../lib/core/session'
+
+test('depois de parar, enter retoma a tarefa', () => {
+  const r = handle('', retomando(base, '022'))
+  expect(r.effect.kind).toBe('resume')
+  expect(r.effect.id).toBe('022')
+  expect(r.state.retomando).toBe('')
+})
+
+test('depois de parar, escrever nao retoma — segue o caminho normal', () => {
+  const dentro = { ...retomando(base, '022'), seguindo: '022' }
+  const r = handle('tenta outra abordagem', dentro)
+  expect(r.effect.kind).toBe('instruct')
+  expect(r.state.retomando).toBe('')
+})
+
+test('comando depois de parar continua sendo comando', () => {
+  expect(handle('/rm 22', retomando(base, '022')).effect.kind).toBe('rm')
+})
+
+test('retomar limpa pergunta e remocao pendentes', () => {
+  const cheio = { ...planShown(base, '9'), perguntando: '9', removendo: '9' }
+  const s = retomando(cheio, '022')
+  expect(s.perguntando).toBe('')
+  expect(s.removendo).toBe('')
+  expect(s.pendingPlan).toBe('')
+})
+
+test('/exit sai, como /quit e /q', () => {
+  for (const c of ['/exit', '/quit', '/q']) expect(handle(c, base).effect.kind).toBe('quit')
+})
+
+test('/exit aparece no catalogo de comandos', async () => {
+  const { COMMANDS } = await import('../lib/core/session')
+  expect([...COMMANDS]).toContain('/exit')
+})
+
+test('/exit sai mesmo com algo pendente', () => {
+  const cheio = { ...planShown(base, '9'), perguntando: '9', removendo: '9', retomando: '9', seguindo: '9' }
+  expect(handle('/exit', cheio).effect.kind).toBe('quit')
+})
+
+import { escolhendoRepo } from '../lib/core/session'
+
+test('/repo e /project levam ao mesmo caminho', () => {
+  expect(handle('/repo', base).effect.kind).toBe('reopen-repo')
+  expect(handle('/project', base).effect.kind).toBe('reopen-repo')
+  expect(handle('/repo acme/site', base).effect.kind).toBe('pick-repo')
+  expect(handle('/project acme/site', base).effect.kind).toBe('pick-repo')
+})
+
+test('/repo com nome NAO troca direto — passa pela validacao', () => {
+  const r = handle('/repo qualquer/coisa', base)
+  expect(r.effect.kind).toBe('pick-repo')
+  expect(r.state.repo).toBe(base.repo)
+})
+
+test('escolhendo projeto, numero e nome viram escolha', () => {
+  const s = escolhendoRepo(base)
+  expect(handle('2', s).effect).toMatchObject({ kind: 'pick-repo', text: '2' })
+  expect(handle('acme/api', s).effect).toMatchObject({ kind: 'pick-repo', text: 'acme/api' })
+})
+
+test('escolhendo projeto, numero nao abre plano por engano', () => {
+  expect(handle('20', escolhendoRepo(base)).effect.kind).toBe('pick-repo')
+})
+
+test('enter vazio desiste de escolher projeto', () => {
+  const r = handle('', escolhendoRepo(base))
+  expect(r.effect.kind).toBe('none')
+  expect(r.state.escolhendo).toBe(false)
+})
+
+test('comando durante a escolha continua sendo comando', () => {
+  expect(handle('/board', escolhendoRepo(base)).effect.kind).toBe('board')
+})

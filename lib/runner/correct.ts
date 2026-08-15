@@ -5,7 +5,7 @@ import type { Usage, VerifyResult } from '../card'
 import { CARD_BUDGET_USD } from './config'
 import { readCard, patchCard, repoPath } from './card-store'
 import { runGit, stageAll } from './git'
-import { freePort, hasBuildScript, previewPort, httpOk, inspectPreview, startPreview, waitHttp } from './preview'
+import { ensurePreview, hasDevServer, previewPort, httpOk, inspectPreview, waitHttp } from './preview'
 import { implement, runStep } from './agent'
 import { appendAttempt, readAttempts } from './attempts'
 
@@ -30,13 +30,12 @@ function scopedInstruction(instruction: string, file: string, line: string, line
 }
 
 async function revalidate(id: string, wt: string, target: string): Promise<VerifyResult> {
-  if (!hasBuildScript(target)) return { ok: true, reason: 'sem dev server', cost: 0, tokens: 0 }
+  if (!hasDevServer(target)) return { ok: true, reason: 'sem dev server', cost: 0, tokens: 0 }
   const port = previewPort(id)
   const url = `http://localhost:${port}`
   let up = await httpOk(url)
   if (!up) {
-    await freePort(port)
-    startPreview(wt, port)
+    await ensurePreview(wt, port, target)
     up = await waitHttp(url, 25)
   }
   if (!up) return { ok: true, reason: 'dev server nao respondeu', cost: 0, tokens: 0 }

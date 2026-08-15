@@ -54,7 +54,7 @@ export function initHicodeHome(repo: string): string[] {
   const files: Array<[string, string]> = [
     [join(home, 'config.json'), JSON.stringify(DEFAULT_CONFIG, null, 2) + '\n'],
     [join(home, 'rules.md'), DEFAULT_RULES],
-    [join(home, '.gitignore'), 'state/\n'],
+    [join(home, '.gitignore'), 'state/\ncontract.json\n'],
   ]
   for (const [f, content] of files) {
     if (!existsSync(f)) { writeFileSync(f, content); created.push(f) }

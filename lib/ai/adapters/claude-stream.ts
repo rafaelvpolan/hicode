@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { appendFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { appendFileSync, writeFileSync, readFileSync, statSync, mkdirSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { emptyUsage } from '../usage'
 import type { AgentRequest, AgentResult } from '../types'
@@ -78,11 +78,25 @@ function argvStream(req: AgentRequest, tools: string): string[] {
   return a
 }
 
+const LOG_MAX = Number(process.env.HICODE_LIVELOG_MAX_BYTES || 1_000_000)
+const LOG_KEEP = Number(process.env.HICODE_LIVELOG_KEEP_BYTES || 200_000)
+
+function podarLog(caminho: string): void {
+  try {
+    if (!existsSync(caminho) || statSync(caminho).size <= LOG_MAX) return
+    const conteudo = readFileSync(caminho, 'utf8')
+    writeFileSync(caminho, `— log podado, mantidos os ultimos ${Math.round(LOG_KEEP / 1000)}KB —\n` + conteudo.slice(-LOG_KEEP))
+  } catch {
+    void 0
+  }
+}
+
 export function runClaudeStream(req: AgentRequest, tools: string, liveLog: string): Promise<AgentResult> {
   const dir = dirname(liveLog)
   if (!existsSync(dir)) { try { mkdirSync(dir, { recursive: true }) } catch { void 0 } }
-  try { writeFileSync(liveLog, '') } catch { void 0 }
+  podarLog(liveLog)
   const write = (s: string): void => { try { appendFileSync(liveLog, s) } catch { void 0 } }
+  write(`\n— chamada em ${new Date().toISOString().replace(/\.\d+Z$/, 'Z')} —\n`)
 
   return new Promise<AgentResult>((resolve) => {
     let text = ''

@@ -2,12 +2,15 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { Card, ImplementResult, StepMap, StepMetric, Usage } from '../card'
-import { CARDS_DIR, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
-import { clarify, writeClarify } from './clarify'
+import { CARD_BUDGET_USD, cardsDir, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
+import { clarify, clarifyPorIdeacao, writeClarify } from './clarify'
+import { planSteps } from './analyze'
+import { activeSteps } from './pipeline/config'
 import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { ensureWorktree, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
-import { freePort, hasBuildScript, inspectPreview, previewPort, startPreview, stopPreview, waitHttp } from './preview'
+import { ensureWorktree, refreshFromBase, runGit, settleWorktree, stageAll, worktreeOnBranch, worktreePath } from './git'
+import type { WorktreeFate } from './git'
+import { ensurePreview, hasDevServer, inspectPreview, previewPort, stopPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
@@ -63,7 +66,7 @@ function asStepMap(steps: ExecuteSteps): StepMap {
 function resolveSurface(card: Card, target: string): SurfaceVerdict {
   const explicit = card.fm.surface
   if (explicit === 'visual' || explicit === 'none') return { surface: explicit, reason: 'definido no card' }
-  return classifySurface(card.fm.title ?? '', extractObjetivo(card.body), hasBuildScript(target))
+  return classifySurface(card.fm.title ?? '', extractObjetivo(card.body), hasDevServer(target))
 }
 
 async function commitAndRecord(id: string, wt: string, card: Card, steps: ExecuteSteps, res: ImplementResult, t0: number): Promise<{ costSum: number; tokensTotal: number }> {
@@ -79,6 +82,12 @@ async function commitAndRecord(id: string, wt: string, card: Card, steps: Execut
 export async function handleExecute(id: string): Promise<void> {
   const card = readCard(id)
   if (!card) return
+  const baseCost = parseFloat(card.fm.cost_usd || '0') || 0
+  const baseTokens = Number(card.fm.tokens_total || '0') || 0
+  if (CARD_BUDGET_USD > 0 && baseCost > CARD_BUDGET_USD) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED orcamento excedido (US$${card.fm.cost_usd} > US$${CARD_BUDGET_USD}) antes de (re)executar — decida se continua`)
+    return
+  }
   let auxCost = 0
   let auxTokens = 0
   const repoName = card.fm.repo ?? ''
@@ -93,12 +102,26 @@ export async function handleExecute(id: string): Promise<void> {
     patchCard(id, { surface: surface.surface }, `${isoNow()} classificacao previa: tarefa ${surface.surface === 'visual' ? 'VISUAL' : 'NAO-VISUAL'} (${surface.reason})`)
   }
   if (CLARIFY && card.fm.clarified !== 'true') {
+    const perfilPrevio = planSteps(
+      { title: card.fm.title, objetivo: extractObjetivo(card.body), risk: card.fm.risk, surface: surface.surface, override: card.fm.steps },
+      activeSteps(),
+    ).profile
+    const ide = await clarifyPorIdeacao(card, perfilPrevio)
+    auxCost += ide.cost
+    auxTokens += ide.tokens
+    if (ide.perguntas.length) {
+      writeClarify(id, ide.perguntas)
+      patchCard(id, { status: 'CLARIFY', cost_usd: (baseCost + auxCost).toFixed(4), tokens_total: String(baseTokens + auxTokens) }, `${isoNow()} EXECUTING->CLARIFY ideacao divergente (${ide.motivo}) — escolha a abordagem`)
+      process.stdout.write(`[runner] #${id}: CLARIFY por ideacao (${ide.motivo})\n`)
+      return
+    }
+    if (ide.motivo) patchCard(id, {}, `${isoNow()} ideacao: pulada — ${ide.motivo}`)
     const c = await clarify(card)
     auxCost += c.cost || 0
     auxTokens += c.tokens || 0
     if (c.questions.length) {
       writeClarify(id, c.questions)
-      patchCard(id, { status: 'CLARIFY', cost_usd: auxCost.toFixed(4), tokens_total: String(auxTokens) }, `${isoNow()} EXECUTING->CLARIFY ${c.questions.length} pergunta(s) — aguardando decisao humana`)
+      patchCard(id, { status: 'CLARIFY', cost_usd: (baseCost + auxCost).toFixed(4), tokens_total: String(baseTokens + auxTokens) }, `${isoNow()} EXECUTING->CLARIFY ${c.questions.length} pergunta(s) — aguardando decisao humana`)
       process.stdout.write(`[runner] #${id}: CLARIFY (${c.questions.length} pergunta(s))\n`)
       return
     }
@@ -121,8 +144,15 @@ export async function handleExecute(id: string): Promise<void> {
     if (reuse) {
       await runGit(wt, ['reset', '--hard', 'HEAD'])
       await runGit(wt, ['clean', '-fd', '-e', 'node_modules'])
+      const up = await refreshFromBase(wt, base)
+      if (!up.ok) {
+        patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED nao consegui partir de ${base} atualizado: ${up.detail}`)
+        return
+      }
+      patchCard(id, {}, `${isoNow()} base: ${up.detail} (worktree do spec reaproveitado)`)
     } else {
-      await ensureWorktree(target, wt, branch, base)
+      const info = await ensureWorktree(target, wt, branch, base)
+      patchCard(id, { base_commit: info.baseCommit }, `${isoNow()} base: branch criada de origin/${base}@${info.baseCommit}`)
     }
   } catch (e) {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED ${String((e as Error)?.message ?? e).slice(0, 140)}`)
@@ -131,14 +161,14 @@ export async function handleExecute(id: string): Promise<void> {
   process.stdout.write(`[runner] #${id}: implementando em worktree ${wt}\n`)
   const port = previewPort(id)
   let previewPid = 0
-  if (surface.surface === 'visual' && hasBuildScript(target)) {
-    await freePort(port)
-    previewPid = startPreview(wt, port)
-    patchCard(id, { preview_url: `http://localhost:${port}`, preview_pid: String(previewPid) }, `${isoNow()} preview subindo em http://localhost:${port} — acompanhe pelo link enquanto a IA trabalha`)
-    process.stdout.write(`[runner] #${id}: preview ao vivo em http://localhost:${port} (durante a execucao)\n`)
+  if (surface.surface === 'visual' && hasDevServer(target)) {
+    const h = await ensurePreview(wt, port, target, card.fm.preview_pid)
+    previewPid = h.pid
+    patchCard(id, { preview_url: `http://localhost:${port}`, preview_pid: String(previewPid) }, `${isoNow()} preview ${h.reused ? 'reaproveitado (ja estava no ar)' : 'subindo'} em http://localhost:${port} — acompanhe pelo link enquanto a IA trabalha`)
+    process.stdout.write(`[runner] #${id}: preview ${h.reused ? 'reaproveitado' : 'ao vivo'} em http://localhost:${port}\n`)
   }
   const t0 = Date.now()
-  const shotPath = join(CARDS_DIR, 'previews', String(id), 'preview.png')
+  const shotPath = join(cardsDir(), 'previews', String(id), 'preview.png')
   const steps = initialSteps()
   const tx = Date.now()
   const res = await implement(card, wt, '', surface.surface === 'visual')
@@ -151,11 +181,14 @@ export async function handleExecute(id: string): Promise<void> {
     const reason = res.timedOut
       ? `${res.reason} apos ${elapsed}s (worktree mantido p/ inspecao/retomada)`
       : res.reason
-    patchCard(id, { status: 'HALTED', cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->HALTED ${reason}`)
-    if (!res.timedOut) {
+    const totalCost = baseCost + auxCost + (parseFloat(res.cost || '0') || 0)
+    const totalTokens = baseTokens + auxTokens + rec.tokens_total
+    patchCard(id, { status: 'HALTED', cost_usd: totalCost.toFixed(4), tokens_total: String(totalTokens) }, `${isoNow()} EXECUTING->HALTED ${reason}`)
+    const fate: WorktreeFate = res.timedOut ? 'keep-for-inspection' : 'discard'
+    if (fate === 'discard') {
       if (previewPid) stopPreview(String(previewPid))
-      await removeWorktree(target, wt)
     }
+    await settleWorktree(target, wt, fate)
     return
   }
   patchCard(id, {}, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'}`)
@@ -164,14 +197,14 @@ export async function handleExecute(id: string): Promise<void> {
     patchCard(id, {
       status: 'PREVIEW_OK',
       verify: 'n/a',
-      cost_usd: (costSum + auxCost).toFixed(4),
-      tokens_total: String(tokensTotal + auxTokens),
+      cost_usd: (baseCost + costSum + auxCost).toFixed(4),
+      tokens_total: String(baseTokens + tokensTotal + auxTokens),
     }, `${isoNow()} EXECUTED->PREVIEW_OK auto — tarefa nao-visual (${surface.reason}); preview pulado`)
     process.stdout.write(`[runner] #${id}: PREVIEW_OK auto (nao-visual) — preview pulado\n`)
     return
   }
   const tpv = Date.now()
-  const pid = previewPid || (hasBuildScript(target) ? startPreview(wt, port) : 0)
+  const pid = previewPid || (hasDevServer(target) ? (await ensurePreview(wt, port, target, card.fm.preview_pid)).pid : 0)
   const url = pid ? `http://localhost:${port}` : ''
   const up = pid ? await waitHttp(url, 30) : false
   steps.Preview.time = toSeconds(Date.now() - tpv)
@@ -186,8 +219,8 @@ export async function handleExecute(id: string): Promise<void> {
     preview_url: url,
     preview_pid: String(pid || ''),
     verify: initState,
-    cost_usd: (costSum + auxCost).toFixed(4),
-    tokens_total: String(tokensTotal + auxTokens),
+    cost_usd: (baseCost + costSum + auxCost).toFixed(4),
+    tokens_total: String(baseTokens + tokensTotal + auxTokens),
   }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${initReason})`)
   process.stdout.write(`[runner] #${id}: PREVIEW ${url} (${initReason})\n`)
   if (up) {
@@ -215,6 +248,7 @@ export async function handleExecute(id: string): Promise<void> {
     process.stdout.write(`[runner] #${id}: eval ${e.score}/5\n`)
   }
   if (auxCost !== auxAtPreview) {
-    patchCard(id, { cost_usd: (costSum + auxCost).toFixed(4), tokens_total: String(tokensTotal + auxTokens) }, `${isoNow()} custo atualizado (verificacao/eval): $${(costSum + auxCost).toFixed(4)}`)
+    const total = baseCost + costSum + auxCost
+    patchCard(id, { cost_usd: total.toFixed(4), tokens_total: String(baseTokens + tokensTotal + auxTokens) }, `${isoNow()} custo atualizado (verificacao/eval): $${total.toFixed(4)}`)
   }
 }
