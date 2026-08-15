@@ -4,10 +4,14 @@ import type { FailureClass } from '../card'
 import { cardsDir } from '../runner/config'
 import { memoArquivo, memoChave, memoTempo } from './cache'
 
+function ttlListagemMs(): number {
+  return Number(process.env.HICODE_COTA_TTL_MS ?? '2000')
+}
+
 export const PROVEDOR_DESCONHECIDO = 'desconhecido'
 export const JANELA_COTA_MS = 4 * 60 * 60 * 1000
 
-const TTL_LISTAGEM_MS = Number(process.env.HICODE_COTA_TTL_MS ?? '2000')
+
 const FOLGA_DO_NOME_MS = 60_000
 const RE_ARQUIVO_DE_RUN = /^(\d+)-(\d{14})\.json$/
 
@@ -129,7 +133,7 @@ function lerLoteDaJanelaAtual(): LoteDeRuns {
   return lerLoteDesde(Date.now() - JANELA_COTA_MS)
 }
 
-const lotePorDiretorio = memoChave(runsDir, (): (() => LoteDeRuns) => memoTempo(lerLoteDaJanelaAtual, TTL_LISTAGEM_MS))
+const lotePorDiretorio = memoChave(runsDir, (): (() => LoteDeRuns) => memoTempo(lerLoteDaJanelaAtual, ttlListagemMs()))
 
 export function loteDesde(pedidoMs: number): LoteDeRuns {
   const guardado = lotePorDiretorio()()

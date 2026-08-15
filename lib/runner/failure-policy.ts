@@ -1,6 +1,6 @@
 import { isoAt, isoNow } from '../card'
 import type { Fields, FailureClass } from '../card'
-import { MAX_WAITING_ATTEMPTS } from './config'
+import { maxWaitingAttempts } from './config'
 import { patchCard, readCard } from './card-store'
 
 export type ResumeStatus = 'EXECUTING' | 'PREVIEW_OK' | 'CORRECTING' | 'SPECCED'
@@ -57,8 +57,8 @@ export function applyFailurePolicy(input: FailurePolicyInput): PolicyOutcome {
   }
 
   const attempts = previousAttempts + 1
-  if (attempts > MAX_WAITING_ATTEMPTS) {
-    patchCard(input.id, haltFields(input), `${isoNow()} ${input.fromStatus}->HALTED esgotou ${MAX_WAITING_ATTEMPTS} tentativas de espera (${input.failureReason}) — ultimo erro: ${input.technicalDetail}`)
+  if (attempts > maxWaitingAttempts()) {
+    patchCard(input.id, haltFields(input), `${isoNow()} ${input.fromStatus}->HALTED esgotou ${maxWaitingAttempts()} tentativas de espera (${input.failureReason}) — ultimo erro: ${input.technicalDetail}`)
     return 'halt'
   }
   const until = isoAt(Date.now() + backoffMsFor(attempts))
@@ -72,6 +72,6 @@ export function applyFailurePolicy(input: FailurePolicyInput): PolicyOutcome {
     ...(input.resumeStep ? { resume_from: input.resumeStep } : {}),
     ...input.extraFields,
   }
-  patchCard(input.id, fields, `${isoNow()} ${input.fromStatus}->WAITING (tentativa ${attempts}/${MAX_WAITING_ATTEMPTS}) ${input.failureReason} — proxima tentativa as ${until}`)
+  patchCard(input.id, fields, `${isoNow()} ${input.fromStatus}->WAITING (tentativa ${attempts}/${maxWaitingAttempts()}) ${input.failureReason} — proxima tentativa as ${until}`)
   return 'waiting'
 }

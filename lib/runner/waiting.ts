@@ -1,6 +1,6 @@
 import { isoAt, isoNow } from '../card'
 import type { Fields } from '../card'
-import { MAX_WAITING_ATTEMPTS } from './config'
+import { maxWaitingAttempts } from './config'
 import { cardsByStatus, patchCard, patchCardWith } from './card-store'
 import { probeProviderHealth } from '../ai/health-probe'
 import { backoffMsFor } from './failure-policy'
@@ -29,7 +29,7 @@ interface RescheduleOutcome {
 
 function rescheduleFields(outcome: RescheduleOutcome, fm: Fields, provider: string): Fields {
   outcome.attempts = (Number(fm.wait_attempts || '0') || 0) + 1
-  if (outcome.attempts > MAX_WAITING_ATTEMPTS) {
+  if (outcome.attempts > maxWaitingAttempts()) {
     outcome.halted = true
     return {
       status: 'HALTED',
@@ -54,12 +54,12 @@ async function reschedule(id: string, provider: string): Promise<void> {
     id,
     (fm) => rescheduleFields(outcome, fm, provider),
     () => outcome.halted
-      ? `${isoNow()} WAITING->HALTED esgotou ${MAX_WAITING_ATTEMPTS} tentativas — provedor ${provider || 'desconhecido'} segue indisponivel na sonda de saude`
+      ? `${isoNow()} WAITING->HALTED esgotou ${maxWaitingAttempts()} tentativas — provedor ${provider || 'desconhecido'} segue indisponivel na sonda de saude`
       : `${isoNow()} WAITING: sonda de saude (${provider || 'desconhecido'}) ainda indisponivel — nova tentativa as ${outcome.until}`,
   )
   process.stdout.write(outcome.halted
     ? `[runner] #${id}: WAITING->HALTED (sonda de saude nunca voltou)\n`
-    : `[runner] #${id}: WAITING segue esperando (tentativa ${outcome.attempts}/${MAX_WAITING_ATTEMPTS})\n`)
+    : `[runner] #${id}: WAITING segue esperando (tentativa ${outcome.attempts}/${maxWaitingAttempts()})\n`)
 }
 
 let acordando = false

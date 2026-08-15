@@ -1,11 +1,10 @@
-import { test, expect, afterAll, mock } from 'bun:test'
+import { beforeEach, test, expect, afterAll, mock } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 const CARDS = mkdtempSync(join(tmpdir(), 'hicode-wake-'))
 process.env.HICODE_CARDS_DIR = CARDS
-process.env.HICODE_WAITING_MAX_ATTEMPTS = '2'
 
 let saudavel = true
 let atrasoMs = 0
@@ -15,6 +14,8 @@ mock.module('../lib/ai/health-probe', () => ({
 
 const { createCard, readCard, patchCard } = await import('../lib/runner/card-store')
 const { wakeDueWaiting } = await import('../lib/runner/waiting')
+
+beforeEach(() => { process.env.HICODE_WAITING_MAX_ATTEMPTS = '2' })
 
 afterAll(() => rmSync(CARDS, { recursive: true, force: true }))
 

@@ -1,6 +1,6 @@
 import { isoNow } from '../card'
 import type { FailureClass, StepMetric } from '../card'
-import { MAX_REAJUSTE, GATE_RETRIES } from './config'
+import { maxReajuste, GATE_RETRIES } from './config'
 import { patchCard } from './card-store'
 import { runStep } from './agent'
 import { runGatedReview, withGateRetry } from './codefox-gate'
@@ -30,7 +30,7 @@ export async function runGatedStep(id: string, wt: string, base: string, agent: 
   let text = ''
   let reason = ''
   let attempt = 0
-  while (attempt <= MAX_REAJUSTE) {
+  while (attempt <= maxReajuste()) {
     const suffix = attempt === 0 ? '' : `\n\nO revisor CRIVO reprovou a etapa anterior: ${reason}. Corrija exatamente isso, sem quebrar o resto.`
     const r = await runStep(wt, agent, instruction + suffix, id)
     cost += r.cost

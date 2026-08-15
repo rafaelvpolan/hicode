@@ -1,4 +1,4 @@
-import { test, expect, afterAll, mock } from 'bun:test'
+import { beforeEach, test, expect, afterAll, mock } from 'bun:test'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
@@ -7,8 +7,6 @@ import type { ImplementResult } from '../lib/card'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-wtfate-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
-process.env.HICODE_WAITING_MAX_ATTEMPTS = '2'
-process.env.HICODE_QUOTA_FALLBACK = 'on'
 process.env.HICODE_IMPLEMENT_QUOTA_FALLBACK_PROVIDER = 'codex'
 mkdirSync(process.env.HICODE_CARDS_DIR, { recursive: true })
 
@@ -50,7 +48,9 @@ mock.module('../lib/runner/agent', () => ({
 
 const { createCard, readCard, patchCard } = await import('../lib/runner/card-store')
 const { handleExecute } = await import('../lib/runner/execute')
-const { MAX_WAITING_ATTEMPTS } = await import('../lib/runner/config')
+const { maxWaitingAttempts } = await import('../lib/runner/config')
+
+beforeEach(() => { process.env.HICODE_WAITING_MAX_ATTEMPTS = '2' })
 
 afterAll(() => rmSync(BASE, { recursive: true, force: true }))
 
@@ -101,11 +101,11 @@ test('transiente que esgota as tentativas finalmente HALTa mas mantem o worktree
   resultadoDoAgente = falha({ timedOut: true, failureClass: 'transient', failureReason: 'timeout' })
   const wt = worktreeParaTeste()
   const id = cardExecutando(wt, 'tarefa sempre transiente')
-  patchCard(id, { wait_attempts: String(MAX_WAITING_ATTEMPTS) })
+  patchCard(id, { wait_attempts: String(maxWaitingAttempts()) })
   await handleExecute(id)
   const card = readCard(id)
   expect(card?.fm.status).toBe('HALTED')
-  expect(card?.body).toContain(`esgotou ${MAX_WAITING_ATTEMPTS} tentativas de espera`)
+  expect(card?.body).toContain(`esgotou ${maxWaitingAttempts()} tentativas de espera`)
   expect(existsSync(wt)).toBe(true)
 })
 
@@ -121,13 +121,18 @@ test('cota esgotada (sem fallback aplicavel, ja no provedor de fallback) para o 
 })
 
 test('cota esgotada com fallback configurado (HICODE_QUOTA_FALLBACK=on): troca de provedor em vez de parar', async () => {
-  resultadoDoAgente = { ok: false, reason: 'cota', cost: '0.0100', usage: { tokens_in: 1, tokens_out: 1, tokens_cache_create: 0, tokens_cache_read: 0 }, failureClass: 'quota', failureReason: 'cota do provedor esgotada', provider: 'claude' }
-  const wt = worktreeParaTeste()
-  const id = cardExecutando(wt, 'tarefa que estoura a cota no provedor padrao')
-  await handleExecute(id)
-  const card = readCard(id)
-  expect(card?.fm.status).toBe('EXECUTING')
-  expect(card?.fm.provider_override_implement).toBe('codex')
-  expect(card?.body).toContain('trocando para codex')
-  expect(existsSync(wt)).toBe(true)
+  process.env.HICODE_QUOTA_FALLBACK = 'on'
+  try {
+    resultadoDoAgente = { ok: false, reason: 'cota', cost: '0.0100', usage: { tokens_in: 1, tokens_out: 1, tokens_cache_create: 0, tokens_cache_read: 0 }, failureClass: 'quota', failureReason: 'cota do provedor esgotada', provider: 'claude' }
+    const wt = worktreeParaTeste()
+    const id = cardExecutando(wt, 'tarefa que estoura a cota no provedor padrao')
+    await handleExecute(id)
+    const card = readCard(id)
+    expect(card?.fm.status).toBe('EXECUTING')
+    expect(card?.fm.provider_override_implement).toBe('codex')
+    expect(card?.body).toContain('trocando para codex')
+    expect(existsSync(wt)).toBe(true)
+  } finally {
+    delete process.env.HICODE_QUOTA_FALLBACK
+  }
 })

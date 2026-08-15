@@ -48,7 +48,7 @@ mock.module('../lib/runner/agent', () => ({
 
 const { createCard, readCard } = await import('../lib/runner/card-store')
 const { handleExecute } = await import('../lib/runner/execute')
-const { QUOTA_FALLBACK } = await import('../lib/runner/config')
+const { quotaFallbackLigado } = await import('../lib/runner/config')
 
 afterAll(() => rmSync(BASE, { recursive: true, force: true }))
 
@@ -70,7 +70,7 @@ function cardExecutando(wt: string, titulo: string): string {
 }
 
 test('pre-condicao: HICODE_QUOTA_FALLBACK nao foi ligado neste arquivo (comportamento padrao)', () => {
-  expect(QUOTA_FALLBACK).toBe(false)
+  expect(quotaFallbackLigado()).toBe(false)
 })
 
 test('DECISAO DE PRODUTO: cota esgotada sem HICODE_QUOTA_FALLBACK=on para o card mesmo com um provedor de fallback configurado — nunca troca de provedor sozinho', async () => {

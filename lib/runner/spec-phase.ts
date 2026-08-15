@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
-import { MAX_REAJUSTE } from './config'
+import { maxReajuste } from './config'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { ensureWorktree, runGit, stageAll, worktreePath } from './git'
 import { runStep } from './agent'
@@ -50,7 +50,7 @@ export async function handleSpec(id: string): Promise<void> {
   const desc = extractObjetivo(card.body) || card.fm.title || ''
   let v: SpecValidation = { ok: false, failed: 1, issues: ['spec nao gerado'] }
   let attempt = 0
-  while (attempt <= MAX_REAJUSTE) {
+  while (attempt <= maxReajuste()) {
     await runStep(wt, 'glossia', specPrompt(name, desc, attempt === 0 ? '' : v.issues.slice(0, 5).join('; ')), id)
     v = await validateChange(wt, name)
     patchCard(id, {}, `${isoNow()} spec (glossia) openspec validate: ${v.ok ? 'valido' : `invalido[${v.failed}] ${v.issues.slice(0, 3).join('; ')}`}`)
@@ -58,7 +58,7 @@ export async function handleSpec(id: string): Promise<void> {
     attempt++
   }
   if (!v.ok) {
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} SPECCED->HALTED spec reprovado no openspec validate --strict apos ${MAX_REAJUSTE} reajuste(s): ${v.issues.slice(0, 3).join('; ')} (worktree mantido p/ inspecao)`)
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} SPECCED->HALTED spec reprovado no openspec validate --strict apos ${maxReajuste()} reajuste(s): ${v.issues.slice(0, 3).join('; ')} (worktree mantido p/ inspecao)`)
     return
   }
   await stageAll(wt)

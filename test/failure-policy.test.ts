@@ -1,14 +1,15 @@
-import { test, expect, afterAll } from 'bun:test'
+import { beforeEach, test, expect, afterAll } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
 const CARDS = mkdtempSync(join(tmpdir(), 'hicode-failpolicy-'))
 process.env.HICODE_CARDS_DIR = CARDS
-process.env.HICODE_WAITING_MAX_ATTEMPTS = '3'
 
 const { createCard, readCard } = await import('../lib/runner/card-store')
 const { applyFailurePolicy, backoffMsFor } = await import('../lib/runner/failure-policy')
+
+beforeEach(() => { process.env.HICODE_WAITING_MAX_ATTEMPTS = '3' })
 
 afterAll(() => rmSync(CARDS, { recursive: true, force: true }))
 

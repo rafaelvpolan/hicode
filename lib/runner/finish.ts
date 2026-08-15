@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { StepMap, Card } from '../card'
-import { CARD_BUDGET_USD, MAX_CONFLICT, MAX_REAJUSTE, PROJECT_MEMORY } from './config'
+import { CARD_BUDGET_USD, MAX_CONFLICT, maxReajuste, PROJECT_MEMORY } from './config'
 import { appendProjectMemory } from './memory'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
 import { pushOwnedBranch, removeWorktree, run, runGit, stageAll, worktreePath } from './git'
@@ -97,7 +97,7 @@ export async function handleFinish(id: string): Promise<void> {
           })
           return
         }
-        haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED gate crivo reprovou apos ${MAX_REAJUSTE} reajuste(s): ${g.reason}`)
+        haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED gate crivo reprovou apos ${maxReajuste()} reajuste(s): ${g.reason}`)
         return
       }
     } else {

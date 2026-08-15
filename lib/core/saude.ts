@@ -1,7 +1,7 @@
 import type { Fields } from '../card'
 import { isoAt } from '../card'
 import { allCards } from '../runner/card-store'
-import { MAX_WAITING_ATTEMPTS } from '../runner/config'
+import { maxWaitingAttempts } from '../runner/config'
 import { backoffMsFor } from '../runner/failure-policy'
 import { readDaemonHealth } from '../runner/health'
 import { isActive } from './render/phases'
@@ -75,7 +75,7 @@ function esperaDoCard(fm: Fields, agoraMs: number): EsperaPorFalha {
     provedorIdentificado: provedor !== '',
     motivo: texto(fm, 'wait_reason'),
     tentativas,
-    maxTentativas: MAX_WAITING_ATTEMPTS,
+    maxTentativas: maxWaitingAttempts(),
     esperandoDesde: isoAt(inicioDaEsperaMs(fm, proximaMs, tentativas, agoraMs)),
     proximaTentativaEm: valida ? isoAt(proximaMs) : '',
     atrasoMs: valida ? Math.max(0, agoraMs - proximaMs) : 0,

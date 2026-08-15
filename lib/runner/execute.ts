@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { Card, Fields, ImplementResult, StepMap, StepMetric, Usage } from '../card'
-import { CARD_BUDGET_USD, cardsDir, CLARIFY, EVAL, QUOTA_FALLBACK, VERIFY_MODEL, VISUAL_AI } from './config'
+import { CARD_BUDGET_USD, cardsDir, CLARIFY, EVAL, quotaFallbackLigado, VERIFY_MODEL, VISUAL_AI } from './config'
 import { clarify, clarifyPorIdeacao, writeClarify } from './clarify'
 import { planSteps } from './analyze'
 import { activeSteps } from './pipeline/config'
@@ -185,7 +185,7 @@ export async function handleExecute(id: string): Promise<void> {
     const totals: Fields = { cost_usd: totalCost.toFixed(4), tokens_total: String(totalTokens) }
     const failureClass = res.failureClass ?? 'terminal'
     const failureReason = res.failureReason ?? 'falha nao classificada'
-    if (failureClass === 'quota' && QUOTA_FALLBACK) {
+    if (failureClass === 'quota' && quotaFallbackLigado()) {
       const fallback = quotaFallbackProviderFor('implement')
       if (fallback && fallback !== res.provider) {
         patchCard(id, { provider_override_implement: fallback, ...totals }, `${isoNow()} EXECUTING: cota de ${res.provider ?? 'provedor'} esgotada — trocando para ${fallback} (config explicita HICODE_QUOTA_FALLBACK=on) e tentando de novo`)
