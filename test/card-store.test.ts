@@ -115,3 +115,29 @@ test('REGRESSAO corrida entre processos: nenhuma linha de log se perde', async (
   const escritas = fields.reduce((n, f) => n + (body.match(new RegExp(`${f} passo `, 'g'))?.length ?? 0), 0)
   expect(escritas).toBe(fields.length * times)
 }, 30000)
+
+async function raceIncrementers(script: string, id: string, procs: number, times: number): Promise<void> {
+  const barrier = join(CARDS, `.go-inc-${id}`)
+  const filhos = Array.from({ length: procs }, () =>
+    Bun.spawn(['bun', script, CARDS, id, 'wait_attempts', String(times), barrier], { stdout: 'ignore', stderr: 'ignore' }),
+  )
+  await Bun.sleep(600)
+  writeFileSync(barrier, 'go')
+  await Promise.all(filhos.map(p => p.exited))
+}
+
+test('REGRESSAO corrida entre processos: patchCardWith incrementa wait_attempts sem perder contagem (leitura+escrita atomicas dentro do lock)', async () => {
+  const id = fresh({ title: 'incremento atomico', status: 'WAITING', wait_attempts: '0' })
+  const procs = 4
+  const times = 100
+  await raceIncrementers(join(import.meta.dir, 'fixtures', 'increment-loop.ts'), id, procs, times)
+  expect(Number(readCard(id)?.fm.wait_attempts)).toBe(procs * times)
+}, 30000)
+
+test('CONTROLE NEGATIVO: ler-fora-do-lock-e-so-depois-escrever perde incrementos sob concorrencia (prova que o padrao atomico acima nao e coincidencia)', async () => {
+  const id = fresh({ title: 'incremento sem lock', status: 'WAITING', wait_attempts: '0' })
+  const procs = 4
+  const times = 100
+  await raceIncrementers(join(import.meta.dir, 'fixtures', 'increment-loop-broken.ts'), id, procs, times)
+  expect(Number(readCard(id)?.fm.wait_attempts)).toBeLessThan(procs * times)
+}, 30000)

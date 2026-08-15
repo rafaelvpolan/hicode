@@ -32,6 +32,7 @@ function cell(c: Fields, o: FleetOptions): string {
   const status = String(c.status ?? 'INBOX')
   if (status === 'HALTED') return `${paint(id, DIM, o)} ${paint('■■■■■■  parou', RED, o)}`
   if (status === 'PAUSED') return `${paint(id, DIM, o)} ${paint('⏸ pausado', YELLOW, o)}`
+  if (status === 'WAITING') return `${paint(id, DIM, o)} ${paint('⏳ aguardando', YELLOW, o)}`
   const cor = status === 'PR_OPEN' || status === 'MERGED' ? GREEN : waitsHuman(status) ? YELLOW : DIM
   return `${paint(id, DIM, o)} ${paint(bar(status), cor, o)}  ${paint(phaseLabel(status).toLowerCase(), cor, o)}`
 }

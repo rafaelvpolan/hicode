@@ -1,6 +1,6 @@
 import { isoNow } from '../card'
-import type { StepMetric } from '../card'
-import { MAX_REAJUSTE, GATE_RETRIES } from './config'
+import type { FailureClass, StepMetric } from '../card'
+import { maxReajuste, GATE_RETRIES } from './config'
 import { patchCard } from './card-store'
 import { runStep } from './agent'
 import { runGatedReview, withGateRetry } from './codefox-gate'
@@ -11,6 +11,9 @@ export interface GatedResult {
   ok: boolean
   text: string
   reason: string
+  failureClass?: FailureClass
+  failureReason?: string
+  provider?: string
 }
 
 function review(id: string, wt: string, base: string, desc: string, label: string): Promise<GateResult> {
@@ -27,13 +30,16 @@ export async function runGatedStep(id: string, wt: string, base: string, agent: 
   let text = ''
   let reason = ''
   let attempt = 0
-  while (attempt <= MAX_REAJUSTE) {
+  while (attempt <= maxReajuste()) {
     const suffix = attempt === 0 ? '' : `\n\nO revisor CRIVO reprovou a etapa anterior: ${reason}. Corrija exatamente isso, sem quebrar o resto.`
     const r = await runStep(wt, agent, instruction + suffix, id)
     cost += r.cost
     tokens += r.tokens
     text = r.text
     if (!r.ok) {
+      if (r.failureClass && r.failureClass !== 'transient') {
+        return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: false, text, reason: `agente ${agent} falhou (${r.failureReason ?? 'erro'})`, failureClass: r.failureClass, failureReason: r.failureReason, provider: r.provider }
+      }
       reason = `agente ${agent} falhou/timeout`
       patchCard(id, {}, `${isoNow()} step [${label}] ${agent}: FALHOU/timeout (tentativa ${attempt + 1})`)
       attempt++
@@ -44,7 +50,7 @@ export async function runGatedStep(id: string, wt: string, base: string, agent: 
     tokens += gate.tokens
     patchCard(id, {}, `${isoNow()} gate crivo [${label}]: ${gate.ok ? gate.verdict : 'NAO EXECUTOU'}${gate.reason ? ` — ${gate.reason}` : ''}`)
     if (!gate.ok) {
-      return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: false, text, reason: `crivo indisponivel apos ${GATE_RETRIES + 1} tentativa(s): ${gate.reason}` }
+      return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: false, text, reason: `crivo indisponivel apos ${GATE_RETRIES + 1} tentativa(s): ${gate.reason}`, failureClass: gate.failureClass, failureReason: gate.failureReason, provider: gate.provider }
     }
     if (gate.verdict !== 'BLOCKED') return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: true, text, reason: '' }
     reason = gate.reason

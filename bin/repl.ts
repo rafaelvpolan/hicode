@@ -29,6 +29,7 @@ import { memoTempo, memoArquivo } from '../lib/core/cache'
 import type { PipelineStep } from '../lib/runner/pipeline/types'
 import { renderOpcoesRodape } from '../lib/core/render/clarify'
 import { renderSugestoes, prefixoComum } from '../lib/core/render/sugestoes'
+import { projetosConhecidos } from '../lib/core/projetos-conhecidos'
 import { etiquetaDoProjeto, corDoProjeto, nomeCurto } from '../lib/core/render/projeto'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { renderCabecalhoTarefa, renderParada } from '../lib/core/render/tarefa'
@@ -62,7 +63,11 @@ function dim(s: string): string {
 }
 
 function projetos(): ReturnType<typeof resumirProjetos> {
-  return resumirProjetos(repoStatus().map(r => ({ name: r.name, cloneOk: r.cloneOk })), todosOsCards())
+  const cards = todosOsCards()
+  const registro = repoStatus()
+  const conhecidos = projetosConhecidos(registro, cards)
+  const cloneDe = new Map(registro.map(r => [r.name, r.cloneOk]))
+  return resumirProjetos(conhecidos.map(p => ({ name: p.name, cloneOk: cloneDe.get(p.name) ?? false })), cards)
 }
 
 async function escolherProjeto(ask: (q: string) => Promise<string | null>): Promise<string> {

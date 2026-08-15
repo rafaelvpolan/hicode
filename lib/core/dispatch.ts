@@ -3,6 +3,7 @@ import { readClarify } from '../runner/clarify'
 import * as core from './actions'
 import { planejarLote, removerLote } from './remover'
 import { renderRemocao, renderResultado } from './render/remocao'
+import { projetosConhecidos } from './projetos-conhecidos'
 import { pendencia, responder, cardsPerguntando } from './responder'
 import { renderPergunta, renderRespondidas } from './render/clarify'
 import { instruir } from './instruir'
@@ -134,7 +135,7 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       return state
     }
     case 'reopen-repo': {
-      const repos = listRepos()
+      const repos = projetosConhecidos(listRepos(), allCards())
       if (!repos.length) {
         io.log('nenhum projeto registrado — use: hii repo add <owner/nome>')
         return state
@@ -142,14 +143,15 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       io.log('')
       repos.forEach((r, i) => {
         const atual = r.name === state.repo ? '  ← atual' : ''
-        io.log(`  ${paintNumero(i + 1, io)}  ${r.name}${io.dim(atual)}`)
+        const fora = r.registrado ? '' : '  (fora do registro — hii repo add para fixar)'
+        io.log(`  ${paintNumero(i + 1, io)}  ${r.name}${io.dim(atual || fora)}`)
       })
       io.log('')
       io.log('digite o numero ou o nome do projeto')
       return escolhendoRepo(state)
     }
     case 'pick-repo': {
-      const repos = listRepos()
+      const repos = projetosConhecidos(listRepos(), allCards())
       const nomes = repos.map(r => r.name)
       const escolha = texto.trim()
       const porNumero = /^\d+$/.test(escolha) ? nomes[Number(escolha) - 1] : undefined

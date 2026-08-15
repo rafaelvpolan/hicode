@@ -109,6 +109,18 @@ test('phases: classifica ativo, esperando humano e rotulo', () => {
   expect(phaseLabel('TESTS_GREEN')).toBe('Polir')
 })
 
+test('REGRESSAO: WAITING e ativo (motor retomando sozinho) mas nao espera humano (nao ha comando a digitar)', () => {
+  expect(isActive('WAITING')).toBe(true)
+  expect(waitsHuman('WAITING')).toBe(false)
+})
+
+test('REGRESSAO: fleet conta card WAITING como ativo e mostra marca propria (nao fica invisivel)', () => {
+  const t = renderFleet([card({ id: '7', status: 'WAITING' })], { repo: 'org/app', daemon: 'online (pid 1)' })
+  expect(t).toContain('1 ativo(s)')
+  expect(t).toContain('#007')
+  expect(t).toContain('aguardando')
+})
+
 test('fleet: conta ativos e esperando separadamente', () => {
   const t = renderFleet([
     card({ id: '1', status: 'EXECUTING' }),

@@ -24,7 +24,7 @@ export function phaseLabel(status: string): string {
 }
 
 export function isActive(status: string): boolean {
-  return ['EXECUTING', 'CORRECTING', 'SPECCED', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED'].includes(status)
+  return ['EXECUTING', 'CORRECTING', 'SPECCED', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED', 'WAITING'].includes(status)
 }
 
 export function waitsHuman(status: string): boolean {

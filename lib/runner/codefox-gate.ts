@@ -1,9 +1,11 @@
 import { isoNow } from '../card'
+import type { FailureClass } from '../card'
 import { GATE_DIFF_LIMIT, GATE_RETRIES, GATE_TIMEOUT_MAX_MS, GATE_TIMEOUT_MIN_MS, GATE_TIMEOUT_MS_PER_KB, ROOT } from './config'
 import { runGit, stageAll } from './git'
 import { patchCard } from './card-store'
 import { modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
+import { classifyFailure } from '../ai/failure'
 
 export type GateVerdict = 'APPROVED' | 'CONDITIONAL' | 'BLOCKED'
 
@@ -14,6 +16,9 @@ export interface GateResult {
   questions: string[]
   cost: number
   tokens: number
+  failureClass?: FailureClass
+  failureReason?: string
+  provider?: string
 }
 
 interface RawVerdict {
@@ -141,7 +146,8 @@ async function gateReview(wt: string, base: string, desc: string, working: boole
   })
   const tokens = sumTokens(res.usage)
   if (res.failed) {
-    return { ok: false, verdict: 'CONDITIONAL', reason: `gate NAO executou (${res.timedOut ? 'timeout' : 'erro'}): ${oneLine(res.detail).slice(0, 120)}`, questions: [], cost: res.cost, tokens }
+    const cls = classifyFailure(provider.name, { timedOut: res.timedOut, detail: res.detail, text: res.text })
+    return { ok: false, verdict: 'CONDITIONAL', reason: `gate NAO executou (${res.timedOut ? 'timeout' : 'erro'}): ${oneLine(res.detail).slice(0, 120)}`, questions: [], cost: res.cost, tokens, failureClass: cls.failureClass, failureReason: cls.reason, provider: provider.name }
   }
   const parsed = buildParsed(res.text, res.cost, tokens)
   if (!parsed.found) {

@@ -29,7 +29,9 @@ export const PREVIEW_BASE_PORT = Number(process.env.HICODE_PREVIEW_BASE || 5200)
 export const POLL_MS = Number(process.env.HICODE_POLL_MS || 5000)
 export const RUN_TIMEOUT_MS = Number(process.env.HICODE_RUN_TIMEOUT_MS || 900000)
 export const MAX_CONCURRENCY = Number(process.env.HICODE_CONCURRENCY || 3)
-export const MAX_REAJUSTE = Number(process.env.HICODE_REAJUSTE_RETRIES || 2)
+export function maxReajuste(): number {
+  return Number(process.env.HICODE_REAJUSTE_RETRIES || 2)
+}
 export const MAX_CONFLICT = Number(process.env.HICODE_CONFLICT_RETRIES || 2)
 export const GATE_RETRIES = Number(process.env.HICODE_GATE_RETRIES || 1)
 export const MERGE_POLL_MS = Number(process.env.HICODE_MERGE_POLL_MS || 30000)
@@ -44,3 +46,9 @@ export const CLARIFY = (process.env.HICODE_CLARIFY || 'on') !== 'off'
 export const CARD_BUDGET_USD = Number(process.env.HICODE_CARD_BUDGET_USD || 0)
 export const EVAL = (process.env.HICODE_EVAL || 'on') !== 'off'
 export const PROJECT_MEMORY = (process.env.HICODE_PROJECT_MEMORY || 'on') !== 'off'
+export function maxWaitingAttempts(): number {
+  return Number(process.env.HICODE_WAITING_MAX_ATTEMPTS || 8)
+}
+export function quotaFallbackLigado(): boolean {
+  return (process.env.HICODE_QUOTA_FALLBACK || 'off') === 'on'
+}

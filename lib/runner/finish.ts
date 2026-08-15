@@ -1,67 +1,31 @@
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
-import type { StepMap, StepMetric, Card } from '../card'
-import { MAX_REAJUSTE, MAX_CONFLICT, CARD_BUDGET_USD, PROJECT_MEMORY } from './config'
+import type { StepMap, Card } from '../card'
+import { CARD_BUDGET_USD, MAX_CONFLICT, maxReajuste, PROJECT_MEMORY } from './config'
 import { appendProjectMemory } from './memory'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { pushOwnedBranch, removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
+import { pushOwnedBranch, removeWorktree, run, runGit, stageAll, worktreePath } from './git'
 import { pularCriacaoDePr } from './finish-pr'
 import type { PushResult } from './git'
-import { ensurePreview, hasDevServer, previewPort, httpOk, inspectPreview, stopPreview, waitHttp } from './preview'
-import { runStep } from './agent'
+import { stopPreview } from './preview'
 import { activeSteps } from './pipeline/config'
-import { isNonVisual } from './classify'
 import { planSteps } from './analyze'
-import type { PipelineStep } from './pipeline/types'
 import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
 import { runCodefoxGate, persistGate, buildPrBody, gateOutcome, gateHaltReason, withGateRetry } from './codefox-gate'
 import { ensureContract } from '../contract/store'
 import { podeAbrirPr } from '../core/doctor'
-import { affectedPackage, resolveCommand } from './commands'
-import type { Contract, PackageInfo } from '../contract/types'
-
-interface RunCtx {
-  contract: Contract
-  pkg: PackageInfo | undefined
-  target: string
-}
-
-interface SyncResult {
-  ok: boolean
-  changed: boolean
-}
-
-function addMetric(fsteps: StepMap, key: string, m: StepMetric): void {
-  const p = fsteps[key] ?? { time: 0, cost: 0, tokens: 0 }
-  fsteps[key] = { time: p.time + m.time, cost: p.cost + m.cost, tokens: p.tokens + m.tokens }
-}
+import { affectedPackage } from './commands'
+import { addMetric, accumulatedTotals, haltForInspection, applyStepFailurePolicy } from './finish-metrics'
+import { buildWithReajuste, testGate } from './finish-gates'
+import type { RunCtx } from './finish-gates'
+import { syncWithBase, revalidate } from './finish-sync'
+import { resumeStart, RESUME_POST_STEPS } from './finish-resume'
+import { runStep } from './agent'
 
 async function commitAll(wt: string, message: string): Promise<void> {
   await stageAll(wt)
   await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', message])
-}
-
-function sumStepCost(fsteps: StepMap): number {
-  return Object.values(fsteps).reduce((acc, s) => acc + (Number(s.cost) || 0), 0)
-}
-
-function sumStepTokens(fsteps: StepMap): number {
-  return Object.values(fsteps).reduce((acc, s) => acc + (Number(s.tokens) || 0), 0)
-}
-
-function accumulatedTotals(card: Card, fsteps: StepMap): { cost_usd: string; tokens_total: string } {
-  const cost = (parseFloat(card.fm.cost_usd || '0') || 0) + sumStepCost(fsteps)
-  const tokens = (Number(card.fm.tokens_total || '0') || 0) + sumStepTokens(fsteps)
-  return { cost_usd: cost.toFixed(4), tokens_total: String(tokens) }
-}
-
-function haltForInspection(id: string, card: Card, fsteps: StepMap, message: string): void {
-  updateRunSteps(id, fsteps)
-  patchCard(id, {
-    status: 'HALTED',
-    ...accumulatedTotals(card, fsteps),
-  }, message)
 }
 
 function pushFailureDiagnostico(push: PushResult): string {
@@ -72,126 +36,6 @@ function pushFailureDiagnostico(push: PushResult): string {
     return `push recusado mesmo com --force-with-lease ancorado no ultimo push que este card conhece — a branch remota mudou desde entao (fixup humano ou outro processo); reexecutar sozinho NAO resolve, decida manualmente: ${push.detail}`
   }
   return `push falhou por um motivo que nao e non-fast-forward — reexecutar sozinho tende a repetir esta falha; confira autenticacao/permissao: ${push.detail}`
-}
-
-async function buildWithReajuste(id: string, wt: string, ctx: RunCtx, fsteps: StepMap, timeKey: string, reajusteKey: string): Promise<boolean> {
-  const cmd = resolveCommand(ctx.contract, 'build', wt, ctx.pkg)
-  if (!cmd) {
-    patchCard(id, {}, `${isoNow()} build: alvo sem script de build no contrato — gate de build pulado`)
-    return true
-  }
-  const tb = Date.now()
-  let b = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
-  addMetric(fsteps, timeKey, { time: Math.round((Date.now() - tb) / 1000), cost: 0, tokens: 0 })
-  let reajuste = 0
-  while (b.err && reajuste < MAX_REAJUSTE) {
-    reajuste++
-    const tr = Date.now()
-    const detail = String(b.stderr || b.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou (${cmd.label}). Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`, id, ctx.target)
-    b = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
-    addMetric(fsteps, reajusteKey, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
-    patchCard(id, {}, `${isoNow()} REAJUSTE (${reajuste}/${MAX_REAJUSTE}, rufus): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
-    process.stdout.write(`[runner] #${id}: REAJUSTE ${reajuste} (rufus)\n`)
-  }
-  if (!b.err) patchCard(id, {}, `${isoNow()} build (${cmd.label}) exit=0${reajuste ? ` (apos ${reajuste} reajuste)` : ''}`)
-  return !b.err
-}
-
-async function testGate(id: string, wt: string, ctx: RunCtx, fsteps: StepMap, label: string): Promise<boolean> {
-  const cmd = resolveCommand(ctx.contract, 'test', wt, ctx.pkg)
-  if (!cmd) {
-    patchCard(id, {}, `${isoNow()} ${label}: alvo sem script de teste no contrato — gate de teste pulado`)
-    return true
-  }
-  const tb = Date.now()
-  let t = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
-  addMetric(fsteps, label, { time: Math.round((Date.now() - tb) / 1000), cost: 0, tokens: 0 })
-  let reajuste = 0
-  while (t.err && reajuste < MAX_REAJUSTE) {
-    reajuste++
-    const tr = Date.now()
-    const detail = String(t.stderr || t.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'testudo', `Os testes do projeto falharam (${cmd.label}). Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`, id, ctx.target)
-    t = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
-    addMetric(fsteps, label, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
-    patchCard(id, {}, `${isoNow()} REAJUSTE testes (${reajuste}/${MAX_REAJUSTE}, testudo): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
-  }
-  if (!t.err) patchCard(id, {}, `${isoNow()} ${label}: ${cmd.label} exit=0${reajuste ? ` (apos ${reajuste} reajuste)` : ''}`)
-  return !t.err
-}
-
-async function syncWithBase(id: string, wt: string, base: string, desc: string, fsteps: StepMap): Promise<SyncResult> {
-  await withGitLock(() => runGit(wt, ['fetch', 'origin', base]))
-  const before = (await runGit(wt, ['rev-parse', 'HEAD'])).stdout.trim()
-  const merge = await runGit(wt, ['merge', '--no-edit', `origin/${base}`])
-  if (!merge.err) {
-    const after = (await runGit(wt, ['rev-parse', 'HEAD'])).stdout.trim()
-    const changed = before !== after
-    patchCard(id, {}, `${isoNow()} sync: integrou origin/${base}${changed ? ' sem conflito' : ' (ja atualizado)'}`)
-    return { ok: true, changed }
-  }
-  let attempt = 0
-  while (attempt < MAX_CONFLICT) {
-    attempt++
-    const files = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.split('\n').filter(Boolean)
-    const tr = Date.now()
-    const rr = await runStep(wt, 'limpio', `Conflito de merge ao integrar origin/${base} na branch. Resolva os conflitos nestes arquivos: ${files.join(', ')}. Preserve o objetivo "${desc}" E as mudancas de ${base}. Remova TODOS os marcadores de conflito (<<<<<<<, =======, >>>>>>>). Nao rode git.`, id)
-    addMetric(fsteps, 'Conflito', { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
-    if (files.length) await runGit(wt, ['add', ...files])
-    const unmerged = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.trim()
-    patchCard(id, {}, `${isoNow()} CONFLITO (${attempt}/${MAX_CONFLICT}, limpio): ${rr.text || 'resolveu'} — ${unmerged ? 'ainda ha conflito' : 'resolvido'}`)
-    process.stdout.write(`[runner] #${id}: CONFLITO ${attempt} (limpio)\n`)
-    if (!unmerged) {
-      await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '--no-edit'])
-      return { ok: true, changed: true }
-    }
-  }
-  await runGit(wt, ['merge', '--abort'])
-  return { ok: false, changed: true }
-}
-
-async function revalidate(id: string, card: Card, wt: string, target: string, fsteps: StepMap): Promise<boolean> {
-  if (isNonVisual(card.fm.surface)) {
-    patchCard(id, { revalidacao: 'n/a' }, `${isoNow()} revalidacao pulada — tarefa nao-visual (build/testes ja validaram)`)
-    return true
-  }
-  let ok = true
-  let reason = 'sem dev server (revalidacao pulada)'
-  const rt = Date.now()
-  if (hasDevServer(target)) {
-    const rport = previewPort(id)
-    const rurl = `http://localhost:${rport}`
-    let up = await httpOk(rurl)
-    if (!up) {
-      await ensurePreview(wt, rport, target)
-      up = await waitHttp(rurl, 25)
-    }
-    if (up) {
-      const h = await inspectPreview(id, rurl, true)
-      if (!h.conclusive) {
-        reason = `preview no ar apos merge — verificacao humana (inspecao automatica indisponivel${h.detail ? ': ' + h.detail : ''})`
-      } else {
-        ok = h.ok
-        reason = h.ok ? 'preview no ar apos merge — confira pelo link' : `preview com erro: ${h.detail}`
-      }
-    } else {
-      reason = 'dev server nao respondeu (revalidacao pulada)'
-    }
-  }
-  addMetric(fsteps, 'Revalidacao', { time: Math.round((Date.now() - rt) / 1000), cost: 0, tokens: 0 })
-  patchCard(id, { revalidacao: ok ? 'ok' : 'falhou' }, `${isoNow()} revalidacao do projeto (vs objetivo, pos-merge): ${ok ? 'OK' : 'FALHOU'} — ${reason}`)
-  return ok
-}
-
-function resumeStart(steps: PipelineStep[], all: PipelineStep[], resumeFrom: string, id: string, profile: string): number {
-  if (!resumeFrom) return 0
-  const exact = steps.findIndex(s => s.label === resumeFrom)
-  if (exact >= 0) return exact
-  const wantPos = all.findIndex(s => s.label === resumeFrom)
-  const mapped = wantPos < 0 ? -1 : steps.findIndex(s => all.findIndex(a => a.label === s.label) >= wantPos)
-  patchCard(id, {}, `${isoNow()} replay: passo "${resumeFrom}" nao roda neste card (perfil ${profile}); ${mapped >= 0 ? 'retomando do passo aplicavel seguinte' : 'nada a repetir — seguindo para revalidacao/PR'}`)
-  return mapped >= 0 ? mapped : steps.length
 }
 
 export async function handleFinish(id: string): Promise<void> {
@@ -241,14 +85,34 @@ export async function handleFinish(id: string): Promise<void> {
       r = { ...g.metric, text: g.text }
       if (!g.ok) {
         fsteps[step.label] = g.metric
-        haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED gate crivo reprovou apos ${MAX_REAJUSTE} reajuste(s): ${g.reason}`)
+        if (g.failureClass) {
+          applyStepFailurePolicy(id, card, fsteps, {
+            fromStatus: step.label,
+            resumeStatus: 'PREVIEW_OK',
+            resumeStep: step.label,
+            provider: g.provider ?? '',
+            failureClass: g.failureClass,
+            failureReason: g.failureReason ?? 'falha nao classificada',
+            technicalDetail: g.reason,
+          })
+          return
+        }
+        haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED gate crivo reprovou apos ${maxReajuste()} reajuste(s): ${g.reason}`)
         return
       }
     } else {
       const sr = await runStep(wt, step.agent, instruction, id)
       if (!sr.ok) {
         fsteps[step.label] = { time: sr.time, cost: sr.cost, tokens: sr.tokens }
-        haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED agente ${step.agent} falhou/timeout: ${sr.text}`)
+        applyStepFailurePolicy(id, card, fsteps, {
+          fromStatus: step.label,
+          resumeStatus: 'PREVIEW_OK',
+          resumeStep: step.label,
+          provider: sr.provider ?? '',
+          failureClass: sr.failureClass ?? 'terminal',
+          failureReason: sr.failureReason ?? 'falha nao classificada',
+          technicalDetail: `agente ${step.agent}: ${sr.text}`,
+        })
         return
       }
       r = { time: sr.time, cost: sr.cost, tokens: sr.tokens, text: sr.text }
@@ -258,7 +122,7 @@ export async function handleFinish(id: string): Promise<void> {
       haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED testes falharam apos reajuste(s)`)
       return
     }
-    patchCard(id, { status: step.state }, `${isoNow()} ${step.label} (${step.agent})${step.gated ? ' [crivo ok]' : ''}: ${r.text || 'ok'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
+    patchCard(id, { status: step.state, wait_attempts: '' }, `${isoNow()} ${step.label} (${step.agent})${step.gated ? ' [crivo ok]' : ''}: ${r.text || 'ok'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
     process.stdout.write(`[runner] #${id}: ${step.label} (${step.agent}) $${r.cost.toFixed(4)}\n`)
   }
   if (!(await buildWithReajuste(id, wt, ctx, fsteps, 'Testes', 'Reajuste'))) {
@@ -291,6 +155,19 @@ export async function handleFinish(id: string): Promise<void> {
   addMetric(fsteps, 'Codefox', { time: 0, cost: gate.cost, tokens: gate.tokens })
   persistGate(id, gate)
   if (gateOutcome(gate) === 'halt') {
+    if (!gate.ok && gate.failureClass) {
+      applyStepFailurePolicy(id, card, fsteps, {
+        fromStatus: 'REVIEWED',
+        resumeStatus: 'PREVIEW_OK',
+        resumeStep: RESUME_POST_STEPS,
+        provider: gate.provider ?? '',
+        failureClass: gate.failureClass,
+        failureReason: gate.failureReason ?? 'falha nao classificada',
+        technicalDetail: gateHaltReason(gate),
+      })
+      process.stdout.write(`[runner] #${id}: codefox gate final nao concluiu (classificado)\n`)
+      return
+    }
     haltForInspection(id, card, fsteps, `${isoNow()} REVIEWED->HALTED ${gateHaltReason(gate)} (worktree mantido p/ inspecao)`)
     process.stdout.write(`[runner] #${id}: HALTED ${gate.ok ? 'codefox gate BLOCKED' : 'codefox gate nao concluiu'}\n`)
     return
@@ -325,6 +202,7 @@ export async function handleFinish(id: string): Promise<void> {
   patchCard(id, {
     status: 'PR_OPEN',
     pr_url: url,
+    wait_attempts: '',
     ...totalsFields,
   }, `${isoNow()} REVIEWED->PR_OPEN ${url} (merge e do humano)`)
   if (PROJECT_MEMORY) appendProjectMemory(target, `#${id} "${(desc ?? '').slice(0, 80)}" -> PR aberto (${url})`)

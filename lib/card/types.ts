@@ -1,5 +1,5 @@
 export const STATUSES = [
-  'INBOX', 'READY', 'CLARIFY', 'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'PAUSED', 'EXECUTED',
+  'INBOX', 'READY', 'CLARIFY', 'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'PAUSED', 'WAITING', 'EXECUTED',
   'PREVIEW', 'CORRECTING', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED',
   'CLEANED', 'PR_OPEN', 'MERGED', 'DEPLOYED', 'HALTED',
 ] as const
@@ -55,7 +55,13 @@ export interface Run {
   tokens_cache_read: number
   tokens_total: number
   steps: StepMap | null
+  provider: string
+  model: string
+  failure_class: FailureClass | ''
+  failure_reason: string
 }
+
+export type FailureClass = 'transient' | 'quota' | 'terminal'
 
 export interface VerifyResult {
   ok: boolean
@@ -73,6 +79,10 @@ export interface ImplementResult {
   cost: string
   usage?: Usage
   timedOut?: boolean
+  failureClass?: FailureClass
+  failureReason?: string
+  provider?: string
+  model?: string
 }
 
 export interface ClarifyQuestion {

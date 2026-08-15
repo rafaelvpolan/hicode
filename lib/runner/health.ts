@@ -23,7 +23,7 @@ interface PartialHealth {
   lastErrorAt?: string
 }
 
-function readHealth(): DaemonHealth {
+export function readDaemonHealth(): DaemonHealth {
   const f = healthFile()
   if (!existsSync(f)) return { ...EMPTY_HEALTH }
   try {
@@ -44,13 +44,13 @@ function writeHealth(h: DaemonHealth): void {
 }
 
 export function recordTickSuccess(): void {
-  const prev = readHealth()
+  const prev = readDaemonHealth()
   if (prev.consecutiveFailures) writeHealth({ ...EMPTY_HEALTH })
 }
 
 export function reportTickFailure(context: string, error: Error): DaemonHealth {
   const message = `${context}: ${error.message || String(error)}`
-  const prev = readHealth()
+  const prev = readDaemonHealth()
   const repeating = prev.lastError === message
   const health: DaemonHealth = {
     consecutiveFailures: repeating ? prev.consecutiveFailures + 1 : 1,

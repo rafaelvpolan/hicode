@@ -27,19 +27,20 @@ export function providerNames(): AiProviderName[] {
   return Object.keys(PROVIDERS) as AiProviderName[]
 }
 
-export function providerNameFor(role: AgentRole): AiProviderName {
+export function providerNameFor(role: AgentRole, override?: string): AiProviderName {
+  if (isProviderName(override)) return override
   const perRole = process.env[ROLE_PROVIDER_ENV[role]]
   if (isProviderName(perRole)) return perRole
   const dflt = process.env.HICODE_AI_PROVIDER
   return isProviderName(dflt) ? dflt : 'claude'
 }
 
-export function providerFor(role: AgentRole): AiProvider {
-  return PROVIDERS[providerNameFor(role)]
+export function providerFor(role: AgentRole, override?: string): AiProvider {
+  return PROVIDERS[providerNameFor(role, override)]
 }
 
-export function modelFor(role: AgentRole): string | undefined {
-  const name = providerNameFor(role)
+export function modelFor(role: AgentRole, override?: string): string | undefined {
+  const name = providerNameFor(role, override)
   if (name === 'claude') {
     if (role === 'verify') return VERIFY_MODEL
     if (role === 'gate') return GATE_MODEL
@@ -48,4 +49,9 @@ export function modelFor(role: AgentRole): string | undefined {
   if (name === 'codex') return process.env.HICODE_CODEX_MODEL || undefined
   if (name === 'ollama') return process.env.HICODE_OLLAMA_MODEL || undefined
   return process.env.HICODE_OPENCODE_MODEL || undefined
+}
+
+export function quotaFallbackProviderFor(role: AgentRole): AiProviderName | null {
+  const env = process.env[`HICODE_${role.toUpperCase()}_QUOTA_FALLBACK_PROVIDER`]
+  return isProviderName(env) ? env : null
 }

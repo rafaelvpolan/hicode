@@ -9,12 +9,12 @@ export const PHASES: [CardStatus, string][] = [
 ]
 
 export const IN_PROGRESS: CardStatus[] = [
-  'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'EXECUTED', 'REFINED',
+  'SPECCED', 'PLAN_APPROVED', 'EXECUTING', 'WAITING', 'EXECUTED', 'REFINED',
   'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED',
 ]
 
 export const ACTIVE_STATUSES: CardStatus[] = [
-  'EXECUTING', 'CORRECTING', 'SPECCED', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN',
+  'EXECUTING', 'WAITING', 'CORRECTING', 'SPECCED', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN',
   'SEC_CLEARED', 'REVIEWED', 'CLEANED',
 ]
 
@@ -43,6 +43,7 @@ const PHASE_STATUS_ALIAS: Partial<Record<CardStatus, CardStatus>> = {
   SPECCED: 'EXECUTING',
   PLAN_APPROVED: 'EXECUTING',
   CORRECTING: 'EXECUTING',
+  WAITING: 'EXECUTING',
 }
 
 export function phaseIdx(status: CardStatus): number {
