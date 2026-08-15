@@ -64,7 +64,9 @@ async function reschedule(id: string, provider: string): Promise<void> {
 
 let acordando = false
 
-export async function wakeDueWaiting(): Promise<void> {
+export type SondaDeSaude = (provedor: string) => Promise<boolean>
+
+export async function wakeDueWaiting(sonda: SondaDeSaude = probeProviderHealth): Promise<void> {
   if (acordando) return
   acordando = true
   try {
@@ -72,7 +74,7 @@ export async function wakeDueWaiting(): Promise<void> {
     for (const c of due) {
       const id = c.id ?? ''
       const provider = c.wait_provider ?? ''
-      const healthy = await probeProviderHealth(provider)
+      const healthy = await sonda(provider)
       if (!healthy) {
         await reschedule(id, provider)
         continue
