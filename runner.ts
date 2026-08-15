@@ -4,6 +4,14 @@ import { renderProgress } from './lib/runner/progress'
 import { initHicodeHome } from './lib/runner/hicode-home'
 import { runSync } from './lib/tasks/sync'
 import { taskSyncName } from './lib/tasks/registry'
+import { reportTickFailure } from './lib/runner/health'
+
+process.on('uncaughtException', (e) => {
+  reportTickFailure('excecao nao tratada', e)
+})
+process.on('unhandledRejection', (e) => {
+  reportTickFailure('promise rejeitada sem tratamento', e as Error)
+})
 
 if (process.argv.includes('--init')) {
   const target = process.argv[process.argv.indexOf('--init') + 1] ?? process.cwd()
