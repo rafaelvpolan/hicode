@@ -23,6 +23,10 @@ export function writeRun(id: string, res: ImplementResult, durationS = 0, steps:
     tokens_cache_read: u?.tokens_cache_read || 0,
     tokens_total: steps ? stepTokens : total,
     steps: steps || null,
+    provider: res.provider || '',
+    model: res.model || '',
+    failure_class: res.ok ? '' : (res.failureClass ?? ''),
+    failure_reason: res.ok ? '' : (res.failureReason ?? ''),
   }
   writeFileSync(join(dir, `${id}-${safe}.json`), JSON.stringify(rec, null, 2))
   return rec

@@ -34,7 +34,7 @@ export function readCard(id: string): Card | null {
 }
 
 export interface CardPatch {
-  fields?: Fields
+  fields?: Fields | ((fm: Fields) => Fields)
   body?: (body: string, fm: Fields) => string
   log?: string | ((fm: Fields) => string)
 }
@@ -46,7 +46,8 @@ export function updateCard(id: string, patch: CardPatch): Fields | null {
   return withFileLock(file, () => {
     const { fm, order, body } = splitFrontMatter(readFileSync(file, 'utf8'))
     const before: Fields = { ...fm }
-    for (const [k, v] of Object.entries(patch.fields ?? {})) {
+    const resolvedFields = typeof patch.fields === 'function' ? patch.fields(before) : (patch.fields ?? {})
+    for (const [k, v] of Object.entries(resolvedFields)) {
       fm[k] = v
       if (!order.includes(k)) order.push(k)
     }
@@ -61,6 +62,10 @@ export function updateCard(id: string, patch: CardPatch): Fields | null {
 
 export function patchCard(id: string, fields: Fields, logLine?: string): void {
   updateCard(id, { fields, log: logLine })
+}
+
+export function patchCardWith(id: string, compute: (fm: Fields) => Fields, logLine?: string | ((fm: Fields) => string)): Fields | null {
+  return updateCard(id, { fields: compute, log: logLine })
 }
 
 export function cardsByStatus(status: string): Array<Fields & { file: string }> {

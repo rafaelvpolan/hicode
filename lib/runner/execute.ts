@@ -1,8 +1,8 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
-import type { Card, ImplementResult, StepMap, StepMetric, Usage } from '../card'
-import { CARD_BUDGET_USD, cardsDir, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
+import type { Card, Fields, ImplementResult, StepMap, StepMetric, Usage } from '../card'
+import { CARD_BUDGET_USD, cardsDir, CLARIFY, EVAL, QUOTA_FALLBACK, VERIFY_MODEL, VISUAL_AI } from './config'
 import { clarify, clarifyPorIdeacao, writeClarify } from './clarify'
 import { planSteps } from './analyze'
 import { activeSteps } from './pipeline/config'
@@ -14,6 +14,8 @@ import { ensurePreview, hasDevServer, inspectPreview, previewPort, stopPreview, 
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
+import { applyFailurePolicy } from './failure-policy'
+import { quotaFallbackProviderFor } from '../ai/registry'
 
 interface ExecuteSteps {
   Fila: StepMetric
@@ -178,20 +180,36 @@ export async function handleExecute(id: string): Promise<void> {
   if (!res.ok) {
     const elapsed = toSeconds(Date.now() - t0)
     const rec = writeRun(id, res, elapsed, asStepMap(steps))
-    const reason = res.timedOut
-      ? `${res.reason} apos ${elapsed}s (worktree mantido p/ inspecao/retomada)`
-      : res.reason
     const totalCost = baseCost + auxCost + (parseFloat(res.cost || '0') || 0)
     const totalTokens = baseTokens + auxTokens + rec.tokens_total
-    patchCard(id, { status: 'HALTED', cost_usd: totalCost.toFixed(4), tokens_total: String(totalTokens) }, `${isoNow()} EXECUTING->HALTED ${reason}`)
-    const fate: WorktreeFate = res.timedOut ? 'keep-for-inspection' : 'discard'
-    if (fate === 'discard') {
-      if (previewPid) stopPreview(String(previewPid))
+    const totals: Fields = { cost_usd: totalCost.toFixed(4), tokens_total: String(totalTokens) }
+    const failureClass = res.failureClass ?? 'terminal'
+    const failureReason = res.failureReason ?? 'falha nao classificada'
+    if (failureClass === 'quota' && QUOTA_FALLBACK) {
+      const fallback = quotaFallbackProviderFor('implement')
+      if (fallback && fallback !== res.provider) {
+        patchCard(id, { provider_override_implement: fallback, ...totals }, `${isoNow()} EXECUTING: cota de ${res.provider ?? 'provedor'} esgotada — trocando para ${fallback} (config explicita HICODE_QUOTA_FALLBACK=on) e tentando de novo`)
+        return
+      }
     }
+    const technicalDetail = res.timedOut ? `${res.reason ?? ''} apos ${elapsed}s` : (res.reason ?? '')
+    const outcome = applyFailurePolicy({
+      id,
+      fromStatus: 'EXECUTING',
+      resumeStatus: 'EXECUTING',
+      provider: res.provider ?? '',
+      failureClass,
+      failureReason,
+      technicalDetail,
+      extraFields: totals,
+    })
+    if (outcome === 'waiting') return
+    const fate: WorktreeFate = failureClass === 'transient' ? 'keep-for-inspection' : 'discard'
+    if (fate === 'discard' && previewPid) stopPreview(String(previewPid))
     await settleWorktree(target, wt, fate)
     return
   }
-  patchCard(id, {}, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'}`)
+  patchCard(id, { wait_attempts: '' }, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'}`)
   if (surface.surface === 'none') {
     const { costSum, tokensTotal } = await commitAndRecord(id, wt, card, steps, res, t0)
     patchCard(id, {

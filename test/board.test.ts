@@ -33,6 +33,23 @@ test('board separa esperando voce, parados, rodando, fila e entregues', () => {
   }
 })
 
+test('REGRESSAO: card WAITING aparece agrupado em "rodando" (nao fica de fora de nenhum grupo)', () => {
+  const t = renderBoard([
+    card({ id: '1', status: 'WAITING' }),
+  ], { repo: 'org/app', ...semPassos })
+  expect(t).toContain('rodando (1)')
+})
+
+test('REGRESSAO: card WAITING entra na ordem selecionavel do board (nao vira card fantasma)', () => {
+  const cards = [card({ id: '1', status: 'WAITING' })]
+  expect(ordemDoBoard(cards, 'org/app')).toEqual(['1'])
+})
+
+test('REGRESSAO: card WAITING ganha marca propria (ampulheta) na trilha do board, nao fica com a barra generica de status desconhecido', () => {
+  const t = renderBoard([card({ id: '1', status: 'WAITING' })], { repo: 'org/app', color: true, ...semPassos })
+  expect(t).toContain('⏳')
+})
+
 test('board soma o custo do projeto', () => {
   const t = renderBoard([
     card({ id: '1', cost_usd: '1.50' }),

@@ -5,6 +5,7 @@ import { initHicodeHome } from './lib/runner/hicode-home'
 import { runSync } from './lib/tasks/sync'
 import { taskSyncName } from './lib/tasks/registry'
 import { reportTickFailure } from './lib/runner/health'
+import { wakeDueWaiting } from './lib/runner/waiting'
 
 process.on('uncaughtException', (e) => {
   reportTickFailure('excecao nao tratada', e)
@@ -31,7 +32,10 @@ if (process.argv.includes('--init')) {
 } else {
   reconcileStranded()
   if (process.argv.includes('--once')) {
-    void Promise.all(pending().slice(0, MAX_CONCURRENCY).map(runJob)).then(() => process.exit(0))
+    void wakeDueWaiting()
+      .catch((e) => { reportTickFailure('wakeDueWaiting (once)', e as Error) })
+      .then(() => Promise.all(pending().slice(0, MAX_CONCURRENCY).map(runJob)))
+      .then(() => process.exit(0))
   } else {
     process.stdout.write(`hicode runner ativo — worktrees + paralelo (max ${MAX_CONCURRENCY}, poll ${POLL_MS}ms, timeout ${RUN_TIMEOUT_MS}ms)\n`)
     setInterval(tick, POLL_MS)

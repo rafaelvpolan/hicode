@@ -1,10 +1,11 @@
 import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo } from '../card'
-import type { Card, ImplementResult, VerifyResult } from '../card'
+import type { Card, FailureClass, ImplementResult, VerifyResult } from '../card'
 import { cardsDir, ROOT, RUN_TIMEOUT_MS, PROJECT_MEMORY } from './config'
 import { modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
+import { classifyFailure } from '../ai/failure'
 import type { AiProvider } from '../ai/types'
 import { readProjectRules } from './hicode-home'
 import { repoPath } from './card-store'
@@ -20,6 +21,9 @@ export interface StepResult {
   tokens: number
   text: string
   ok: boolean
+  failureClass?: FailureClass
+  failureReason?: string
+  provider?: string
 }
 
 function firstLine(s: string, max: number): string {
@@ -64,8 +68,10 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
 
 export async function implement(card: Card, workdir: string, feedback = '', visual = false): Promise<ImplementResult> {
   const desc = extractObjetivo(card.body) || card.fm.title || ''
-  const provider = providerFor('implement')
-  if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '' }
+  const override = card.fm.provider_override_implement || undefined
+  const provider = providerFor('implement', override)
+  const model = modelFor('implement', override)
+  if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '', provider: provider.name, model, failureClass: 'terminal', failureReason: 'provider configurado nao edita arquivos' }
   const id = card.fm.id ?? ''
   const refImages = provider.supportsVision ? await resolveRefImages(id) : []
   const dirs = refImages.length ? [workdir, join(cardsDir(), 'refs', id)] : [workdir]
@@ -77,7 +83,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
     dirs,
     mode: 'edit',
     useAgents: provider.supportsAgents,
-    model: modelFor('implement'),
+    model,
     timeoutMs: RUN_TIMEOUT_MS,
     liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
   })
@@ -86,9 +92,10 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
     const reason = res.isError
       ? `${provider.name} is_error: ${firstLine(res.text, 140)}`
       : `${provider.name} ${res.timedOut ? 'timeout' : 'falhou: ' + res.detail}`
-    return { ok: false, reason, cost, usage: res.usage, timedOut: res.timedOut }
+    const cls = classifyFailure(provider.name, { timedOut: res.timedOut, detail: res.detail, text: res.text })
+    return { ok: false, reason, cost, usage: res.usage, timedOut: res.timedOut, failureClass: cls.failureClass, failureReason: cls.reason, provider: provider.name, model }
   }
-  return { ok: true, resultText: firstLine(res.text, 140), fullText: String(res.text || '').slice(0, 8000), cost, usage: res.usage }
+  return { ok: true, resultText: firstLine(res.text, 140), fullText: String(res.text || '').slice(0, 8000), cost, usage: res.usage, provider: provider.name, model }
 }
 
 export async function verifyVisual(card: Card, shotPath: string): Promise<VerifyResult> {
@@ -138,7 +145,7 @@ function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction
 export async function runStep(wt: string, agent: string, instruction: string, id = '', repo = ''): Promise<StepResult> {
   const t = Date.now()
   const provider = providerFor('step')
-  if (!provider.agentic) return { time: 0, cost: 0, tokens: 0, ok: false, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use codex/opencode para steps que editam)` }
+  if (!provider.agentic) return { time: 0, cost: 0, tokens: 0, ok: false, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use codex/opencode para steps que editam)`, failureClass: 'terminal', failureReason: 'provider configurado nao edita arquivos', provider: provider.name }
   const res = await provider.run({
     prompt: stepPrompt(provider, wt, agent, instruction, readProjectRules(wt), stackOf(repo || wt)),
     cwd: ROOT,
@@ -149,5 +156,11 @@ export async function runStep(wt: string, agent: string, instruction: string, id
     timeoutMs: RUN_TIMEOUT_MS,
     liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
   })
-  return { time: Math.round((Date.now() - t) / 1000), cost: res.cost, tokens: sumTokens(res.usage), text: firstLine(res.text, 120), ok: res.ok }
+  const time = Math.round((Date.now() - t) / 1000)
+  const tokens = sumTokens(res.usage)
+  if (!res.ok) {
+    const cls = classifyFailure(provider.name, { timedOut: res.timedOut, detail: res.detail, text: res.text })
+    return { time, cost: res.cost, tokens, text: firstLine(res.text, 120) || res.detail, ok: false, failureClass: cls.failureClass, failureReason: cls.reason, provider: provider.name }
+  }
+  return { time, cost: res.cost, tokens, text: firstLine(res.text, 120), ok: true, provider: provider.name }
 }

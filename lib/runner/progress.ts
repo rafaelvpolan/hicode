@@ -13,6 +13,7 @@ import { PHASES, phaseIndex } from '../core/render/phases'
 function track(status: string): string {
   if (status === 'HALTED') return `${RED}■ ■ ■ ■ ■ ■  parou${RESET}`
   if (status === 'PAUSED') return `${YELLOW}⏸ pausado          ${RESET}`
+  if (status === 'WAITING') return `${YELLOW}⏳ aguardando        ${RESET}`
   const pi = phaseIndex(status)
   return PHASES.map((p, i) => {
     if (i < pi) return `${p.color}█${RESET}`

@@ -44,3 +44,5 @@ export const CLARIFY = (process.env.HICODE_CLARIFY || 'on') !== 'off'
 export const CARD_BUDGET_USD = Number(process.env.HICODE_CARD_BUDGET_USD || 0)
 export const EVAL = (process.env.HICODE_EVAL || 'on') !== 'off'
 export const PROJECT_MEMORY = (process.env.HICODE_PROJECT_MEMORY || 'on') !== 'off'
+export const MAX_WAITING_ATTEMPTS = Number(process.env.HICODE_WAITING_MAX_ATTEMPTS || 8)
+export const QUOTA_FALLBACK = (process.env.HICODE_QUOTA_FALLBACK || 'off') === 'on'

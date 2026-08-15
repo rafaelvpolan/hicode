@@ -45,6 +45,12 @@ test('reconcile: estados terminais e de espera nao sao tocados', () => {
   expect(ids.map(statusOf)).toEqual(intocaveis)
 })
 
+test('REGRESSAO: WAITING (mesmo sem wait_until) sobrevive a reinicio do daemon intocado — reconcile nao mexe em backoff; quem acorda (inclusive com wait_until ausente, fail-open) e wakeDueWaiting, coberto em waiting-wake.test.ts', () => {
+  const id = card('WAITING')
+  reconcileStranded()
+  expect(statusOf(id)).toBe('WAITING')
+})
+
 test('reconcile: registra o motivo no log do card', () => {
   const id = card('REVIEWED')
   reconcileStranded()

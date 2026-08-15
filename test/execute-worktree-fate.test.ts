@@ -7,6 +7,9 @@ import type { ImplementResult } from '../lib/card'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-wtfate-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
+process.env.HICODE_WAITING_MAX_ATTEMPTS = '2'
+process.env.HICODE_QUOTA_FALLBACK = 'on'
+process.env.HICODE_IMPLEMENT_QUOTA_FALLBACK_PROVIDER = 'codex'
 mkdirSync(process.env.HICODE_CARDS_DIR, { recursive: true })
 
 function git(dir: string, args: string[]): string {
@@ -45,8 +48,9 @@ mock.module('../lib/runner/agent', () => ({
   runStep: (): never => { throw new Error('nao deveria chamar runStep') },
 }))
 
-const { createCard, readCard } = await import('../lib/runner/card-store')
+const { createCard, readCard, patchCard } = await import('../lib/runner/card-store')
 const { handleExecute } = await import('../lib/runner/execute')
+const { MAX_WAITING_ATTEMPTS } = await import('../lib/runner/config')
 
 afterAll(() => rmSync(BASE, { recursive: true, force: true }))
 
@@ -67,8 +71,12 @@ function cardExecutando(wt: string, titulo: string): string {
   }, '## Objetivo\nfazer algo\n')
 }
 
-test('REGRESSAO: falha SEM timeout descarta o worktree (nada a inspecionar)', async () => {
-  resultadoDoAgente = { ok: false, reason: 'erro comum, nao e timeout', cost: '0.0100', usage: { tokens_in: 5, tokens_out: 5, tokens_cache_create: 0, tokens_cache_read: 0 } }
+function falha(over: Partial<ImplementResult>): ImplementResult {
+  return { ok: false, reason: 'falha', cost: '0.0100', usage: { tokens_in: 5, tokens_out: 5, tokens_cache_create: 0, tokens_cache_read: 0 }, ...over }
+}
+
+test('REGRESSAO: falha terminal (classificacao desconhecida) descarta o worktree (nada a inspecionar)', async () => {
+  resultadoDoAgente = falha({ reason: 'erro comum, nao e timeout' })
   const wt = worktreeParaTeste()
   const id = cardExecutando(wt, 'tarefa que falha sem timeout')
   expect(existsSync(wt)).toBe(false)
@@ -77,11 +85,49 @@ test('REGRESSAO: falha SEM timeout descarta o worktree (nada a inspecionar)', as
   expect(existsSync(wt)).toBe(false)
 })
 
-test('REGRESSAO: falha POR TIMEOUT mantem o worktree para inspecao/retomada', async () => {
-  resultadoDoAgente = { ok: false, reason: 'excedeu o tempo limite', timedOut: true, cost: '0.0200', usage: { tokens_in: 5, tokens_out: 5, tokens_cache_create: 0, tokens_cache_read: 0 } }
+test('REGRESSAO: falha POR TIMEOUT e transiente — vira WAITING (nao HALT) e mantem o worktree para retomada automatica', async () => {
+  resultadoDoAgente = falha({ reason: 'excedeu o tempo limite', timedOut: true, cost: '0.0200', failureClass: 'transient', failureReason: 'timeout — provedor nao respondeu a tempo' })
   const wt = worktreeParaTeste()
   const id = cardExecutando(wt, 'tarefa que estoura o tempo')
   await handleExecute(id)
-  expect(readCard(id)?.fm.status).toBe('HALTED')
+  const card = readCard(id)
+  expect(card?.fm.status).toBe('WAITING')
+  expect(card?.fm.wait_resume_status).toBe('EXECUTING')
+  expect(card?.fm.wait_attempts).toBe('1')
+  expect(existsSync(wt)).toBe(true)
+})
+
+test('transiente que esgota as tentativas finalmente HALTa mas mantem o worktree para inspecao', async () => {
+  resultadoDoAgente = falha({ timedOut: true, failureClass: 'transient', failureReason: 'timeout' })
+  const wt = worktreeParaTeste()
+  const id = cardExecutando(wt, 'tarefa sempre transiente')
+  patchCard(id, { wait_attempts: String(MAX_WAITING_ATTEMPTS) })
+  await handleExecute(id)
+  const card = readCard(id)
+  expect(card?.fm.status).toBe('HALTED')
+  expect(card?.body).toContain(`esgotou ${MAX_WAITING_ATTEMPTS} tentativas de espera`)
+  expect(existsSync(wt)).toBe(true)
+})
+
+test('cota esgotada (sem fallback aplicavel, ja no provedor de fallback) para o card e descarta o worktree', async () => {
+  resultadoDoAgente = { ok: false, reason: 'cota', cost: '0.0100', usage: { tokens_in: 1, tokens_out: 1, tokens_cache_create: 0, tokens_cache_read: 0 }, failureClass: 'quota', failureReason: 'cota do provedor esgotada', provider: 'codex' }
+  const wt = worktreeParaTeste()
+  const id = cardExecutando(wt, 'tarefa que estoura a cota ja no fallback')
+  await handleExecute(id)
+  const card = readCard(id)
+  expect(card?.fm.status).toBe('HALTED')
+  expect(card?.body).toContain('cota do provedor codex esgotada')
+  expect(existsSync(wt)).toBe(false)
+})
+
+test('cota esgotada com fallback configurado (HICODE_QUOTA_FALLBACK=on): troca de provedor em vez de parar', async () => {
+  resultadoDoAgente = { ok: false, reason: 'cota', cost: '0.0100', usage: { tokens_in: 1, tokens_out: 1, tokens_cache_create: 0, tokens_cache_read: 0 }, failureClass: 'quota', failureReason: 'cota do provedor esgotada', provider: 'claude' }
+  const wt = worktreeParaTeste()
+  const id = cardExecutando(wt, 'tarefa que estoura a cota no provedor padrao')
+  await handleExecute(id)
+  const card = readCard(id)
+  expect(card?.fm.status).toBe('EXECUTING')
+  expect(card?.fm.provider_override_implement).toBe('codex')
+  expect(card?.body).toContain('trocando para codex')
   expect(existsSync(wt)).toBe(true)
 })

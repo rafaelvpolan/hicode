@@ -96,6 +96,7 @@ export function idadeDe(updated: string | undefined, now: number): string {
 function trilha(status: string, o: BoardOptions): string {
   if (status === 'HALTED') return paint('■■■■■■', RED, o)
   if (status === 'PAUSED') return paint('⏸·····', YELLOW, o)
+  if (status === 'WAITING') return paint('⏳·····', YELLOW, o)
   const i = phaseIndex(status)
   if (i < 0) return paint('······', DIM, o)
   const cor = status === 'PR_OPEN' || status === 'MERGED' ? GREEN : waitsHuman(status) ? YELLOW : CYAN

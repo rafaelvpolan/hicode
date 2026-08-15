@@ -1,19 +1,24 @@
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { isoNow } from '../card'
-import type { Usage, VerifyResult } from '../card'
+import type { FailureClass, Usage, VerifyResult } from '../card'
 import { CARD_BUDGET_USD } from './config'
 import { readCard, patchCard, repoPath } from './card-store'
 import { runGit, stageAll } from './git'
 import { ensurePreview, hasDevServer, previewPort, httpOk, inspectPreview, waitHttp } from './preview'
 import { implement, runStep } from './agent'
 import { appendAttempt, readAttempts } from './attempts'
+import { applyFailurePolicy } from './failure-policy'
 
 interface StepOutcome {
+  ok: boolean
   text: string
   fullText: string
   cost: number
   tokens: number
+  failureClass?: FailureClass
+  failureReason?: string
+  provider?: string
 }
 
 function tokensOf(u: Usage | undefined): number {
@@ -62,12 +67,12 @@ function attemptHistory(id: string): string {
 
 async function redoPreview(card: NonNullable<ReturnType<typeof readCard>>, wt: string, instruction: string): Promise<StepOutcome> {
   const r = await implement(card, wt, `${attemptHistory(card.fm.id ?? '')}O preview anterior foi REJEITADO pelo revisor. Refaça a tarefa atendendo exatamente: "${instruction}".`, card.fm.surface === 'visual')
-  return { text: r.resultText ?? r.reason ?? '', fullText: r.fullText ?? r.resultText ?? r.reason ?? '', cost: parseFloat(r.cost) || 0, tokens: tokensOf(r.usage) }
+  return { ok: r.ok, text: r.resultText ?? r.reason ?? '', fullText: r.fullText ?? r.resultText ?? r.reason ?? '', cost: parseFloat(r.cost) || 0, tokens: tokensOf(r.usage), failureClass: r.failureClass, failureReason: r.failureReason, provider: r.provider }
 }
 
 async function scopedFix(wt: string, instruction: string, file: string, line: string, lineText: string, id: string): Promise<StepOutcome> {
   const r = await runStep(wt, 'limpio', scopedInstruction(instruction, file, line, lineText), id)
-  return { text: r.text, fullText: r.text, cost: r.cost, tokens: r.tokens }
+  return { ok: r.ok, text: r.text, fullText: r.text, cost: r.cost, tokens: r.tokens, failureClass: r.failureClass, failureReason: r.failureReason, provider: r.provider }
 }
 
 export async function handleCorrect(id: string): Promise<void> {
@@ -91,6 +96,19 @@ export async function handleCorrect(id: string): Promise<void> {
   process.stdout.write(`[runner] #${id}: ${redo ? 'refazendo preview (rejeitado)' : 'aplicando correção'} em ${wt}\n`)
   const r = redo ? await redoPreview(card, wt, instruction) : await scopedFix(wt, instruction, file, line, lineText, id)
   appendAttempt(id, redo ? 'reprovacao' : 'correcao', instruction, r.fullText)
+  if (!r.ok) {
+    const outcome = applyFailurePolicy({
+      id,
+      fromStatus: 'CORRECTING',
+      resumeStatus: 'CORRECTING',
+      provider: r.provider ?? '',
+      failureClass: r.failureClass ?? 'terminal',
+      failureReason: r.failureReason ?? 'falha nao classificada',
+      technicalDetail: r.text,
+    })
+    if (outcome === 'halt') patchCard(id, { correction: '', correction_file: '', correction_line: '', correction_line_text: '' })
+    return
+  }
   await commit(wt, redo ? `feat: refaz preview apos rejeicao (#${id})` : `fix: correção humana (#${id})`)
   patchCard(id, {
     status: 'PREVIEW',
@@ -99,6 +117,7 @@ export async function handleCorrect(id: string): Promise<void> {
     correction_line: '',
     correction_line_text: '',
     verify: 'inconclusivo',
+    wait_attempts: '',
   }, `${isoNow()} CORRECTING->PREVIEW ${redo ? 'preview refeito' : 'correção aplicada'}: ${r.text || 'ok'} (verificando…) (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
   process.stdout.write(`[runner] #${id}: PREVIEW apos ${redo ? 'refação' : 'correção'} (verificando)\n`)
   const reval = await revalidate(id, wt, target)

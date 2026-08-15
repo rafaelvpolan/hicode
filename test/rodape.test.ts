@@ -61,6 +61,12 @@ test('sem nada rodando, diz isso em vez de sumir', () => {
   expect(linhasExecucao([])[0]).toContain('nada em execucao')
 })
 
+test('REGRESSAO: card WAITING aparece no rodape como em execucao — o motor ainda cuida dele, so que em espera de retomada', () => {
+  const r = emExecucao([card({ id: '9', status: 'WAITING' })], 'org/app', Date.now(), () => 'vitro')
+  expect(r.length).toBe(1)
+  expect(r[0]?.id).toBe('9')
+})
+
 test('limita a 3 linhas, mas diz quantas ficaram de fora', () => {
   const muitos = Array.from({ length: 8 }, (_, i) => card({ id: String(i + 1), status: 'EXECUTING' }))
   const linhas = linhasExecucao(emExecucao(muitos, 'org/app', Date.now(), () => ''))

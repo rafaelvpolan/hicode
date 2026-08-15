@@ -10,6 +10,7 @@ import { handleSpec } from './spec-phase'
 import { checkMerged } from './merge'
 import { arquivar, precisaArquivar } from '../core/archive'
 import { recordTickSuccess, reportTickFailure } from './health'
+import { wakeDueWaiting } from './waiting'
 
 export { reconcileStranded, pending } from './queue-state'
 
@@ -42,6 +43,10 @@ export function tick(): void {
     reportTickFailure('checkMerged', e as Error)
     ok = false
   })
+  const waking = wakeDueWaiting().catch(e => {
+    reportTickFailure('wakeDueWaiting', e as Error)
+    ok = false
+  })
   try {
     podar()
   } catch (e) {
@@ -57,5 +62,5 @@ export function tick(): void {
     reportTickFailure('fila', e as Error)
     ok = false
   }
-  void merged.then(() => { if (ok) recordTickSuccess() })
+  void Promise.all([merged, waking]).then(() => { if (ok) recordTickSuccess() })
 }
