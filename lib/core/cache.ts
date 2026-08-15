@@ -16,7 +16,7 @@ export function memoTempo<T>(fn: () => T, ms: number, agora: () => number = Date
 function assinatura(arquivo: string): string {
   try {
     const s = statSync(arquivo)
-    return `${s.mtimeMs}:${s.size}`
+    return `${s.ino}:${s.mtimeMs}:${s.size}`
   } catch {
     return ''
   }

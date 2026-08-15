@@ -9,6 +9,7 @@ import { handleCorrect } from './correct'
 import { handleSpec } from './spec-phase'
 import { checkMerged } from './merge'
 import { arquivar, precisaArquivar } from '../core/archive'
+import { recordTickSuccess, reportTickFailure } from './health'
 
 export { reconcileStranded, pending } from './queue-state'
 
@@ -36,10 +37,25 @@ function podar(): void {
 }
 
 export function tick(): void {
-  void checkMerged(Date.now())
-  podar()
-  for (const job of pending()) {
-    if (quantosEmVoo() >= MAX_CONCURRENCY) break
-    void runJob(job)
+  let ok = true
+  const merged = checkMerged(Date.now()).catch(e => {
+    reportTickFailure('checkMerged', e as Error)
+    ok = false
+  })
+  try {
+    podar()
+  } catch (e) {
+    reportTickFailure('podar', e as Error)
+    ok = false
   }
+  try {
+    for (const job of pending()) {
+      if (quantosEmVoo() >= MAX_CONCURRENCY) break
+      void runJob(job)
+    }
+  } catch (e) {
+    reportTickFailure('fila', e as Error)
+    ok = false
+  }
+  void merged.then(() => { if (ok) recordTickSuccess() })
 }

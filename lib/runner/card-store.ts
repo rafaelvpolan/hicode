@@ -4,6 +4,7 @@ import { splitFrontMatter, serializeCard, appendLog, isoNow } from '../card'
 import type { Card, Fields } from '../card'
 import { cardsDir, reposFile, ROOT } from './config'
 import { withFileLock, writeFileAtomic } from './file-lock'
+import { memoArquivo } from '../core/cache'
 
 interface RepoConfig {
   name: string
@@ -66,9 +67,14 @@ export function cardsByStatus(status: string): Array<Fields & { file: string }> 
   return allCards().filter(c => c.status === status)
 }
 
+const parseCardFile = memoArquivo(
+  (caminho: string): string => caminho,
+  (caminho: string): Fields & { file: string } => ({ ...splitFrontMatter(readFileSync(caminho, 'utf8')).fm, file: basename(caminho) }),
+)
+
 export function allCards(): Array<Fields & { file: string }> {
   return cardFiles()
-    .map((f): Fields & { file: string } => ({ ...splitFrontMatter(readFileSync(join(cardsDir(), f), 'utf8')).fm, file: f }))
+    .map(f => parseCardFile(join(cardsDir(), f)))
     .filter(c => c.id)
 }
 

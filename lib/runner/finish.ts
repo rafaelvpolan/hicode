@@ -4,7 +4,9 @@ import type { StepMap, StepMetric, Card } from '../card'
 import { MAX_REAJUSTE, MAX_CONFLICT, CARD_BUDGET_USD, PROJECT_MEMORY } from './config'
 import { appendProjectMemory } from './memory'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
+import { pushOwnedBranch, removeWorktree, run, runGit, stageAll, withGitLock, worktreePath } from './git'
+import { pularCriacaoDePr } from './finish-pr'
+import type { PushResult } from './git'
 import { ensurePreview, hasDevServer, previewPort, httpOk, inspectPreview, stopPreview, waitHttp } from './preview'
 import { runStep } from './agent'
 import { activeSteps } from './pipeline/config'
@@ -13,7 +15,7 @@ import { planSteps } from './analyze'
 import type { PipelineStep } from './pipeline/types'
 import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
-import { runCodefoxGate, persistGate, buildPrBody, gateOutcome, gateHaltReason } from './codefox-gate'
+import { runCodefoxGate, persistGate, buildPrBody, gateOutcome, gateHaltReason, withGateRetry } from './codefox-gate'
 import { ensureContract } from '../contract/store'
 import { podeAbrirPr } from '../core/doctor'
 import { affectedPackage, resolveCommand } from './commands'
@@ -38,6 +40,38 @@ function addMetric(fsteps: StepMap, key: string, m: StepMetric): void {
 async function commitAll(wt: string, message: string): Promise<void> {
   await stageAll(wt)
   await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', message])
+}
+
+function sumStepCost(fsteps: StepMap): number {
+  return Object.values(fsteps).reduce((acc, s) => acc + (Number(s.cost) || 0), 0)
+}
+
+function sumStepTokens(fsteps: StepMap): number {
+  return Object.values(fsteps).reduce((acc, s) => acc + (Number(s.tokens) || 0), 0)
+}
+
+function accumulatedTotals(card: Card, fsteps: StepMap): { cost_usd: string; tokens_total: string } {
+  const cost = (parseFloat(card.fm.cost_usd || '0') || 0) + sumStepCost(fsteps)
+  const tokens = (Number(card.fm.tokens_total || '0') || 0) + sumStepTokens(fsteps)
+  return { cost_usd: cost.toFixed(4), tokens_total: String(tokens) }
+}
+
+function haltForInspection(id: string, card: Card, fsteps: StepMap, message: string): void {
+  updateRunSteps(id, fsteps)
+  patchCard(id, {
+    status: 'HALTED',
+    ...accumulatedTotals(card, fsteps),
+  }, message)
+}
+
+function pushFailureDiagnostico(push: PushResult): string {
+  if (push.failureReason === 'no-anchor') {
+    return `push rejeitado (non-fast-forward) e este card nao tem push anterior nem PR registrado para provar que a branch remota e dele — reexecutar sozinho NAO resolve. Inspecione o historico remoto da branch e, se for mesmo deste card, apague-a no remoto para o motor recriar: ${push.detail}`
+  }
+  if (push.failureReason === 'diverged') {
+    return `push recusado mesmo com --force-with-lease ancorado no ultimo push que este card conhece — a branch remota mudou desde entao (fixup humano ou outro processo); reexecutar sozinho NAO resolve, decida manualmente: ${push.detail}`
+  }
+  return `push falhou por um motivo que nao e non-fast-forward — reexecutar sozinho tende a repetir esta falha; confira autenticacao/permissao: ${push.detail}`
 }
 
 async function buildWithReajuste(id: string, wt: string, ctx: RunCtx, fsteps: StepMap, timeKey: string, reajusteKey: string): Promise<boolean> {
@@ -207,76 +241,83 @@ export async function handleFinish(id: string): Promise<void> {
       r = { ...g.metric, text: g.text }
       if (!g.ok) {
         fsteps[step.label] = g.metric
-        updateRunSteps(id, fsteps)
-        patchCard(id, { status: 'HALTED' }, `${isoNow()} ${step.label}->HALTED gate crivo reprovou apos ${MAX_REAJUSTE} reajuste(s): ${g.reason}`)
+        haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED gate crivo reprovou apos ${MAX_REAJUSTE} reajuste(s): ${g.reason}`)
         return
       }
     } else {
       const sr = await runStep(wt, step.agent, instruction, id)
       if (!sr.ok) {
         fsteps[step.label] = { time: sr.time, cost: sr.cost, tokens: sr.tokens }
-        updateRunSteps(id, fsteps)
-        patchCard(id, { status: 'HALTED' }, `${isoNow()} ${step.label}->HALTED agente ${step.agent} falhou/timeout: ${sr.text}`)
+        haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED agente ${step.agent} falhou/timeout: ${sr.text}`)
         return
       }
       r = { time: sr.time, cost: sr.cost, tokens: sr.tokens, text: sr.text }
     }
     fsteps[step.label] = { time: r.time, cost: r.cost, tokens: r.tokens }
     if (step.gate === 'test' && !(await testGate(id, wt, ctx, fsteps, step.label))) {
-      updateRunSteps(id, fsteps)
-      patchCard(id, { status: 'HALTED' }, `${isoNow()} ${step.label}->HALTED testes falharam apos reajuste(s)`)
+      haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED testes falharam apos reajuste(s)`)
       return
     }
     patchCard(id, { status: step.state }, `${isoNow()} ${step.label} (${step.agent})${step.gated ? ' [crivo ok]' : ''}: ${r.text || 'ok'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
     process.stdout.write(`[runner] #${id}: ${step.label} (${step.agent}) $${r.cost.toFixed(4)}\n`)
   }
   if (!(await buildWithReajuste(id, wt, ctx, fsteps, 'Testes', 'Reajuste'))) {
-    updateRunSteps(id, fsteps)
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} build->HALTED build falhou apos reajuste(s)`)
+    haltForInspection(id, card, fsteps, `${isoNow()} build->HALTED build falhou apos reajuste(s)`)
     return
   }
   await commitAll(wt, `chore: qualidade Nexus (#${id})`)
   const sync = await syncWithBase(id, wt, base, desc ?? '', fsteps)
   if (!sync.ok) {
-    updateRunSteps(id, fsteps)
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} CLEANED->HALTED conflito com ${base} nao resolvido apos ${MAX_CONFLICT}x (precisa de voce)`)
+    haltForInspection(id, card, fsteps, `${isoNow()} CLEANED->HALTED conflito com ${base} nao resolvido apos ${MAX_CONFLICT}x (precisa de voce)`)
     process.stdout.write(`[runner] #${id}: HALTED conflito com ${base}\n`)
     return
   }
   if (sync.changed) {
     if (!(await buildWithReajuste(id, wt, ctx, fsteps, 'Conflito', 'Conflito'))) {
-      updateRunSteps(id, fsteps)
-      patchCard(id, { status: 'HALTED' }, `${isoNow()} CLEANED->HALTED build falhou apos merge com ${base}`)
+      haltForInspection(id, card, fsteps, `${isoNow()} CLEANED->HALTED build falhou apos merge com ${base}`)
       return
     }
     await commitAll(wt, `chore: integra ${base} (#${id})`)
   }
   if (!(await revalidate(id, card, wt, target, fsteps))) {
-    updateRunSteps(id, fsteps)
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} CLEANED->HALTED revalidacao falhou pos-merge: objetivo nao confirmado (worktree + preview mantidos p/ inspecao)`)
+    haltForInspection(id, card, fsteps, `${isoNow()} CLEANED->HALTED revalidacao falhou pos-merge: objetivo nao confirmado (worktree + preview mantidos p/ inspecao)`)
     process.stdout.write(`[runner] #${id}: HALTED revalidacao (pos-merge)\n`)
     return
   }
-  const gate = await runCodefoxGate(wt, base, desc ?? '')
+  const gate = await withGateRetry(
+    () => runCodefoxGate(wt, base, desc ?? ''),
+    reason => patchCard(id, {}, `${isoNow()} codefox gate final: NAO EXECUTOU (${reason}) — repetindo antes de decidir`),
+  )
   addMetric(fsteps, 'Codefox', { time: 0, cost: gate.cost, tokens: gate.tokens })
   persistGate(id, gate)
   if (gateOutcome(gate) === 'halt') {
-    updateRunSteps(id, fsteps)
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} REVIEWED->HALTED ${gateHaltReason(gate)} (worktree mantido p/ inspecao)`)
+    haltForInspection(id, card, fsteps, `${isoNow()} REVIEWED->HALTED ${gateHaltReason(gate)} (worktree mantido p/ inspecao)`)
     process.stdout.write(`[runner] #${id}: HALTED ${gate.ok ? 'codefox gate BLOCKED' : 'codefox gate nao concluiu'}\n`)
     return
   }
-  const totals = updateRunSteps(id, fsteps)
-  const p = await withGitLock(() => runGit(wt, ['push', '--no-verify', '-u', 'origin', branch]))
-  if (p.err) {
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} CLEANED->HALTED push falhou: ${String(p.stderr || '').slice(0, 120)}`)
+  updateRunSteps(id, fsteps)
+  const totalsFields = accumulatedTotals(card, fsteps)
+  const donoComprovado = !!String(card.fm.pr_url ?? '').trim()
+  const push = await pushOwnedBranch(wt, branch, String(card.fm.pushed_sha ?? '').trim(), donoComprovado)
+  if (!push.ok) {
+    const diagnostico = pushFailureDiagnostico(push)
+    patchCard(id, { status: 'HALTED', ...totalsFields }, `${isoNow()} CLEANED->HALTED ${diagnostico} (worktree mantido p/ inspecao)`)
     return
   }
+  patchCard(id, { pushed_sha: push.pushedSha }, push.forced
+    ? `${isoNow()} push: a branch remota tinha uma tentativa anterior deste mesmo card — sobrescrita com --force-with-lease ancorado no ultimo push conhecido`
+    : `${isoNow()} push: branch atualizada`)
   const body = buildPrBody(id, desc ?? '', gate)
-  const pr = await run('gh', ['pr', 'create', '--repo', repoName, '--base', base, '--head', branch, '--title', msg, '--body', body], { cwd: wt, timeout: 60000 })
+  const prExistente = String(card.fm.pr_url ?? '').trim()
+  const pr = pularCriacaoDePr(prExistente)
+    ? { err: null, stdout: prExistente, stderr: '' }
+    : await run('gh', ['pr', 'create', '--repo', repoName, '--base', base, '--head', branch, '--title', msg, '--body', body], { cwd: wt, timeout: 60000 })
+  if (pularCriacaoDePr(prExistente)) {
+    patchCard(id, {}, `${isoNow()} PR ja aberto para esta branch — push atualizou ${prExistente}`)
+  }
   const url = String(pr.stdout || '').trim().split('\n').filter(Boolean).pop() || ''
   if (pr.err && !url) {
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} CLEANED->HALTED gh pr create falhou: ${String(pr.stderr || '').slice(0, 120)}`)
+    patchCard(id, { status: 'HALTED', ...totalsFields }, `${isoNow()} CLEANED->HALTED gh pr create falhou (push ja OK — so falta abrir o PR): ${String(pr.stderr || '').slice(0, 120)}`)
     return
   }
   stopPreview(card.fm.preview_pid)
@@ -284,8 +325,7 @@ export async function handleFinish(id: string): Promise<void> {
   patchCard(id, {
     status: 'PR_OPEN',
     pr_url: url,
-    cost_usd: String(totals.cost || card.fm.cost_usd || ''),
-    tokens_total: String(totals.tokens || card.fm.tokens_total || ''),
+    ...totalsFields,
   }, `${isoNow()} REVIEWED->PR_OPEN ${url} (merge e do humano)`)
   if (PROJECT_MEMORY) appendProjectMemory(target, `#${id} "${(desc ?? '').slice(0, 80)}" -> PR aberto (${url})`)
   process.stdout.write(`[runner] #${id}: PR_OPEN ${url}\n`)

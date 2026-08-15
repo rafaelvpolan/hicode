@@ -25,14 +25,18 @@ function gate(over: Partial<GateResult>): GateResult {
   return { ok: true, verdict: 'APPROVED', reason: '', questions: [], cost: 0.02, tokens: 200, ...over }
 }
 
+const realAgent = await import('../lib/runner/agent')
 mock.module('../lib/runner/agent', () => ({
+  ...realAgent,
   runStep: (_wt: string, _agent: string, instruction: string): Promise<StepResult> => {
     stepCalls.push({ instrucao: instruction })
     return Promise.resolve(stepQueue.shift() ?? step({}))
   },
 }))
 
+const realCodefoxGate = await import('../lib/runner/codefox-gate')
 mock.module('../lib/runner/codefox-gate', () => ({
+  ...realCodefoxGate,
   runGatedReview: (): Promise<GateResult> => Promise.resolve(gateQueue.shift() ?? gate({})),
 }))
 

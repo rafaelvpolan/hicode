@@ -1,5 +1,5 @@
 import { isoNow } from '../card'
-import { GATE_DIFF_LIMIT, ROOT } from './config'
+import { GATE_DIFF_LIMIT, GATE_RETRIES, GATE_TIMEOUT_MAX_MS, GATE_TIMEOUT_MIN_MS, GATE_TIMEOUT_MS_PER_KB, ROOT } from './config'
 import { runGit, stageAll } from './git'
 import { patchCard } from './card-store'
 import { modelFor, providerFor } from '../ai/registry'
@@ -76,6 +76,15 @@ export function extractVerdictJson(text: string): RawVerdict | null {
   return null
 }
 
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n))
+}
+
+export function timeoutForDiff(diff: DiffParts): number {
+  const kb = diff.patch.length / 1024
+  return Math.round(clamp(GATE_TIMEOUT_MIN_MS + kb * GATE_TIMEOUT_MS_PER_KB, GATE_TIMEOUT_MIN_MS, GATE_TIMEOUT_MAX_MS))
+}
+
 async function accumulatedDiff(wt: string, base: string, working: boolean): Promise<DiffParts> {
   if (working) await stageAll(wt)
   const range = working ? ['--cached', '--merge-base', `origin/${base}`] : [`origin/${base}...HEAD`]
@@ -128,7 +137,7 @@ async function gateReview(wt: string, base: string, desc: string, working: boole
     mode: 'readonly',
     useAgents: false,
     model: modelFor('gate'),
-    timeoutMs: 180000,
+    timeoutMs: timeoutForDiff(diff),
   })
   const tokens = sumTokens(res.usage)
   if (res.failed) {
@@ -160,6 +169,16 @@ export function runCodefoxGate(wt: string, base: string, desc: string): Promise<
 
 export function runGatedReview(wt: string, base: string, desc: string): Promise<GateResult> {
   return gateReview(wt, base, desc, true)
+}
+
+export async function withGateRetry(run: () => Promise<GateResult>, onRetry?: (reason: string) => void): Promise<GateResult> {
+  let g = await run()
+  for (let retry = 0; !g.ok && retry < GATE_RETRIES; retry++) {
+    onRetry?.(g.reason)
+    const again = await run()
+    g = { ...again, cost: g.cost + again.cost, tokens: g.tokens + again.tokens }
+  }
+  return g
 }
 
 export function persistGate(id: string, gate: GateResult): void {

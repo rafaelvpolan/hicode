@@ -36,6 +36,9 @@ export const MERGE_POLL_MS = Number(process.env.HICODE_MERGE_POLL_MS || 30000)
 export const VERIFY_MODEL = process.env.HICODE_VERIFY_MODEL || 'sonnet'
 export const GATE_MODEL = process.env.HICODE_GATE_MODEL || 'sonnet'
 export const GATE_DIFF_LIMIT = Number(process.env.HICODE_GATE_DIFF_LIMIT || 60000)
+export const GATE_TIMEOUT_MIN_MS = Number(process.env.HICODE_GATE_TIMEOUT_MIN_MS || 180000)
+export const GATE_TIMEOUT_MAX_MS = Number(process.env.HICODE_GATE_TIMEOUT_MAX_MS || 600000)
+export const GATE_TIMEOUT_MS_PER_KB = Number(process.env.HICODE_GATE_TIMEOUT_MS_PER_KB || 4000)
 export const VISUAL_AI = (process.env.HICODE_VISUAL_AI || 'off') === 'on'
 export const CLARIFY = (process.env.HICODE_CLARIFY || 'on') !== 'off'
 export const CARD_BUDGET_USD = Number(process.env.HICODE_CARD_BUDGET_USD || 0)

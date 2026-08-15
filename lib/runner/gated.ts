@@ -3,7 +3,7 @@ import type { StepMetric } from '../card'
 import { MAX_REAJUSTE, GATE_RETRIES } from './config'
 import { patchCard } from './card-store'
 import { runStep } from './agent'
-import { runGatedReview } from './codefox-gate'
+import { runGatedReview, withGateRetry } from './codefox-gate'
 import type { GateResult } from './codefox-gate'
 
 export interface GatedResult {
@@ -13,14 +13,11 @@ export interface GatedResult {
   reason: string
 }
 
-async function review(id: string, wt: string, base: string, desc: string, label: string): Promise<GateResult> {
-  let g = await runGatedReview(wt, base, desc)
-  for (let retry = 0; !g.ok && retry < GATE_RETRIES; retry++) {
-    patchCard(id, {}, `${isoNow()} gate crivo [${label}]: NAO EXECUTOU (${g.reason}) — repetindo o gate sem reexecutar o agente`)
-    const again = await runGatedReview(wt, base, desc)
-    g = { ...again, cost: g.cost + again.cost, tokens: g.tokens + again.tokens }
-  }
-  return g
+function review(id: string, wt: string, base: string, desc: string, label: string): Promise<GateResult> {
+  return withGateRetry(
+    () => runGatedReview(wt, base, desc),
+    reason => patchCard(id, {}, `${isoNow()} gate crivo [${label}]: NAO EXECUTOU (${reason}) — repetindo o gate sem reexecutar o agente`),
+  )
 }
 
 export async function runGatedStep(id: string, wt: string, base: string, agent: string, instruction: string, desc: string, label: string): Promise<GatedResult> {

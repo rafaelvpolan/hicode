@@ -143,3 +143,49 @@ export async function worktreeOnBranch(wt: string, branch: string): Promise<bool
 export async function removeWorktree(target: string, wt: string): Promise<void> {
   if (wt && existsSync(wt)) await withGitLock(() => runGit(target, ['worktree', 'remove', '--force', wt]))
 }
+
+export type WorktreeFate = 'discard' | 'keep-for-inspection'
+
+export async function settleWorktree(target: string, wt: string, fate: WorktreeFate): Promise<void> {
+  if (fate === 'discard') await removeWorktree(target, wt)
+}
+
+export type PushFailureReason = 'none' | 'no-anchor' | 'diverged' | 'other'
+
+export interface PushResult {
+  ok: boolean
+  forced: boolean
+  detail: string
+  failureReason: PushFailureReason
+  pushedSha: string
+}
+
+function trimmed(s: string): string {
+  return s.replace(/[\r\n]+/g, ' ').trim().slice(0, 220)
+}
+
+function isNonFastForward(stderr: string): boolean {
+  return /\[rejected\]|non-fast-forward|fetch first|stale info/i.test(stderr)
+}
+
+async function shaRemotoAtual(wt: string, branch: string): Promise<string> {
+  const r = await runGit(wt, ['ls-remote', 'origin', `refs/heads/${branch}`])
+  if (r.err) return ''
+  return (r.stdout.trim().split(/\s+/)[0] ?? '').trim()
+}
+
+export async function pushOwnedBranch(wt: string, branch: string, knownRemoteSha: string, donoComprovado = false): Promise<PushResult> {
+  return withGitLock(async () => {
+    const head = await runGit(wt, ['rev-parse', 'HEAD'])
+    const localSha = head.stdout.trim()
+    const first = await runGit(wt, ['push', '--no-verify', '-u', 'origin', branch])
+    if (!first.err) return { ok: true, forced: false, detail: '', failureReason: 'none', pushedSha: localSha }
+    const detail = trimmed(String(first.stderr || ''))
+    if (!isNonFastForward(detail)) return { ok: false, forced: false, detail, failureReason: 'other', pushedSha: '' }
+    const ancora = knownRemoteSha || (donoComprovado ? await shaRemotoAtual(wt, branch) : '')
+    if (!ancora) return { ok: false, forced: false, detail, failureReason: 'no-anchor', pushedSha: '' }
+    const forced = await runGit(wt, ['push', '--no-verify', `--force-with-lease=${branch}:${ancora}`, '-u', 'origin', branch])
+    if (!forced.err) return { ok: true, forced: true, detail: '', failureReason: 'none', pushedSha: localSha }
+    return { ok: false, forced: true, detail: trimmed(String(forced.stderr || '')), failureReason: 'diverged', pushedSha: '' }
+  })
+}

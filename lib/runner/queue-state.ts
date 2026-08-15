@@ -1,6 +1,6 @@
 import { isoNow } from '../card'
-import type { Job } from '../card'
-import { cardsByStatus, patchCard } from './card-store'
+import type { Job, Fields } from '../card'
+import { allCards, cardsByStatus, patchCard } from './card-store'
 
 const FINISH_STATES = ['REFINED', 'TESTS_GREEN', 'SEC_CLEARED', 'REVIEWED', 'CLEANED']
 const RERUN_STATES = ['EXECUTING', 'CORRECTING', 'SPECCED']
@@ -41,9 +41,11 @@ export function reconcileStranded(): void {
 }
 
 export function pending(): Job[] {
-  const ex: Job[] = cardsByStatus('EXECUTING').map(c => ({ kind: 'execute', id: c.id ?? '' }))
-  const fi: Job[] = cardsByStatus('PREVIEW_OK').map(c => ({ kind: 'finish', id: c.id ?? '' }))
-  const co: Job[] = cardsByStatus('CORRECTING').map(c => ({ kind: 'correct', id: c.id ?? '' }))
-  const sp: Job[] = cardsByStatus('SPECCED').map(c => ({ kind: 'spec', id: c.id ?? '' }))
+  const cards = allCards()
+  const porStatus = (status: string): Array<Fields & { file: string }> => cards.filter(c => c.status === status)
+  const ex: Job[] = porStatus('EXECUTING').map(c => ({ kind: 'execute', id: c.id ?? '' }))
+  const fi: Job[] = porStatus('PREVIEW_OK').map(c => ({ kind: 'finish', id: c.id ?? '' }))
+  const co: Job[] = porStatus('CORRECTING').map(c => ({ kind: 'correct', id: c.id ?? '' }))
+  const sp: Job[] = porStatus('SPECCED').map(c => ({ kind: 'spec', id: c.id ?? '' }))
   return [...sp, ...ex, ...fi, ...co].filter(j => !emVoo.has(j.id))
 }

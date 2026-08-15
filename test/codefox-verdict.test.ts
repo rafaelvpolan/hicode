@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { extractVerdictJson, gateOutcome } from '../lib/runner/codefox-gate'
+import { extractVerdictJson, gateOutcome, timeoutForDiff, withGateRetry } from '../lib/runner/codefox-gate'
 import type { GateResult } from '../lib/runner/codefox-gate'
 
 function gate(over: Partial<GateResult>): GateResult {
@@ -51,4 +51,37 @@ test('a politica do gate final e a mesma do gate por-step (ambos fail-closed)', 
   const porStepAprova = naoRodou.ok && naoRodou.verdict !== 'BLOCKED'
   expect(porStepAprova).toBe(false)
   expect(gateOutcome(naoRodou)).toBe('halt')
+})
+
+test('REGRESSAO: timeout do gate cresce com o tamanho do diff, dentro dos limites', () => {
+  const vazio = timeoutForDiff({ names: '', patch: '' })
+  const pequeno = timeoutForDiff({ names: '', patch: 'x'.repeat(1024) })
+  const grande = timeoutForDiff({ names: '', patch: 'x'.repeat(200 * 1024) })
+  expect(vazio).toBe(180000)
+  expect(pequeno).toBeGreaterThan(vazio)
+  expect(grande).toBeGreaterThan(pequeno)
+  expect(grande).toBeLessThanOrEqual(600000)
+})
+
+test('REGRESSAO: withGateRetry repete quando o gate nao conclui e para no primeiro veredito', async () => {
+  const chamadas: GateResult[] = [
+    gate({ ok: false, verdict: 'CONDITIONAL', reason: 'timeout', cost: 0.01, tokens: 10 }),
+    gate({ ok: true, verdict: 'BLOCKED', reason: 'bug real', cost: 0.02, tokens: 20 }),
+  ]
+  let n = 0
+  const motivos: string[] = []
+  const r = await withGateRetry(() => Promise.resolve(chamadas[n++] as GateResult), reason => motivos.push(reason))
+  expect(n).toBe(2)
+  expect(r.ok).toBe(true)
+  expect(r.verdict).toBe('BLOCKED')
+  expect(r.cost).toBeCloseTo(0.03, 5)
+  expect(r.tokens).toBe(30)
+  expect(motivos).toEqual(['timeout'])
+})
+
+test('withGateRetry nao repete quando o gate conclui de primeira', async () => {
+  let n = 0
+  const r = await withGateRetry(() => { n++; return Promise.resolve(gate({ verdict: 'APPROVED' })) })
+  expect(n).toBe(1)
+  expect(r.verdict).toBe('APPROVED')
 })

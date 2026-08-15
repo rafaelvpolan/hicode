@@ -1,9 +1,9 @@
 import { test, expect, afterAll } from 'bun:test'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { ensureWorktree, refreshFromBase, removeWorktree, runGit } from '../lib/runner/git'
+import { ensureWorktree, pushOwnedBranch, refreshFromBase, removeWorktree, runGit, settleWorktree } from '../lib/runner/git'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-git-'))
 let seq = 0
@@ -132,5 +132,186 @@ test('refreshFromBase com fetch quebrado nao mente que atualizou', async () => {
   const r = await refreshFromBase(wt, 'main')
   expect(r.ok).toBe(false)
   expect(r.detail).toContain('fetch origin/main falhou')
+  await removeWorktree(c.clone, wt)
+})
+
+test('pushOwnedBranch: branch nova no remoto — push normal, sem force', async () => {
+  const c = cenario()
+  const wt = join(BASE, 'wt-push-1')
+  await ensureWorktree(c.clone, wt, 'hicode/nova-branch', 'main')
+  writeFileSync(join(wt, 'novo.txt'), 'conteudo\n')
+  git(wt, ['add', '-A'])
+  git(wt, ['-c', 'commit.gpgsign=false', 'commit', '-qm', 'feat: novo'])
+  const r = await pushOwnedBranch(wt, 'hicode/nova-branch', '')
+  expect(r.ok).toBe(true)
+  expect(r.forced).toBe(false)
+  expect(r.pushedSha).toHaveLength(40)
+  await removeWorktree(c.clone, wt)
+})
+
+function branchExisteNoRemoto(origem: string, branch: string): boolean {
+  try {
+    return execFileSync('git', ['ls-remote', '--heads', origem, branch], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+function pushTentativaAnterior(c: Cenario, branch: string, arquivo: string, texto: string): string {
+  const tentativa = mkdtempSync(join(BASE, 'tentativa-'))
+  execFileSync('git', ['clone', '-q', c.origem, tentativa])
+  git(tentativa, ['config', 'user.email', 't@t'])
+  git(tentativa, ['config', 'user.name', 't'])
+  if (branchExisteNoRemoto(c.origem, branch)) git(tentativa, ['checkout', '-qb', branch, `origin/${branch}`])
+  else git(tentativa, ['checkout', '-qb', branch])
+  writeFileSync(join(tentativa, arquivo), texto)
+  git(tentativa, ['add', '-A'])
+  git(tentativa, ['-c', 'commit.gpgsign=false', 'commit', '-qm', `commit em ${arquivo}`])
+  git(tentativa, ['push', '-q', 'origin', branch])
+  return git(tentativa, ['rev-parse', 'HEAD'])
+}
+
+test('REGRESSAO pushOwnedBranch: com a ancora do push anterior DESTE card, force-with-lease sobrescreve com seguranca', async () => {
+  const c = cenario()
+  const branch = 'hicode/022-retry'
+  const shaAnterior = pushTentativaAnterior(c, branch, 'orfa.txt', 'tentativa anterior\n')
+
+  const wt = join(BASE, 'wt-push-2')
+  await ensureWorktree(c.clone, wt, branch, 'main')
+  writeFileSync(join(wt, 'novo.txt'), 'trabalho atual, aprovado no preview\n')
+  git(wt, ['add', '-A'])
+  git(wt, ['-c', 'commit.gpgsign=false', 'commit', '-qm', 'feat: trabalho atual'])
+
+  const r = await pushOwnedBranch(wt, branch, shaAnterior)
+  expect(r.ok).toBe(true)
+  expect(r.forced).toBe(true)
+  expect(r.pushedSha).toHaveLength(40)
+
+  const checkout = join(BASE, 'check-remoto')
+  execFileSync('git', ['clone', '-q', '--branch', branch, c.origem, checkout])
+  expect(existsSync(join(checkout, 'novo.txt'))).toBe(true)
+  expect(existsSync(join(checkout, 'orfa.txt'))).toBe(false)
+  await removeWorktree(c.clone, wt)
+})
+
+test('REGRESSAO pushOwnedBranch: SEM ancora conhecida, nao-fast-forward NAO forca — conteudo remoto desconhecido fica intacto', async () => {
+  const c = cenario()
+  const branch = 'hicode/desconhecida'
+  pushTentativaAnterior(c, branch, 'orfa.txt', 'conteudo de outro processo/card\n')
+
+  const wt = join(BASE, 'wt-push-sem-ancora')
+  await ensureWorktree(c.clone, wt, branch, 'main')
+  writeFileSync(join(wt, 'novo.txt'), 'trabalho atual\n')
+  git(wt, ['add', '-A'])
+  git(wt, ['-c', 'commit.gpgsign=false', 'commit', '-qm', 'feat: trabalho atual'])
+
+  const r = await pushOwnedBranch(wt, branch, '')
+  expect(r.ok).toBe(false)
+  expect(r.forced).toBe(false)
+  expect(r.failureReason).toBe('no-anchor')
+
+  const checkout = join(BASE, 'check-remoto-sem-ancora')
+  execFileSync('git', ['clone', '-q', '--branch', branch, c.origem, checkout])
+  expect(existsSync(join(checkout, 'orfa.txt'))).toBe(true)
+  expect(existsSync(join(checkout, 'novo.txt'))).toBe(false)
+  await removeWorktree(c.clone, wt)
+})
+
+test('REGRESSAO pushOwnedBranch: ancora DESATUALIZADA (branch mudou depois do ultimo push conhecido) NAO forca por cima', async () => {
+  const c = cenario()
+  const branch = 'hicode/022-retry-divergiu'
+  const shaConhecidoPeloCard = pushTentativaAnterior(c, branch, 'v1.txt', 'versao que o card conhece\n')
+  pushTentativaAnterior(c, branch, 'v2-humano.txt', 'fixup humano depois do ultimo push do motor\n')
+
+  const wt = join(BASE, 'wt-push-divergiu')
+  await ensureWorktree(c.clone, wt, branch, 'main')
+  writeFileSync(join(wt, 'novo.txt'), 'trabalho atual\n')
+  git(wt, ['add', '-A'])
+  git(wt, ['-c', 'commit.gpgsign=false', 'commit', '-qm', 'feat: trabalho atual'])
+
+  const r = await pushOwnedBranch(wt, branch, shaConhecidoPeloCard)
+  expect(r.ok).toBe(false)
+  expect(r.forced).toBe(true)
+  expect(r.failureReason).toBe('diverged')
+
+  const checkout = join(BASE, 'check-remoto-divergiu')
+  execFileSync('git', ['clone', '-q', '--branch', branch, c.origem, checkout])
+  expect(existsSync(join(checkout, 'v2-humano.txt'))).toBe(true)
+  expect(existsSync(join(checkout, 'novo.txt'))).toBe(false)
+  await removeWorktree(c.clone, wt)
+})
+
+test('settleWorktree com fate discard remove o worktree', async () => {
+  const c = cenario()
+  const wt = join(BASE, 'wt-settle-discard')
+  await ensureWorktree(c.clone, wt, 'hicode/settle-discard', 'main')
+  expect(existsSync(wt)).toBe(true)
+  await settleWorktree(c.clone, wt, 'discard')
+  expect(existsSync(wt)).toBe(false)
+})
+
+test('settleWorktree com fate keep-for-inspection mantem o worktree intacto', async () => {
+  const c = cenario()
+  const wt = join(BASE, 'wt-settle-keep')
+  await ensureWorktree(c.clone, wt, 'hicode/settle-keep', 'main')
+  await settleWorktree(c.clone, wt, 'keep-for-inspection')
+  expect(existsSync(wt)).toBe(true)
+  expect(git(wt, ['rev-parse', '--abbrev-ref', 'HEAD'])).toBe('hicode/settle-keep')
+  await removeWorktree(c.clone, wt)
+})
+
+test('pushOwnedBranch: falha que nao e non-fast-forward NAO tenta --force-with-lease', async () => {
+  const c = cenario()
+  const wt = join(BASE, 'wt-push-3')
+  await ensureWorktree(c.clone, wt, 'hicode/sem-remoto', 'main')
+  await runGit(wt, ['remote', 'set-url', 'origin', join(BASE, 'nao-existe.git')])
+  const r = await pushOwnedBranch(wt, 'hicode/sem-remoto', '')
+  expect(r.ok).toBe(false)
+  expect(r.forced).toBe(false)
+  expect(r.failureReason).toBe('other')
+  await removeWorktree(c.clone, wt)
+})
+
+test('REGRESSAO card 022: PR aberto prova posse da branch e o push resolve sozinho', async () => {
+  const c = cenario()
+  const branch = 'hicode/022-com-pr-aberto'
+  pushTentativaAnterior(c, branch, 'tentativa-anterior.txt', 'commit da propria tarefa, de um ciclo antes\n')
+
+  const wt = join(BASE, 'wt-push-dono-comprovado')
+  await ensureWorktree(c.clone, wt, branch, 'main')
+  writeFileSync(join(wt, 'agora.txt'), 'trabalho desta reexecucao\n')
+  git(wt, ['add', '-A'])
+  git(wt, ['-c', 'commit.gpgsign=false', 'commit', '-qm', 'feat: reexecucao'])
+
+  const r = await pushOwnedBranch(wt, branch, '', true)
+  expect(r.ok).toBe(true)
+  expect(r.forced).toBe(true)
+  expect(r.pushedSha).not.toBe('')
+
+  const checkout = join(BASE, 'check-dono-comprovado')
+  execFileSync('git', ['clone', '-q', '--branch', branch, c.origem, checkout])
+  expect(existsSync(join(checkout, 'agora.txt'))).toBe(true)
+  await removeWorktree(c.clone, wt)
+})
+
+test('sem posse comprovada, o comportamento seguro continua valendo: nao forca', async () => {
+  const c = cenario()
+  const branch = 'hicode/sem-posse'
+  pushTentativaAnterior(c, branch, 'de-outro.txt', 'conteudo de outro processo\n')
+
+  const wt = join(BASE, 'wt-push-sem-posse')
+  await ensureWorktree(c.clone, wt, branch, 'main')
+  writeFileSync(join(wt, 'meu.txt'), 'meu trabalho\n')
+  git(wt, ['add', '-A'])
+  git(wt, ['-c', 'commit.gpgsign=false', 'commit', '-qm', 'feat: meu'])
+
+  const r = await pushOwnedBranch(wt, branch, '', false)
+  expect(r.ok).toBe(false)
+  expect(r.failureReason).toBe('no-anchor')
+
+  const checkout = join(BASE, 'check-sem-posse')
+  execFileSync('git', ['clone', '-q', '--branch', branch, c.origem, checkout])
+  expect(existsSync(join(checkout, 'de-outro.txt'))).toBe(true)
+  expect(existsSync(join(checkout, 'meu.txt'))).toBe(false)
   await removeWorktree(c.clone, wt)
 })

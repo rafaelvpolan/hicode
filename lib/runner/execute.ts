@@ -2,13 +2,14 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { extractObjetivo, isoNow } from '../card'
 import type { Card, ImplementResult, StepMap, StepMetric, Usage } from '../card'
-import { cardsDir, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
+import { CARD_BUDGET_USD, cardsDir, CLARIFY, EVAL, VERIFY_MODEL, VISUAL_AI } from './config'
 import { clarify, clarifyPorIdeacao, writeClarify } from './clarify'
 import { planSteps } from './analyze'
 import { activeSteps } from './pipeline/config'
 import { evaluate } from './eval'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
-import { ensureWorktree, refreshFromBase, removeWorktree, runGit, stageAll, worktreeOnBranch, worktreePath } from './git'
+import { ensureWorktree, refreshFromBase, runGit, settleWorktree, stageAll, worktreeOnBranch, worktreePath } from './git'
+import type { WorktreeFate } from './git'
 import { ensurePreview, hasDevServer, inspectPreview, previewPort, stopPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
@@ -81,6 +82,12 @@ async function commitAndRecord(id: string, wt: string, card: Card, steps: Execut
 export async function handleExecute(id: string): Promise<void> {
   const card = readCard(id)
   if (!card) return
+  const baseCost = parseFloat(card.fm.cost_usd || '0') || 0
+  const baseTokens = Number(card.fm.tokens_total || '0') || 0
+  if (CARD_BUDGET_USD > 0 && baseCost > CARD_BUDGET_USD) {
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED orcamento excedido (US$${card.fm.cost_usd} > US$${CARD_BUDGET_USD}) antes de (re)executar — decida se continua`)
+    return
+  }
   let auxCost = 0
   let auxTokens = 0
   const repoName = card.fm.repo ?? ''
@@ -104,7 +111,7 @@ export async function handleExecute(id: string): Promise<void> {
     auxTokens += ide.tokens
     if (ide.perguntas.length) {
       writeClarify(id, ide.perguntas)
-      patchCard(id, { status: 'CLARIFY', cost_usd: auxCost.toFixed(4), tokens_total: String(auxTokens) }, `${isoNow()} EXECUTING->CLARIFY ideacao divergente (${ide.motivo}) — escolha a abordagem`)
+      patchCard(id, { status: 'CLARIFY', cost_usd: (baseCost + auxCost).toFixed(4), tokens_total: String(baseTokens + auxTokens) }, `${isoNow()} EXECUTING->CLARIFY ideacao divergente (${ide.motivo}) — escolha a abordagem`)
       process.stdout.write(`[runner] #${id}: CLARIFY por ideacao (${ide.motivo})\n`)
       return
     }
@@ -114,7 +121,7 @@ export async function handleExecute(id: string): Promise<void> {
     auxTokens += c.tokens || 0
     if (c.questions.length) {
       writeClarify(id, c.questions)
-      patchCard(id, { status: 'CLARIFY', cost_usd: auxCost.toFixed(4), tokens_total: String(auxTokens) }, `${isoNow()} EXECUTING->CLARIFY ${c.questions.length} pergunta(s) — aguardando decisao humana`)
+      patchCard(id, { status: 'CLARIFY', cost_usd: (baseCost + auxCost).toFixed(4), tokens_total: String(baseTokens + auxTokens) }, `${isoNow()} EXECUTING->CLARIFY ${c.questions.length} pergunta(s) — aguardando decisao humana`)
       process.stdout.write(`[runner] #${id}: CLARIFY (${c.questions.length} pergunta(s))\n`)
       return
     }
@@ -174,11 +181,14 @@ export async function handleExecute(id: string): Promise<void> {
     const reason = res.timedOut
       ? `${res.reason} apos ${elapsed}s (worktree mantido p/ inspecao/retomada)`
       : res.reason
-    patchCard(id, { status: 'HALTED', cost_usd: res.cost || '', tokens_total: String(rec.tokens_total) }, `${isoNow()} EXECUTING->HALTED ${reason}`)
-    if (!res.timedOut) {
+    const totalCost = baseCost + auxCost + (parseFloat(res.cost || '0') || 0)
+    const totalTokens = baseTokens + auxTokens + rec.tokens_total
+    patchCard(id, { status: 'HALTED', cost_usd: totalCost.toFixed(4), tokens_total: String(totalTokens) }, `${isoNow()} EXECUTING->HALTED ${reason}`)
+    const fate: WorktreeFate = res.timedOut ? 'keep-for-inspection' : 'discard'
+    if (fate === 'discard') {
       if (previewPid) stopPreview(String(previewPid))
-      await removeWorktree(target, wt)
     }
+    await settleWorktree(target, wt, fate)
     return
   }
   patchCard(id, {}, `${isoNow()} EXECUTING->EXECUTED ${res.resultText || 'mudanca aplicada'}`)
@@ -187,8 +197,8 @@ export async function handleExecute(id: string): Promise<void> {
     patchCard(id, {
       status: 'PREVIEW_OK',
       verify: 'n/a',
-      cost_usd: (costSum + auxCost).toFixed(4),
-      tokens_total: String(tokensTotal + auxTokens),
+      cost_usd: (baseCost + costSum + auxCost).toFixed(4),
+      tokens_total: String(baseTokens + tokensTotal + auxTokens),
     }, `${isoNow()} EXECUTED->PREVIEW_OK auto — tarefa nao-visual (${surface.reason}); preview pulado`)
     process.stdout.write(`[runner] #${id}: PREVIEW_OK auto (nao-visual) — preview pulado\n`)
     return
@@ -209,8 +219,8 @@ export async function handleExecute(id: string): Promise<void> {
     preview_url: url,
     preview_pid: String(pid || ''),
     verify: initState,
-    cost_usd: (costSum + auxCost).toFixed(4),
-    tokens_total: String(tokensTotal + auxTokens),
+    cost_usd: (baseCost + costSum + auxCost).toFixed(4),
+    tokens_total: String(baseTokens + tokensTotal + auxTokens),
   }, `${isoNow()} EXECUTED->PREVIEW ${url || '(sem dev server)'} (${initReason})`)
   process.stdout.write(`[runner] #${id}: PREVIEW ${url} (${initReason})\n`)
   if (up) {
@@ -238,6 +248,7 @@ export async function handleExecute(id: string): Promise<void> {
     process.stdout.write(`[runner] #${id}: eval ${e.score}/5\n`)
   }
   if (auxCost !== auxAtPreview) {
-    patchCard(id, { cost_usd: (costSum + auxCost).toFixed(4), tokens_total: String(tokensTotal + auxTokens) }, `${isoNow()} custo atualizado (verificacao/eval): $${(costSum + auxCost).toFixed(4)}`)
+    const total = baseCost + costSum + auxCost
+    patchCard(id, { cost_usd: total.toFixed(4), tokens_total: String(baseTokens + tokensTotal + auxTokens) }, `${isoNow()} custo atualizado (verificacao/eval): $${total.toFixed(4)}`)
   }
 }

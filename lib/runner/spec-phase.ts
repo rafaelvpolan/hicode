@@ -58,7 +58,7 @@ export async function handleSpec(id: string): Promise<void> {
     attempt++
   }
   if (!v.ok) {
-    patchCard(id, { status: 'HALTED' }, `${isoNow()} SPECCED->HALTED spec reprovado no openspec validate --strict apos ${MAX_REAJUSTE} reajuste(s): ${v.issues.slice(0, 3).join('; ')}`)
+    patchCard(id, { status: 'HALTED' }, `${isoNow()} SPECCED->HALTED spec reprovado no openspec validate --strict apos ${MAX_REAJUSTE} reajuste(s): ${v.issues.slice(0, 3).join('; ')} (worktree mantido p/ inspecao)`)
     return
   }
   await stageAll(wt)
