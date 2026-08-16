@@ -29,6 +29,8 @@ function rodarOnce(): void {
       ...process.env,
       HICODE_CARDS_DIR: CARDS,
       HICODE_REPOS_FILE: join(REPOS, 'repos.json'),
+      HICODE_RUNNER_PIDFILE: join(REPOS, 'runner.pid'),
+      HICODE_RUNNER_LOCK: join(REPOS, 'runner.lock'),
     },
     encoding: 'utf8',
     timeout: 15000,

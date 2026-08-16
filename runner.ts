@@ -6,6 +6,8 @@ import { runSync } from './lib/tasks/sync'
 import { taskSyncName } from './lib/tasks/registry'
 import { reportTickFailure } from './lib/runner/health'
 import { wakeDueWaiting } from './lib/runner/waiting'
+import { holdInstanceLock, refusalMessage } from './lib/runner/instance-lock'
+import { warnProviderConfig } from './lib/ai/provider-config'
 
 process.on('uncaughtException', (e) => {
   reportTickFailure('excecao nao tratada', e)
@@ -30,6 +32,12 @@ if (process.argv.includes('--init')) {
   if (process.argv.includes('--watch')) setInterval(draw, 2000)
   else process.exit(0)
 } else {
+  const lock = holdInstanceLock()
+  if (!lock.acquired) {
+    process.stderr.write(refusalMessage(lock.holder))
+    process.exit(1)
+  }
+  warnProviderConfig(line => { process.stderr.write(line) })
   reconcileStranded()
   if (process.argv.includes('--once')) {
     void wakeDueWaiting()
