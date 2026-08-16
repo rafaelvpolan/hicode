@@ -3,21 +3,25 @@ import { existsSync } from 'node:fs'
 import { extractObjetivo } from '../card'
 import type { Card, FailureClass, ImplementResult, VerifyResult } from '../card'
 import { cardsDir, ROOT, RUN_TIMEOUT_MS, PROJECT_MEMORY } from './config'
-import { modelFor, providerFor } from '../ai/registry'
+import { isProviderName, modelFor, providerFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 import { classifyFailure } from '../ai/failure'
 import type { AiProvider } from '../ai/types'
 import { readProjectRules } from './hicode-home'
 import { repoPath } from './card-store'
+import { runProvider } from './cost-trust'
+import { markProviderSubstituted } from './provider-trust'
 import { readProjectMemory } from './memory'
 import { readContract } from '../contract/store'
 import { DESIGN_SYSTEM_BRIEF } from './design'
 import { clarifyAnswersPrompt } from './clarify'
-import { resolveRefImages } from './refs'
+import { refPaths, resolveRefs } from './refs'
+import { markRefsRefused } from './ref-trust'
 
 export interface StepResult {
   time: number
   cost: number
+  costMeasured: boolean
   tokens: number
   text: string
   ok: boolean
@@ -68,16 +72,19 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
 
 export async function implement(card: Card, workdir: string, feedback = '', visual = false): Promise<ImplementResult> {
   const desc = extractObjetivo(card.body) || card.fm.title || ''
+  const id = card.fm.id ?? ''
   const override = card.fm.provider_override_implement || undefined
   const provider = providerFor('implement', override)
   const model = modelFor('implement', override)
-  if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use opencode/codex, ou opencode+ollama, para implementar`, cost: '', provider: provider.name, model, failureClass: 'terminal', failureReason: 'provider configurado nao edita arquivos' }
-  const id = card.fm.id ?? ''
-  const refImages = provider.supportsVision ? await resolveRefImages(id) : []
+  if (override && !isProviderName(override)) markProviderSubstituted(id, override, provider.name)
+  if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use claude/codex para implementar`, cost: '', costMeasured: true, provider: provider.name, model, failureClass: 'terminal', failureReason: 'provider configurado nao edita arquivos' }
+  const refOutcomes = provider.supportsVision ? await resolveRefs(id) : []
+  markRefsRefused(id, refOutcomes)
+  const refImages = refPaths(refOutcomes)
   const dirs = refImages.length ? [workdir, join(cardsDir(), 'refs', id)] : [workdir]
   const target = repoPath(card.fm.repo ?? '')
   const memory = PROJECT_MEMORY ? readProjectMemory(target) : ''
-  const res = await provider.run({
+  const res = await runProvider(id, provider, {
     prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages, memory, stackOf(target)),
     cwd: ROOT,
     dirs,
@@ -93,9 +100,9 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
       ? `${provider.name} is_error: ${firstLine(res.text, 140)}`
       : `${provider.name} ${res.timedOut ? 'timeout' : 'falhou: ' + res.detail}`
     const cls = classifyFailure(provider.name, { timedOut: res.timedOut, detail: res.detail, text: res.text })
-    return { ok: false, reason, cost, usage: res.usage, timedOut: res.timedOut, failureClass: cls.failureClass, failureReason: cls.reason, provider: provider.name, model }
+    return { ok: false, reason, cost, costMeasured: res.costMeasured, usage: res.usage, timedOut: res.timedOut, failureClass: cls.failureClass, failureReason: cls.reason, provider: provider.name, model }
   }
-  return { ok: true, resultText: firstLine(res.text, 140), fullText: String(res.text || '').slice(0, 8000), cost, usage: res.usage, provider: provider.name, model }
+  return { ok: true, resultText: firstLine(res.text, 140), fullText: String(res.text || '').slice(0, 8000), cost, costMeasured: res.costMeasured, usage: res.usage, provider: provider.name, model }
 }
 
 export async function verifyVisual(card: Card, shotPath: string): Promise<VerifyResult> {
@@ -109,7 +116,7 @@ export async function verifyVisual(card: Card, shotPath: string): Promise<Verify
     `Tarefa que deveria ter sido aplicada: "${desc}"`,
     'A mudanca/elemento pedido aparece DE FATO e visivelmente na pagina? Seja rigoroso. Responda APENAS um JSON em uma linha, sem texto extra: {"ok": true ou false, "reason": "motivo curto"}.',
   ].join('\n')
-  const res = await provider.run({
+  const res = await runProvider(card.fm.id ?? '', provider, {
     prompt,
     cwd: ROOT,
     dirs: [dirname(shotPath)],
@@ -145,8 +152,8 @@ function stepPrompt(provider: AiProvider, wt: string, agent: string, instruction
 export async function runStep(wt: string, agent: string, instruction: string, id = '', repo = ''): Promise<StepResult> {
   const t = Date.now()
   const provider = providerFor('step')
-  if (!provider.agentic) return { time: 0, cost: 0, tokens: 0, ok: false, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use codex/opencode para steps que editam)`, failureClass: 'terminal', failureReason: 'provider configurado nao edita arquivos', provider: provider.name }
-  const res = await provider.run({
+  if (!provider.agentic) return { time: 0, cost: 0, costMeasured: true, tokens: 0, ok: false, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use claude/codex para steps que editam)`, failureClass: 'terminal', failureReason: 'provider configurado nao edita arquivos', provider: provider.name }
+  const res = await runProvider(id, provider, {
     prompt: stepPrompt(provider, wt, agent, instruction, readProjectRules(wt), stackOf(repo || wt)),
     cwd: ROOT,
     dirs: [wt],
@@ -160,7 +167,7 @@ export async function runStep(wt: string, agent: string, instruction: string, id
   const tokens = sumTokens(res.usage)
   if (!res.ok) {
     const cls = classifyFailure(provider.name, { timedOut: res.timedOut, detail: res.detail, text: res.text })
-    return { time, cost: res.cost, tokens, text: firstLine(res.text, 120) || res.detail, ok: false, failureClass: cls.failureClass, failureReason: cls.reason, provider: provider.name }
+    return { time, cost: res.cost, costMeasured: res.costMeasured, tokens, text: firstLine(res.text, 120) || res.detail, ok: false, failureClass: cls.failureClass, failureReason: cls.reason, provider: provider.name }
   }
-  return { time, cost: res.cost, tokens, text: firstLine(res.text, 120), ok: true, provider: provider.name }
+  return { time, cost: res.cost, costMeasured: res.costMeasured, tokens, text: firstLine(res.text, 120), ok: true, provider: provider.name }
 }

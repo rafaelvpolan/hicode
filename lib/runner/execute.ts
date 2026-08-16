@@ -14,6 +14,7 @@ import { ensurePreview, hasDevServer, inspectPreview, previewPort, stopPreview, 
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
 import { writeRun } from './runs'
+import { warnBudgetWithoutGuarantee } from './cost-trust'
 import { applyFailurePolicy } from './failure-policy'
 import { quotaFallbackProviderFor } from '../ai/registry'
 
@@ -90,6 +91,7 @@ export async function handleExecute(id: string): Promise<void> {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} EXECUTING->HALTED orcamento excedido (US$${card.fm.cost_usd} > US$${CARD_BUDGET_USD}) antes de (re)executar — decida se continua`)
     return
   }
+  warnBudgetWithoutGuarantee(id, card.fm, CARD_BUDGET_USD)
   let auxCost = 0
   let auxTokens = 0
   const repoName = card.fm.repo ?? ''

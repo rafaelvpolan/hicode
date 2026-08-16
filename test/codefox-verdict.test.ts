@@ -3,7 +3,7 @@ import { extractVerdictJson, gateOutcome, timeoutForDiff, withGateRetry } from '
 import type { GateResult } from '../lib/runner/codefox-gate'
 
 function gate(over: Partial<GateResult>): GateResult {
-  return { ok: true, verdict: 'APPROVED', reason: '', questions: [], cost: 0, tokens: 0, ...over }
+  return { ok: true, verdict: 'APPROVED', reason: '', questions: [], cost: 0, costMeasured: true, tokens: 0, ...over }
 }
 
 test('extrai o ultimo JSON de veredito valido em meio a prosa', () => {

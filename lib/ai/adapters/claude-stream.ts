@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process'
 import { appendFileSync, writeFileSync, readFileSync, statSync, mkdirSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { emptyUsage } from '../usage'
+import { COST_UNKNOWN, readReportedCost } from '../cost'
+import type { CostReading } from '../cost'
 import type { AgentRequest, AgentResult } from '../types'
 import type { Usage } from '../../card'
 
@@ -101,7 +103,7 @@ export function runClaudeStream(req: AgentRequest, tools: string, liveLog: strin
   return new Promise<AgentResult>((resolve) => {
     let text = ''
     let assistantText = ''
-    let cost = 0
+    let reading: CostReading = COST_UNKNOWN
     let isError = false
     let usage = emptyUsage()
     let gotResult = false
@@ -124,7 +126,7 @@ export function runClaudeStream(req: AgentRequest, tools: string, liveLog: strin
       settled = true
       clearTimeout(soft)
       if (hard) clearTimeout(hard)
-      resolve({ ok: !failed && !isError, failed, timedOut, isError, detail, text: text || assistantText, cost, usage })
+      resolve({ ok: !failed && !isError, failed, timedOut, isError, detail, text: text || assistantText, ...reading, usage })
     }
 
     const handleLine = (line: string): void => {
@@ -138,7 +140,7 @@ export function runClaudeStream(req: AgentRequest, tools: string, liveLog: strin
         }
         if (ev.type === 'result') {
           gotResult = true
-          cost = Number(ev.total_cost_usd) || 0
+          reading = readReportedCost(ev.total_cost_usd)
           text = String(ev.result ?? '')
           isError = !!ev.is_error
           usage = usageFrom(ev.usage)

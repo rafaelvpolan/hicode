@@ -1,5 +1,9 @@
 import { run } from '../../runner/git'
+import { isPrivateNetworkHost } from '../../runner/private-net'
+import { noProxyArgs } from '../../runner/loopback'
 import { emptyUsage } from '../usage'
+import { COST_FREE_LOCAL, COST_UNKNOWN } from '../cost'
+import type { CostReading } from '../cost'
 import type { AgentRequest, AgentResult, AiProvider, AiProviderName } from '../types'
 
 interface OllamaResponse {
@@ -13,6 +17,18 @@ function baseUrl(): string {
   return process.env.HICODE_OLLAMA_URL || 'http://localhost:11434'
 }
 
+function endpointRodaNaRedeLocal(): boolean {
+  try {
+    return isPrivateNetworkHost(new URL(baseUrl()).hostname)
+  } catch {
+    return false
+  }
+}
+
+function costOfEndpoint(): CostReading {
+  return endpointRodaNaRedeLocal() ? COST_FREE_LOCAL : COST_UNKNOWN
+}
+
 export class OllamaProvider implements AiProvider {
   readonly name: AiProviderName = 'ollama'
   readonly supportsAgents = false
@@ -22,7 +38,9 @@ export class OllamaProvider implements AiProvider {
   async run(req: AgentRequest): Promise<AgentResult> {
     const model = req.model || process.env.HICODE_OLLAMA_MODEL || 'llama3.1'
     const body = JSON.stringify({ model, prompt: req.prompt, stream: false })
-    const { err, stdout, stderr } = await run('curl', ['-s', '-H', 'Content-Type: application/json', `${baseUrl()}/api/generate`, '-d', body], { cwd: req.cwd, timeout: req.timeoutMs })
+    const endpoint = `${baseUrl()}/api/generate`
+    const args = ['-q', ...noProxyArgs(endpoint), '-s', '-H', 'Content-Type: application/json', endpoint, '-d', body]
+    const { err, stdout, stderr } = await run('curl', args, { cwd: req.cwd, timeout: req.timeoutMs })
     const usage = emptyUsage()
     let text = ''
     let isError = false
@@ -43,7 +61,7 @@ export class OllamaProvider implements AiProvider {
       isError,
       detail: err ? String(err.message || '') : '',
       text,
-      cost: 0,
+      ...costOfEndpoint(),
       usage,
     }
   }

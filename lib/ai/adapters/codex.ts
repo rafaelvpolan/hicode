@@ -1,5 +1,6 @@
 import { run } from '../../runner/git'
 import { emptyUsage } from '../usage'
+import { COST_UNKNOWN } from '../cost'
 import type { AgentMode, AgentRequest, AgentResult, AiProvider, AiProviderName } from '../types'
 import type { Usage } from '../../card'
 
@@ -60,7 +61,7 @@ export class CodexProvider implements AiProvider {
       isError: parsed.isError,
       detail: err ? String(err.message || '') : '',
       text: parsed.text || String(stdout || stderr || ''),
-      cost: 0,
+      ...COST_UNKNOWN,
       usage: parsed.usage,
     }
   }

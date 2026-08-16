@@ -52,7 +52,7 @@ mock.module('../lib/runner/agent', () => ({
   runStep: (): never => { throw new Error('nao deveria chamar runStep — steps: nada nao roda nenhum passo') },
 }))
 
-const GATE_BLOCKED: GateResult = { ok: true, verdict: 'BLOCKED', reason: 'defeito real encontrado pelo crivo', questions: [], cost: 0.05, tokens: 500 }
+const GATE_BLOCKED: GateResult = { ok: true, verdict: 'BLOCKED', reason: 'defeito real encontrado pelo crivo', questions: [], cost: 0.05, costMeasured: true, tokens: 500 }
 
 const realCodefoxGate = await import('../lib/runner/codefox-gate')
 mock.module('../lib/runner/codefox-gate', () => ({

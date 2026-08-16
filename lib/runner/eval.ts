@@ -3,6 +3,7 @@ import type { Card } from '../card'
 import { ROOT, GATE_DIFF_LIMIT } from './config'
 import { runGit } from './git'
 import { providerFor, modelFor } from '../ai/registry'
+import { runProvider } from './cost-trust'
 import { sumTokens } from '../ai/usage'
 
 export interface EvalResult {
@@ -27,7 +28,7 @@ export async function evaluate(card: Card, wt: string, base: string): Promise<Ev
     'DIFF:',
     diff || '(sem diff vs a base)',
   ].join('\n')
-  const res = await provider.run({ prompt, cwd: ROOT, dirs: [wt], mode: 'readonly', useAgents: false, model: modelFor('verify'), timeoutMs: 120000 })
+  const res = await runProvider(card.fm.id ?? '', provider, { prompt, cwd: ROOT, dirs: [wt], mode: 'readonly', useAgents: false, model: modelFor('verify'), timeoutMs: 120000 })
   const tokens = sumTokens(res.usage)
   const m = res.text.match(/\{[\s\S]*?\}/)
   if (m && m[0]) {

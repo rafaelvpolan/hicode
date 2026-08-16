@@ -39,6 +39,7 @@ export interface StepMetric {
   time: number
   cost: number
   tokens: number
+  costMeasured?: boolean
 }
 
 export type StepMap = Record<string, StepMetric>
@@ -48,6 +49,7 @@ export interface Run {
   ts: string
   ok: boolean
   cost_usd: string
+  cost_measured: boolean
   duration_s: number
   tokens_in: number
   tokens_out: number
@@ -77,6 +79,7 @@ export interface ImplementResult {
   fullText?: string
   reason?: string
   cost: string
+  costMeasured?: boolean
   usage?: Usage
   timedOut?: boolean
   failureClass?: FailureClass

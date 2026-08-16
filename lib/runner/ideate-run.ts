@@ -1,5 +1,6 @@
 import { ROOT } from './config'
 import { providerFor, modelFor } from '../ai/registry'
+import { runProvider } from './cost-trust'
 import { sumTokens } from '../ai/usage'
 import {
   escolherLentes, promptDivergir, promptConvergir,
@@ -20,9 +21,9 @@ export interface IdeacaoResultado {
   tokens: number
 }
 
-async function chamar(prompt: string, timeoutMs: number): Promise<{ texto: string; cost: number; tokens: number; ok: boolean }> {
+async function chamar(prompt: string, timeoutMs: number, id: string): Promise<{ texto: string; cost: number; tokens: number; ok: boolean }> {
   const provider = providerFor('verify')
-  const res = await provider.run({
+  const res = await runProvider(id, provider, {
     prompt, cwd: ROOT, dirs: [], mode: 'readonly',
     useAgents: false, model: modelFor('verify'), timeoutMs,
   })
@@ -32,7 +33,7 @@ async function chamar(prompt: string, timeoutMs: number): Promise<{ texto: strin
 export async function idear(objetivo: string, semente: string): Promise<IdeacaoResultado> {
   const lentes = escolherLentes(IDEATE_LENTES, semente)
   const ramos = await Promise.all(
-    lentes.map(l => chamar(promptDivergir(l, objetivo, IDEATE_IDEIAS), 120000)
+    lentes.map(l => chamar(promptDivergir(l, objetivo, IDEATE_IDEIAS), 120000, semente)
       .then(r => ({ lente: l.nome, ...r }))),
   )
   const cost = ramos.reduce((a, r) => a + r.cost, 0)
@@ -41,7 +42,7 @@ export async function idear(objetivo: string, semente: string): Promise<IdeacaoR
   if (!ideias.length) {
     return { ok: false, motivo: 'nenhuma ideia parseavel nos ramos', convergencia: null, ideias: 0, cost, tokens }
   }
-  const critico = await chamar(promptConvergir(objetivo, ideias, IDEATE_TOPK), 180000)
+  const critico = await chamar(promptConvergir(objetivo, ideias, IDEATE_TOPK), 180000, semente)
   const total = { cost: cost + critico.cost, tokens: tokens + critico.tokens }
   if (!critico.ok) {
     return { ok: false, motivo: 'o critico nao executou', convergencia: null, ideias: ideias.length, ...total }
