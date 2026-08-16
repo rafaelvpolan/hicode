@@ -1,30 +1,12 @@
 import { readFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { cardsDir } from './config'
-import { run } from './git'
+import { downloadToFile } from './download'
+import { clip, refuse } from './url-guard'
+import type { Refusal } from './url-guard'
 
-function isBlockedHost(host: string): boolean {
-  const h = host.toLowerCase().replace(/^\[|\]$/g, '')
-  if (h === 'localhost' || h === '0.0.0.0' || h === '::1') return true
-  if (h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true
-  if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h)) return true
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true
-  if (/^169\.254\./.test(h)) return true
-  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h)) return true
-  if (/^(fe80|fc00|fd)/i.test(h)) return true
-  return false
-}
-
-function safeHttpUrl(s: string): string | null {
-  try {
-    const u = new URL(s)
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
-    if (isBlockedHost(u.hostname)) return null
-    return u.toString()
-  } catch {
-    return null
-  }
-}
+const PARECE_URI = /^[a-z][a-z0-9+.-]*:\/\//i
+const PARECE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)+(:\d+)?$/i
 
 function isInRefsDir(p: string, id: string): boolean {
   return resolve(p).startsWith(`${resolve(refsDir(id))}/`)
@@ -54,23 +36,50 @@ function extFromUrl(url: string): string {
   return m ? m[0].toLowerCase() : '.png'
 }
 
-export async function resolveRefImages(id: string): Promise<string[]> {
+function pareceHostSemEsquema(s: string): boolean {
+  if (s.startsWith('/') || s.startsWith('.')) return false
+  return PARECE_HOST.test(s.split(/[/?#]/)[0] ?? '')
+}
+
+function recusaFonteLocal(s: string, id: string): Refusal {
+  const aceito = `cards/refs/${id}/`
+  if (pareceHostSemEsquema(s)) {
+    return refuse('fonte-invalida', `fonte sem esquema: ${clip(s)} — informe a URL completa com http:// ou https://`)
+  }
+  if (existsSync(s)) {
+    return refuse('fonte-invalida', `arquivo fora de ${aceito}: ${clip(s)}`)
+  }
+  return refuse('fonte-invalida', `nao e URL http(s) nem arquivo em ${aceito}: ${clip(s)}`)
+}
+
+export interface RefOutcome {
+  source: string
+  path: string
+  refusal: Refusal | null
+}
+
+export async function resolveRefs(id: string): Promise<RefOutcome[]> {
   const sources = readRefSources(id)
   if (!sources.length) return []
   const dir = refsDir(id)
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-  const out: string[] = []
+  const out: RefOutcome[] = []
   for (let i = 0; i < sources.length; i++) {
     const s = sources[i] ?? ''
-    if (/^https?:\/\//.test(s)) {
-      const safe = safeHttpUrl(s)
-      if (!safe) continue
-      const dest = join(dir, `ref-${i}${extFromUrl(s)}`)
-      const r = await run('curl', ['-sL', '--max-redirs', '3', '--max-filesize', '10485760', '--max-time', '30', '-o', dest, safe], { timeout: 35000 })
-      if (!r.err && existsSync(dest)) out.push(dest)
-    } else if (existsSync(s) && isInRefsDir(s, id)) {
-      out.push(s)
+    if (PARECE_URI.test(s)) {
+      const r = await downloadToFile(s, join(dir, `ref-${i}${extFromUrl(s)}`))
+      out.push({ source: s, path: r.ok ? r.path : '', refusal: r.ok ? null : r })
+      continue
     }
+    if (existsSync(s) && isInRefsDir(s, id)) {
+      out.push({ source: s, path: s, refusal: null })
+      continue
+    }
+    out.push({ source: s, path: '', refusal: recusaFonteLocal(s, id) })
   }
   return out
+}
+
+export function refPaths(outcomes: RefOutcome[]): string[] {
+  return outcomes.filter(o => o.path).map(o => o.path)
 }
