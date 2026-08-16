@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { Card } from '../lib/card'
+import type { AgentRequest, AgentResult, AgentRole } from '../lib/ai/types'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-custo-cego-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
@@ -45,8 +46,8 @@ const { createCard, readCard } = await import('../lib/runner/card-store')
 const { clarify } = await import('../lib/runner/clarify')
 const { evaluate } = await import('../lib/runner/eval')
 const { idear } = await import('../lib/runner/ideate-run')
-const { runCodefoxGate } = await import('../lib/runner/codefox-gate')
-const { runStep } = await import('../lib/runner/agent')
+const { runProvider } = await import('../lib/runner/cost-trust')
+const { providerFor, modelFor } = await import('../lib/ai/registry')
 
 afterAll(() => rmSync(BASE, { recursive: true, force: true }))
 
@@ -108,22 +109,38 @@ test('REGRESSAO: ideacao com provedor que nao reporta gasto carimba cost_unverif
   expect(marcaDoCard(id)).toBe('codex')
 })
 
-test('REGRESSAO: gate codefox com provedor que nao reporta gasto carimba cost_unverified e nao afirma custo medido', async () => {
+function pedido(papel: AgentRole): AgentRequest {
+  return { prompt: 'revise o diff', cwd: clone, dirs: [clone], mode: 'readonly', useAgents: false, model: modelFor(papel), timeoutMs: 20000 }
+}
+
+async function chamadaDoPapel(papel: AgentRole, id: string, texto: string): Promise<{ res: AgentResult; provedor: string }> {
+  let provedor = ''
+  const res = await comProvedorQueNaoReportaGasto(texto, () => {
+    const p = providerFor(papel)
+    provedor = p.name
+    return runProvider(id, p, pedido(papel))
+  })
+  return { res, provedor }
+}
+
+test('REGRESSAO: papel gate com provedor que nao reporta gasto carimba cost_unverified e nao afirma custo medido', async () => {
   const id = cardNovo()
 
-  const gate = await comProvedorQueNaoReportaGasto('{"verdict":"APPROVED","reason":"ok","questions":["leu o diff?"]}', () => runCodefoxGate(clone, 'main', 'mudar o rodape', id))
+  const { res, provedor } = await chamadaDoPapel('gate', id, '{"verdict":"APPROVED","reason":"ok","questions":[]}')
 
-  expect(gate.verdict).toBe('APPROVED')
-  expect(gate.costMeasured).toBe(false)
+  expect(provedor).toBe('codex')
+  expect(res.ok).toBe(true)
+  expect(res.costMeasured).toBe(false)
   expect(marcaDoCard(id)).toBe('codex')
 })
 
-test('step de polimento com provedor que nao reporta gasto carimba o card e devolve costMeasured false', async () => {
+test('papel step com provedor que nao reporta gasto carimba o card e devolve costMeasured false', async () => {
   const id = cardNovo()
 
-  const r = await comProvedorQueNaoReportaGasto('ajustei', () => runStep(clone, 'rufus', 'melhore X', id))
+  const { res, provedor } = await chamadaDoPapel('step', id, 'ajustei')
 
-  expect(r.ok).toBe(true)
-  expect(r.costMeasured).toBe(false)
+  expect(provedor).toBe('codex')
+  expect(res.ok).toBe(true)
+  expect(res.costMeasured).toBe(false)
   expect(marcaDoCard(id)).toBe('codex')
 })
