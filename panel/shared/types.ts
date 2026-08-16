@@ -104,10 +104,14 @@ export interface CardActionResponse {
   card?: CardRecord
 }
 
+export interface CreatedCardRef {
+  id: string
+}
+
 export interface CreateSprintResponse {
   ok: true
   created: number
-  cards: CardView[]
+  cards: CreatedCardRef[]
 }
 
 export interface ProjectPreviewResponse {

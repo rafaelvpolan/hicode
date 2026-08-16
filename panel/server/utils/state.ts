@@ -7,8 +7,8 @@ import { readRepos } from './repos'
 export function getState(): StateResponse {
   const cards: CardView[] = readCards().map((c) => ({
     id: c.id,
-    slug: c.slug,
-    title: c.title || c.slug,
+    slug: c.slug || '',
+    title: c.title || c.slug || '',
     status: (c.status || 'INBOX') as CardStatus,
     risk: c.risk === 'high' ? 'high' : 'low',
     repo: c.repo || '',

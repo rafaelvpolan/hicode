@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { CardRecord, CardRisk, CardStatus } from '#shared/types'
+import type { CardRecord, CardRisk, CardStatus, CreatedCardRef } from '#shared/types'
 import type { Fields } from '../../../lib/card'
 import * as core from '../../../lib/core/actions'
 import { CARDS_DIR, ensure } from './card-io'
@@ -18,7 +18,7 @@ export interface SprintFeatureInput {
 export interface CreateSprintResult {
   ok: true
   created: number
-  cards: Record<string, string>[]
+  cards: CreatedCardRef[]
 }
 
 export function createSprint(repo: string, features: SprintFeatureInput[]): CreateSprintResult {
