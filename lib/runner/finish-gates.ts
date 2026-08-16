@@ -30,7 +30,7 @@ export async function buildWithReajuste(id: string, wt: string, ctx: RunCtx, fst
     const detail = String(b.stderr || b.stdout || '').slice(0, 1500)
     const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou (${cmd.label}). Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`, id, ctx.target)
     b = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
-    addMetric(fsteps, reajusteKey, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
+    addMetric(fsteps, reajusteKey, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens, costMeasured: rr.costMeasured })
     patchCard(id, {}, `${isoNow()} REAJUSTE (${reajuste}/${maxReajuste()}, rufus): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
     process.stdout.write(`[runner] #${id}: REAJUSTE ${reajuste} (rufus)\n`)
   }
@@ -54,7 +54,7 @@ export async function testGate(id: string, wt: string, ctx: RunCtx, fsteps: Step
     const detail = String(t.stderr || t.stdout || '').slice(0, 1500)
     const rr = await runStep(wt, 'testudo', `Os testes do projeto falharam (${cmd.label}). Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`, id, ctx.target)
     t = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
-    addMetric(fsteps, label, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens })
+    addMetric(fsteps, label, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens, costMeasured: rr.costMeasured })
     patchCard(id, {}, `${isoNow()} REAJUSTE testes (${reajuste}/${maxReajuste()}, testudo): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
   }
   if (!t.err) patchCard(id, {}, `${isoNow()} ${label}: ${cmd.label} exit=0${reajuste ? ` (apos ${reajuste} reajuste)` : ''}`)

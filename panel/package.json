@@ -6,7 +6,7 @@
     "dev": "nuxt dev --port 4318 --host",
     "build": "nuxt build",
     "preview": "nuxt preview",
-    "typecheck": "nuxt typecheck",
+    "typecheck": "nuxt prepare && vue-tsc --noEmit -p .nuxt/tsconfig.app.json && vue-tsc --noEmit -p .nuxt/tsconfig.server.json",
     "postinstall": "nuxt prepare"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@ import type { StepMap, Card } from '../card'
 import { CARD_BUDGET_USD, MAX_CONFLICT, maxReajuste, PROJECT_MEMORY } from './config'
 import { appendProjectMemory } from './memory'
 import { readCard, patchCard, repoPath, repoBase } from './card-store'
+import { warnBudgetWithoutGuarantee } from './cost-trust'
 import { pushOwnedBranch, removeWorktree, run, runGit, stageAll, worktreePath } from './git'
 import { pularCriacaoDePr } from './finish-pr'
 import type { PushResult } from './git'
@@ -45,6 +46,7 @@ export async function handleFinish(id: string): Promise<void> {
     patchCard(id, { status: 'HALTED' }, `${isoNow()} PREVIEW_OK->HALTED orcamento excedido (US$${card.fm.cost_usd} > US$${CARD_BUDGET_USD}) antes do polimento — decida se continua`)
     return
   }
+  warnBudgetWithoutGuarantee(id, card.fm, CARD_BUDGET_USD)
   const repoName = card.fm.repo ?? ''
   const slug = card.fm.slug ?? ''
   const target = repoPath(repoName)
@@ -79,7 +81,7 @@ export async function handleFinish(id: string): Promise<void> {
   const fsteps: StepMap = {}
   for (const step of steps.slice(startIdx)) {
     const instruction = step.instruction.replace('%s', desc ?? '')
-    let r: { time: number; cost: number; tokens: number; text: string }
+    let r: { time: number; cost: number; costMeasured?: boolean; tokens: number; text: string }
     if (step.gated) {
       const g = await runGatedStep(id, wt, base, step.agent, instruction, desc ?? '', step.label)
       r = { ...g.metric, text: g.text }
@@ -103,7 +105,7 @@ export async function handleFinish(id: string): Promise<void> {
     } else {
       const sr = await runStep(wt, step.agent, instruction, id)
       if (!sr.ok) {
-        fsteps[step.label] = { time: sr.time, cost: sr.cost, tokens: sr.tokens }
+        fsteps[step.label] = { time: sr.time, cost: sr.cost, tokens: sr.tokens, costMeasured: sr.costMeasured }
         applyStepFailurePolicy(id, card, fsteps, {
           fromStatus: step.label,
           resumeStatus: 'PREVIEW_OK',
@@ -115,9 +117,9 @@ export async function handleFinish(id: string): Promise<void> {
         })
         return
       }
-      r = { time: sr.time, cost: sr.cost, tokens: sr.tokens, text: sr.text }
+      r = { time: sr.time, cost: sr.cost, costMeasured: sr.costMeasured, tokens: sr.tokens, text: sr.text }
     }
-    fsteps[step.label] = { time: r.time, cost: r.cost, tokens: r.tokens }
+    fsteps[step.label] = { time: r.time, cost: r.cost, tokens: r.tokens, costMeasured: r.costMeasured }
     if (step.gate === 'test' && !(await testGate(id, wt, ctx, fsteps, step.label))) {
       haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED testes falharam apos reajuste(s)`)
       return
@@ -149,10 +151,10 @@ export async function handleFinish(id: string): Promise<void> {
     return
   }
   const gate = await withGateRetry(
-    () => runCodefoxGate(wt, base, desc ?? ''),
+    () => runCodefoxGate(wt, base, desc ?? '', id),
     reason => patchCard(id, {}, `${isoNow()} codefox gate final: NAO EXECUTOU (${reason}) — repetindo antes de decidir`),
   )
-  addMetric(fsteps, 'Codefox', { time: 0, cost: gate.cost, tokens: gate.tokens })
+  addMetric(fsteps, 'Codefox', { time: 0, cost: gate.cost, tokens: gate.tokens, costMeasured: gate.costMeasured })
   persistGate(id, gate)
   if (gateOutcome(gate) === 'halt') {
     if (!gate.ok && gate.failureClass) {

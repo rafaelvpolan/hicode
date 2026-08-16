@@ -18,11 +18,11 @@ let stepQueue: StepResult[] = []
 let gateQueue: GateResult[] = []
 
 function step(over: Partial<StepResult>): StepResult {
-  return { time: 1, cost: 0.01, tokens: 100, text: 'fez', ok: true, ...over }
+  return { time: 1, cost: 0.01, costMeasured: true, tokens: 100, text: 'fez', ok: true, ...over }
 }
 
 function gate(over: Partial<GateResult>): GateResult {
-  return { ok: true, verdict: 'APPROVED', reason: '', questions: [], cost: 0.02, tokens: 200, ...over }
+  return { ok: true, verdict: 'APPROVED', reason: '', questions: [], cost: 0.02, costMeasured: true, tokens: 200, ...over }
 }
 
 const realAgent = await import('../lib/runner/agent')

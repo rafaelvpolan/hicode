@@ -4,6 +4,7 @@ import { GATE_DIFF_LIMIT, GATE_RETRIES, GATE_TIMEOUT_MAX_MS, GATE_TIMEOUT_MIN_MS
 import { runGit, stageAll } from './git'
 import { patchCard } from './card-store'
 import { modelFor, providerFor } from '../ai/registry'
+import { runProvider } from './cost-trust'
 import { sumTokens } from '../ai/usage'
 import { classifyFailure } from '../ai/failure'
 
@@ -15,6 +16,7 @@ export interface GateResult {
   reason: string
   questions: string[]
   cost: number
+  costMeasured: boolean
   tokens: number
   failureClass?: FailureClass
   failureReason?: string
@@ -129,13 +131,13 @@ function buildParsed(text: string, cost: number, tokens: number): ParsedGate {
   return { found: false, verdict: 'CONDITIONAL', reason: '', questions: [], cost, tokens }
 }
 
-async function gateReview(wt: string, base: string, desc: string, working: boolean): Promise<GateResult> {
+async function gateReview(wt: string, base: string, desc: string, working: boolean, id: string): Promise<GateResult> {
   const diff = await accumulatedDiff(wt, base, working)
   if (!diff.names.trim()) {
-    return { ok: true, verdict: 'APPROVED', reason: 'sem mudancas vs a base', questions: [], cost: 0, tokens: 0 }
+    return { ok: true, verdict: 'APPROVED', reason: 'sem mudancas vs a base', questions: [], cost: 0, costMeasured: true, tokens: 0 }
   }
   const provider = providerFor('gate')
-  const res = await provider.run({
+  const res = await runProvider(id, provider, {
     prompt: buildPrompt(desc, diff),
     cwd: ROOT,
     dirs: [wt],
@@ -147,13 +149,13 @@ async function gateReview(wt: string, base: string, desc: string, working: boole
   const tokens = sumTokens(res.usage)
   if (res.failed) {
     const cls = classifyFailure(provider.name, { timedOut: res.timedOut, detail: res.detail, text: res.text })
-    return { ok: false, verdict: 'CONDITIONAL', reason: `gate NAO executou (${res.timedOut ? 'timeout' : 'erro'}): ${oneLine(res.detail).slice(0, 120)}`, questions: [], cost: res.cost, tokens, failureClass: cls.failureClass, failureReason: cls.reason, provider: provider.name }
+    return { ok: false, verdict: 'CONDITIONAL', reason: `gate NAO executou (${res.timedOut ? 'timeout' : 'erro'}): ${oneLine(res.detail).slice(0, 120)}`, questions: [], cost: res.cost, costMeasured: res.costMeasured, tokens, failureClass: cls.failureClass, failureReason: cls.reason, provider: provider.name }
   }
   const parsed = buildParsed(res.text, res.cost, tokens)
   if (!parsed.found) {
-    return { ok: false, verdict: 'CONDITIONAL', reason: 'gate sem veredito parseavel na saida (revisar manualmente)', questions: [], cost: res.cost, tokens }
+    return { ok: false, verdict: 'CONDITIONAL', reason: 'gate sem veredito parseavel na saida (revisar manualmente)', questions: [], cost: res.cost, costMeasured: res.costMeasured, tokens }
   }
-  return { ok: true, verdict: parsed.verdict, reason: parsed.reason, questions: parsed.questions, cost: res.cost, tokens }
+  return { ok: true, verdict: parsed.verdict, reason: parsed.reason, questions: parsed.questions, cost: res.cost, costMeasured: res.costMeasured, tokens }
 }
 
 export type GateOutcome = 'halt' | 'proceed'
@@ -169,12 +171,12 @@ export function gateHaltReason(gate: GateResult): string {
     : `codefox gate NAO concluiu (nao ha veredito confiavel): ${gate.reason}`
 }
 
-export function runCodefoxGate(wt: string, base: string, desc: string): Promise<GateResult> {
-  return gateReview(wt, base, desc, false)
+export function runCodefoxGate(wt: string, base: string, desc: string, id = ''): Promise<GateResult> {
+  return gateReview(wt, base, desc, false, id)
 }
 
-export function runGatedReview(wt: string, base: string, desc: string): Promise<GateResult> {
-  return gateReview(wt, base, desc, true)
+export function runGatedReview(wt: string, base: string, desc: string, id = ''): Promise<GateResult> {
+  return gateReview(wt, base, desc, true, id)
 }
 
 export async function withGateRetry(run: () => Promise<GateResult>, onRetry?: (reason: string) => void): Promise<GateResult> {
@@ -182,7 +184,7 @@ export async function withGateRetry(run: () => Promise<GateResult>, onRetry?: (r
   for (let retry = 0; !g.ok && retry < GATE_RETRIES; retry++) {
     onRetry?.(g.reason)
     const again = await run()
-    g = { ...again, cost: g.cost + again.cost, tokens: g.tokens + again.tokens }
+    g = { ...again, cost: g.cost + again.cost, costMeasured: g.costMeasured && again.costMeasured, tokens: g.tokens + again.tokens }
   }
   return g
 }

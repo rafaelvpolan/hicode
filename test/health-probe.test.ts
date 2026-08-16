@@ -16,8 +16,8 @@ test('provedor com string vazia: nao sonda, assume saudavel (nada a checar)', as
   expect(await probeProviderHealth('')).toBe(true)
 })
 
-test('provedor sem endpoint conhecido (ex.: opencode) assume saudavel sem sondar a rede', async () => {
-  expect(await probeProviderHealth('opencode')).toBe(true)
+test('provedor sem endpoint conhecido assume saudavel sem sondar a rede', async () => {
+  expect(await probeProviderHealth('provedor-sem-endpoint')).toBe(true)
 })
 
 test('ollama: http 200 na url configurada e saudavel', async () => {

@@ -11,7 +11,7 @@ export function fmtDt(ts: string): string {
 
 export function escTip(s: string): string {
   const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }
-  return String(s == null ? '' : s).replace(/[&<>"]/g, (m) => map[m])
+  return String(s == null ? '' : s).replace(/[&<>"]/g, (m) => map[m] ?? m)
 }
 
 export function runsFor(runs: RunView[], id: string): RunView[] {

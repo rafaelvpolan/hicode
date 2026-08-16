@@ -273,6 +273,10 @@ hii status       # daemon on? + board dos cards
 # alternativas: hii run (foreground) · hii once (processa a fila 1x e sai)
 ```
 
+`hii start` só declara sucesso depois de confirmar que o motor sobreviveu ao arranque: se ele
+morrer logo (ex.: um `hii once` em andamento já segura a trava de instância), o comando sai `≠ 0`,
+mostra o fim do `.runner.log` e **não** deixa pidfile apontando para processo morto.
+
 ### Passo 4 — Criar os cards (as tarefas)
 
 O **card** (`cards/<NNN-slug>.md`) é a tarefa. Ele nasce por um destes caminhos:
@@ -553,12 +557,28 @@ As chamadas de IA passam pela interface `AiProvider` (`lib/ai/`); um registry es
 | Provedor | Edita arquivos | Custo/tokens | Papel indicado | Status |
 |---|---|---|---|---|
 | **claude** | sim | $ + tokens | qualquer (default) | verificado |
-| **ollama** | não¹ | 0 / tokens | verify, gate (local, barato) | verificado ao vivo |
+| **ollama** | não¹ | 0 medido² / tokens | verify, gate (local, barato) | verificado ao vivo |
 | **codex** | sim | tokens (sem $) | implement, step | pronto (requer CLI + auth) |
-| **opencode** | sim | $ + tokens | implement, step | pronto (requer CLI + auth) |
 
-¹ Ollama sozinho não edita arquivos (sem loop de tools). Para **implementar com Ollama**, use-o via
-OpenCode: `HICODE_IMPLEMENT_PROVIDER=opencode` + `HICODE_OPENCODE_MODEL=ollama/<modelo>`.
+¹ Ollama sozinho não edita arquivos (sem loop de tools): sirva-o em papéis de leitura (`verify`,
+`gate`). Quem implementa e roda steps é `claude` ou `codex`.
+
+² O zero só vale como **medição** quando `HICODE_OLLAMA_URL` aponta para loopback/rede privada. Um
+endpoint remoto (gateway pago, endpoint compatível cobrado) pode custar dinheiro que o adaptador
+não enxerga: nesse caso o custo entra como **não medido** e o card ganha `cost_unverified`.
+
+`cost_unverified` é estado corrente (**quem** está sem reportar agora) e some quando aquele
+provedor volta a medir. O que **não** some é `cost_floor`: uma chamada que concluiu sem reportar
+some do `cost_usd` para sempre, então o total do card vira **piso** e continua piso mesmo depois
+que o provedor volta a medir. É `cost_floor` que faz o gate de `HICODE_CARD_BUDGET_USD` registrar
+que está comparando um total sabidamente subestimado.
+
+Os dois campos são independentes de propósito, e a **chamada que falhou** é o caso que separa os
+dois. Timeout, exit≠0 ou `is_error` significam que a CLI já queimou tokens e morreu antes de
+reportar: esse gasto some do `cost_usd` igual (ou mais) que o da chamada que concluiu sem reportar,
+então ela grava `cost_floor` — mas **não** grava `cost_unverified`, porque não é o provedor que
+"não sabe medir", foi a chamada que não chegou ao fim. O card ganha a linha `chamada a <provedor>
+terminou sem concluir` e o gate de teto passa a recusar a garantia dali em diante.
 
 **Seleção por papel** (default global + overrides):
 
@@ -568,6 +588,12 @@ HICODE_IMPLEMENT_PROVIDER=codex    # override por papel: implement | verify | ga
 HICODE_VERIFY_PROVIDER=ollama
 HICODE_GATE_PROVIDER=claude
 ```
+
+Nome de provedor **desconhecido não passa em silêncio**. No arranque o motor escreve em stderr
+`AVISO: provedor "X" configurado em <ENV> nao existe (provedores: ...) — usando <Y>`, valendo para
+`HICODE_AI_PROVIDER`, os quatro overrides por papel e os `HICODE_{papel}_QUOTA_FALLBACK_PROVIDER`.
+Quando o nome vem do card (`provider_override_implement`, escrito pelo fallback de cota), a
+substituição é registrada **no próprio card**: campo `provider_unknown` + linha no log do card.
 
 ---
 
@@ -604,7 +630,7 @@ Quatro pontos de extensão, cada um com uma interface própria:
 | Extensão | Interface | Adapters incluídos |
 |---|---|---|
 | Origem do trabalho | `lib/tasks/` (`TaskSource` + registry) | GitHub Issues |
-| Provedor de IA | `lib/ai/` (`AiProvider` + registry) | claude · codex · opencode · ollama |
+| Provedor de IA | `lib/ai/` (`AiProvider` + registry) | claude · codex · ollama |
 | Passo de pipeline | `config/pipeline.json` (com `needs`) | 5 steps default |
 | **Superfície de controle** | `lib/core/actions` | REPL · painel Nuxt |
 
@@ -622,7 +648,7 @@ não do protocolo.
 | `HICODE_AI_PROVIDER` | `claude` | provedor default |
 | `HICODE_{IMPLEMENT,VERIFY,GATE,STEP}_PROVIDER` | — | override por papel |
 | `HICODE_VERIFY_MODEL` / `HICODE_GATE_MODEL` | `sonnet` | modelo (claude) de verify/gate |
-| `HICODE_CODEX_MODEL` / `HICODE_OPENCODE_MODEL` / `HICODE_OLLAMA_MODEL` | — | modelo por provedor |
+| `HICODE_CODEX_MODEL` / `HICODE_OLLAMA_MODEL` | — | modelo por provedor |
 | `HICODE_OLLAMA_URL` | `http://localhost:11434` | endpoint do Ollama |
 | `HICODE_VISUAL_AI` | `off` | `on` liga o check visual por IA (default: só screenshot + humano) |
 | `HICODE_CLARIFY` | `on` | `off` desliga a fase de perguntas |
@@ -641,7 +667,8 @@ não do protocolo.
 | `HICODE_CARD_BUDGET_USD` | `0` | teto de custo por card (`0` = sem teto) |
 | `HICODE_CARDS_DIR` | `<root>/cards` | onde os cards vivem — usado pelos testes para isolar |
 | `HICODE_REPOS_FILE` | `<root>/config/repos.json` | registro de repos-alvo |
-| `HICODE_RUNNER_PIDFILE` | `<root>/.runner.pid` | pidfile do daemon |
+| `HICODE_RUNNER_PIDFILE` | `<root>/.runner.pid` | pidfile do daemon (identidade: quem o `hii start`/`stop` controla) |
+| `HICODE_RUNNER_LOCK` | `<root>/.runner.lock` | trava de instância única — tomada pelo daemon **e** pelo `--once` |
 | `HICODE_LOCK_STALE_MS` | `15000` | idade a partir da qual um lock de card é considerado morto |
 | `HICODE_LOCK_TIMEOUT_MS` | `10000` | espera máxima por um lock antes de quebrá-lo |
 
@@ -660,10 +687,14 @@ lib/core/              SUPERFÍCIE DE CONTROLE — o único dono das transiçõe
   session.ts           dispatch do REPL (puro, testável sem TTY)
   daemon.ts            pid real do daemon + preferência de autostart
   render/              plan · fleet · phases — renderizadores puros
-lib/ai/                provider de IA: types · usage · registry · adapters/{claude,codex,opencode,ollama}
+lib/ai/                provider de IA: types · usage · registry · adapters/{claude,codex,ollama}
 lib/runner/            motor: queue · execute · finish · correct · merge · spec-phase · gated
   card-store.ts        updateCard — escritor único, com lock e rename atômico
   file-lock.ts         lock por arquivo (O_EXCL) + escrita atômica
+  instance-lock.ts     trava de instância única (link atômico + dono conferido pelo cmdline)
+  cost-trust.ts        runProvider — única porta para provider.run, carimba custo não medido
+  url-guard.ts         validação de URL + private-net.ts (loopback/RFC1918/IPv6 mapeado)
+  redirect.ts          seguidor de redirect: cada salto revalidado · download.ts (curl sem -L)
   pipeline/            steps configuráveis (types + config + waves/DAG)
   progress.ts          board de progresso no terminal
   hicode-home.ts       resolve/provisiona o .hii/ do alvo

@@ -6,7 +6,12 @@ import type { FailurePolicyInput } from './failure-policy'
 
 export function addMetric(fsteps: StepMap, key: string, m: StepMetric): void {
   const p = fsteps[key] ?? { time: 0, cost: 0, tokens: 0 }
-  fsteps[key] = { time: p.time + m.time, cost: p.cost + m.cost, tokens: p.tokens + m.tokens }
+  fsteps[key] = {
+    time: p.time + m.time,
+    cost: p.cost + m.cost,
+    tokens: p.tokens + m.tokens,
+    costMeasured: p.costMeasured !== false && m.costMeasured !== false,
+  }
 }
 
 function sumStepCost(fsteps: StepMap): number {

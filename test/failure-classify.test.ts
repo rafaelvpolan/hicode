@@ -31,7 +31,7 @@ test('credencial invalida e terminal', () => {
 })
 
 test('binario nao encontrado (ENOENT) e terminal', () => {
-  const r = classifyFailure('opencode', ctx({ detail: 'spawn opencode ENOENT' }))
+  const r = classifyFailure('codex', ctx({ detail: 'spawn codex ENOENT' }))
   expect(r.failureClass).toBe('terminal')
 })
 

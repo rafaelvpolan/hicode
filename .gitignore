@@ -8,6 +8,7 @@ Thumbs.db
 # Runtime do harness (gerados em execução; não versionar)
 *.log
 .runner.pid
+.runner.lock
 .claude/worktrees/
 cards/runs/
 cards/previews/

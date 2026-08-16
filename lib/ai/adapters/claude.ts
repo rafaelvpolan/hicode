@@ -1,6 +1,8 @@
 import { run } from '../../runner/git'
 import { emptyUsage } from '../usage'
+import { COST_UNKNOWN, readReportedCost } from '../cost'
 import { runClaudeStream } from './claude-stream'
+import type { CostReading } from '../cost'
 import type { AgentRequest, AgentResult, AiProvider, AiProviderName } from '../types'
 
 interface ClaudeJson {
@@ -42,13 +44,13 @@ export class ClaudeProvider implements AiProvider {
   async run(req: AgentRequest): Promise<AgentResult> {
     if (req.liveLog) return runClaudeStream(req, toolsFor(req), req.liveLog)
     const { err, stdout, stderr } = await run('claude', argv(req), { cwd: req.cwd, timeout: req.timeoutMs })
-    let cost = 0
+    let reading: CostReading = COST_UNKNOWN
     let text = ''
     let isError = false
     let usage = emptyUsage()
     try {
       const j = JSON.parse(stdout) as ClaudeJson
-      cost = Number(j.total_cost_usd) || 0
+      reading = readReportedCost(j.total_cost_usd)
       text = String(j.result ?? '')
       isError = !!j.is_error
       const u = j.usage ?? {}
@@ -69,7 +71,7 @@ export class ClaudeProvider implements AiProvider {
       isError,
       detail: err ? String(err.message || '') : '',
       text,
-      cost,
+      ...reading,
       usage,
     }
   }

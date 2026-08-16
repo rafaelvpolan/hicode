@@ -40,17 +40,26 @@ export function haltReason(body: string): string {
   return halt ? halt.replace(/^\S+Z\s+/, '').trim() : ''
 }
 
-export interface RawCard extends Record<string, string> {
+export interface RawCard {
+  [field: string]: string | undefined
   desc: string
   file: string
   halt_reason: string
 }
 
-export function readCards(): RawCard[] {
-  return cardFiles().map((f) => {
+export interface IdentifiedCard extends RawCard {
+  id: string
+}
+
+function hasId(card: RawCard): card is IdentifiedCard {
+  return typeof card.id === 'string' && card.id !== ''
+}
+
+export function readCards(): IdentifiedCard[] {
+  return cardFiles().map((f): RawCard => {
     const { fm, body } = splitFrontMatter(readFileSync(join(CARDS_DIR, f), 'utf8'))
     return { ...fm, desc: extractObjetivo(body), halt_reason: haltReason(body), file: f }
-  }).filter((c) => c.id)
+  }).filter(hasId)
 }
 
 export function nextId(): string {

@@ -4,6 +4,7 @@ import { isoNow } from '../card'
 import type { FailureClass, Usage, VerifyResult } from '../card'
 import { CARD_BUDGET_USD } from './config'
 import { readCard, patchCard, repoPath } from './card-store'
+import { warnBudgetWithoutGuarantee } from './cost-trust'
 import { runGit, stageAll } from './git'
 import { ensurePreview, hasDevServer, previewPort, httpOk, inspectPreview, waitHttp } from './preview'
 import { implement, runStep } from './agent'
@@ -82,6 +83,7 @@ export async function handleCorrect(id: string): Promise<void> {
     patchCard(id, { status: 'HALTED', correction: '', correction_file: '', correction_line: '', correction_line_text: '' }, `${isoNow()} CORRECTING->HALTED orcamento excedido (US$${card.fm.cost_usd} > US$${CARD_BUDGET_USD}) antes de refazer — decida se continua`)
     return
   }
+  warnBudgetWithoutGuarantee(id, card.fm, CARD_BUDGET_USD)
   const instruction = card.fm.correction ?? ''
   const file = card.fm.correction_file ?? ''
   const line = card.fm.correction_line ?? ''

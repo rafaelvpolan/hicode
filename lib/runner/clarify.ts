@@ -4,6 +4,7 @@ import { extractObjetivo } from '../card'
 import type { Card, ClarifyQuestion } from '../card'
 import { cardsDir, ROOT } from './config'
 import { providerFor, modelFor } from '../ai/registry'
+import { runProvider } from './cost-trust'
 import { preflight, comoOpcoes } from '../core/ideate'
 import { idear } from './ideate-run'
 import { sumTokens } from '../ai/usage'
@@ -100,7 +101,7 @@ export async function clarify(card: Card): Promise<ClarifyResult> {
     '',
     `TAREFA: ${desc}`,
   ].join('\n')
-  const res = await provider.run({ prompt, cwd: ROOT, dirs: [], mode: 'readonly', useAgents: false, model: modelFor('verify'), timeoutMs: 120000 })
+  const res = await runProvider(card.fm.id ?? '', provider, { prompt, cwd: ROOT, dirs: [], mode: 'readonly', useAgents: false, model: modelFor('verify'), timeoutMs: 120000 })
   if (!res.ok) return { questions: [], cost: res.cost, tokens: sumTokens(res.usage) }
   return { questions: parseQuestions(res.text), cost: res.cost, tokens: sumTokens(res.usage) }
 }

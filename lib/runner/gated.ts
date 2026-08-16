@@ -18,7 +18,7 @@ export interface GatedResult {
 
 function review(id: string, wt: string, base: string, desc: string, label: string): Promise<GateResult> {
   return withGateRetry(
-    () => runGatedReview(wt, base, desc),
+    () => runGatedReview(wt, base, desc, id),
     reason => patchCard(id, {}, `${isoNow()} gate crivo [${label}]: NAO EXECUTOU (${reason}) — repetindo o gate sem reexecutar o agente`),
   )
 }
@@ -26,19 +26,22 @@ function review(id: string, wt: string, base: string, desc: string, label: strin
 export async function runGatedStep(id: string, wt: string, base: string, agent: string, instruction: string, desc: string, label: string): Promise<GatedResult> {
   const t0 = Date.now()
   let cost = 0
+  let costMeasured = true
   let tokens = 0
   let text = ''
   let reason = ''
   let attempt = 0
+  const metric = (): StepMetric => ({ time: Math.round((Date.now() - t0) / 1000), cost, tokens, costMeasured })
   while (attempt <= maxReajuste()) {
     const suffix = attempt === 0 ? '' : `\n\nO revisor CRIVO reprovou a etapa anterior: ${reason}. Corrija exatamente isso, sem quebrar o resto.`
     const r = await runStep(wt, agent, instruction + suffix, id)
     cost += r.cost
+    costMeasured = costMeasured && r.costMeasured
     tokens += r.tokens
     text = r.text
     if (!r.ok) {
       if (r.failureClass && r.failureClass !== 'transient') {
-        return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: false, text, reason: `agente ${agent} falhou (${r.failureReason ?? 'erro'})`, failureClass: r.failureClass, failureReason: r.failureReason, provider: r.provider }
+        return { metric: metric(), ok: false, text, reason: `agente ${agent} falhou (${r.failureReason ?? 'erro'})`, failureClass: r.failureClass, failureReason: r.failureReason, provider: r.provider }
       }
       reason = `agente ${agent} falhou/timeout`
       patchCard(id, {}, `${isoNow()} step [${label}] ${agent}: FALHOU/timeout (tentativa ${attempt + 1})`)
@@ -47,14 +50,15 @@ export async function runGatedStep(id: string, wt: string, base: string, agent: 
     }
     const gate = await review(id, wt, base, `${desc} — etapa "${label}" (${agent})`, label)
     cost += gate.cost
+    costMeasured = costMeasured && gate.costMeasured
     tokens += gate.tokens
     patchCard(id, {}, `${isoNow()} gate crivo [${label}]: ${gate.ok ? gate.verdict : 'NAO EXECUTOU'}${gate.reason ? ` — ${gate.reason}` : ''}`)
     if (!gate.ok) {
-      return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: false, text, reason: `crivo indisponivel apos ${GATE_RETRIES + 1} tentativa(s): ${gate.reason}`, failureClass: gate.failureClass, failureReason: gate.failureReason, provider: gate.provider }
+      return { metric: metric(), ok: false, text, reason: `crivo indisponivel apos ${GATE_RETRIES + 1} tentativa(s): ${gate.reason}`, failureClass: gate.failureClass, failureReason: gate.failureReason, provider: gate.provider }
     }
-    if (gate.verdict !== 'BLOCKED') return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: true, text, reason: '' }
+    if (gate.verdict !== 'BLOCKED') return { metric: metric(), ok: true, text, reason: '' }
     reason = gate.reason
     attempt++
   }
-  return { metric: { time: Math.round((Date.now() - t0) / 1000), cost, tokens }, ok: false, text, reason }
+  return { metric: metric(), ok: false, text, reason }
 }

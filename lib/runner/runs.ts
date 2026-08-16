@@ -16,6 +16,7 @@ export function writeRun(id: string, res: ImplementResult, durationS = 0, steps:
     ts: isoNow(),
     ok: !!res.ok,
     cost_usd: res.cost || '',
+    cost_measured: res.costMeasured === true,
     duration_s: durationS,
     tokens_in: u?.tokens_in || 0,
     tokens_out: u?.tokens_out || 0,
@@ -57,6 +58,7 @@ export function updateRunSteps(id: string, fsteps: StepMap): { tokens: number; c
   }
   r.tokens_total = (Number(r.tokens_total) || 0) + addTok
   r.cost_usd = ((parseFloat(r.cost_usd) || 0) + addCost).toFixed(4)
+  r.cost_measured = r.cost_measured === true && !Object.values(fsteps).some(v => v.costMeasured === false)
   r.duration_s = (Number(r.duration_s) || 0) + addTime
   writeFileSync(p, JSON.stringify(r, null, 2))
   return { tokens: r.tokens_total, cost: r.cost_usd }

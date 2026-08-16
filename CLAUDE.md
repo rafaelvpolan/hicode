@@ -35,7 +35,7 @@ Nunca rodar testes/refactor/segurança antes do preview aprovado: valida-se a **
   trabalho, escreve cards, regenera o dashboard.
 - Por card, o **motor** (`runner.ts` + `lib/runner/`: fila de jobs em `tick()`/`queue`) executa o
   pipeline fase a fase chamando a IA por subprocesso (camada de provedor em `lib/ai/`: claude/codex/
-  opencode/ollama, escolhida por papel via env), com **reajuste/retry + HALT** e o **gate codefox
+  ollama, escolhida por papel via env), com **reajuste/retry + HALT** e o **gate codefox
   (crivo) vinculante**, e fecha o **loop verde lendo exit code real em disco** (build/test/gate). Os
   steps de polimento são **configuráveis** em `config/pipeline.json` (ativar/desativar/reordenar;
   override por projeto em `<alvo>/.hii/pipeline.json`). Por card, um **analisador de tarefa**
