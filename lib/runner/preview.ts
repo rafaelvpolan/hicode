@@ -5,6 +5,7 @@ import { cardsDir, ROOT, PREVIEW_BASE_PORT } from './config'
 import { run } from './git'
 import { readContract } from '../contract/store'
 import { devCommand, devCwd, hasCommand } from './commands'
+import { noProxyArgs } from './loopback'
 
 export interface PreviewHealth {
   ok: boolean
@@ -69,14 +70,18 @@ export function stopPreview(pid: string | undefined): void {
   }
 }
 
+export function probeArgs(url: string): string[] {
+  return ['-q', ...noProxyArgs(url), '-s', '-o', '/dev/null', '-w', '%{http_code}', url]
+}
+
 export async function httpOk(url: string): Promise<boolean> {
-  const r = await run('curl', ['-s', '-o', '/dev/null', '-w', '%{http_code}', url], { timeout: 4000 })
+  const r = await run('curl', probeArgs(url), { timeout: 4000 })
   return String(r.stdout || '').trim() === '200'
 }
 
 export async function waitHttp(url: string, tries: number): Promise<boolean> {
   for (let i = 0; i < tries; i++) {
-    const r = await run('curl', ['-s', '-o', '/dev/null', '-w', '%{http_code}', url], { timeout: 5000 })
+    const r = await run('curl', probeArgs(url), { timeout: 5000 })
     if (String(r.stdout || '').trim() === '200') return true
     await new Promise(res => setTimeout(res, 1000))
   }
