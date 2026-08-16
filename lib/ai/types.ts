@@ -2,7 +2,7 @@ import type { Usage } from '../card'
 
 export type AgentRole = 'implement' | 'verify' | 'gate' | 'step'
 
-export type AiProviderName = 'claude' | 'codex' | 'opencode' | 'ollama'
+export type AiProviderName = 'claude' | 'codex' | 'ollama'
 
 export type AgentMode = 'edit' | 'readonly'
 
@@ -25,6 +25,7 @@ export interface AgentResult {
   detail: string
   text: string
   cost: number
+  costMeasured: boolean
   usage: Usage
 }
 

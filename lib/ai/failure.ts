@@ -41,8 +41,6 @@ const TRANSIENT_GENERIC: Signal[] = [
   { pattern: /overloaded|temporarily unavailable|try again later|please retry|server is busy/i, reason: 'provedor temporariamente indisponivel' },
 ]
 
-const EMPTY_SIGNALS: ProviderSignals = { terminal: [], quota: [], transient: [] }
-
 const PROVIDER_SIGNALS: Record<AiProviderName, ProviderSignals> = {
   claude: {
     terminal: [],
@@ -54,7 +52,6 @@ const PROVIDER_SIGNALS: Record<AiProviderName, ProviderSignals> = {
     quota: [{ pattern: /insufficient_quota|exceeded_quota/i, reason: 'cota da API OpenAI esgotada' }],
     transient: [{ pattern: /rate_limit_exceeded/i, reason: 'limite de taxa da API OpenAI' }],
   },
-  opencode: EMPTY_SIGNALS,
   ollama: {
     terminal: [{ pattern: /model not found|no such model/i, reason: 'modelo ollama nao encontrado localmente' }],
     quota: [],
