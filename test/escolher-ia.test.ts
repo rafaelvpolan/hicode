@@ -179,3 +179,41 @@ test('o rodape marca o ajuste selecionado sem desalinhar', async () => {
   expect(linhas[2]?.startsWith('▌')).toBe(true)
   expect(linhas[1]?.indexOf('claude')).toBe(linhas[2]?.indexOf('codex'))
 })
+
+test('/ia lista os provedores com a situacao real de cada um', async () => {
+  const { provedoresDisponiveis } = await import('../lib/ai/disponibilidade')
+  const { providerNames } = await import('../lib/ai/registry')
+  const lista = provedoresDisponiveis()
+  expect(lista.map(p => p.nome).sort()).toEqual([...providerNames()].sort())
+  expect(lista.every(p => ['disponivel', 'ausente', 'precisa-servidor'].includes(p.situacao))).toBe(true)
+})
+
+test('provedor de CLI ausente nao e apresentado como disponivel', async () => {
+  const { provedoresDisponiveis } = await import('../lib/ai/disponibilidade')
+  const guardado = process.env.PATH
+  process.env.PATH = '/caminho/que/nao/existe'
+  const lista = provedoresDisponiveis()
+  expect(lista.find(p => p.nome === 'claude')?.situacao).toBe('ausente')
+  expect(lista.find(p => p.nome === 'claude')?.comoObter).toContain('CLI')
+  process.env.PATH = guardado
+})
+
+test('provedor que depende de servidor nao mente que esta pronto', async () => {
+  const { provedoresDisponiveis } = await import('../lib/ai/disponibilidade')
+  expect(provedoresDisponiveis().find(p => p.nome === 'ollama')?.situacao).toBe('precisa-servidor')
+})
+
+test('/ia mostra quais papeis usam cada provedor', async () => {
+  const { aplicar } = await import('../lib/core/escolher-ia')
+  const { provedoresDisponiveis } = await import('../lib/ai/disponibilidade')
+  aplicar({ papeis: ['gate'], provider: 'codex' })
+  const codex = provedoresDisponiveis().find(p => p.nome === 'codex')
+  expect(codex?.papeis).toContain('gate')
+})
+
+test('a listagem do /ia nao esconde provedor sem papel', async () => {
+  const { estadoDaIa } = await import('../lib/core/escolher-ia')
+  const { providerNames } = await import('../lib/ai/registry')
+  const texto = estadoDaIa().join('\n')
+  for (const n of providerNames()) expect(texto, n).toContain(n)
+})

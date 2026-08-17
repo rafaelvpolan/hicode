@@ -2,7 +2,7 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa'
 
 export interface SessionState {
   repo: string
@@ -12,6 +12,7 @@ export interface SessionState {
   removendo: string
   retomando: string
   escolhendo: boolean
+  confirmandoTarefa: string
   aprovando: string
   comentando: string
 }
@@ -30,7 +31,7 @@ export interface Reply {
 export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/project', '/ia', '/exit', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '' }
+  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, confirmandoTarefa: '', aprovando: '', comentando: '' }
 }
 
 export function perguntando(state: SessionState, id: string): SessionState {
@@ -51,6 +52,10 @@ export function comentando(state: SessionState, id: string): SessionState {
 
 export function semAprovacao(state: SessionState): SessionState {
   return { ...state, aprovando: '', comentando: '' }
+}
+
+export function confirmandoTarefa(state: SessionState, texto: string): SessionState {
+  return { ...state, confirmandoTarefa: texto, pendingPlan: '' }
 }
 
 export function escolhendoRepo(state: SessionState): SessionState {
@@ -150,6 +155,9 @@ function command(line: string, state: SessionState): Reply {
 export function handle(raw: string, state: SessionState): Reply {
   const line = raw.trim()
   if (!line) {
+    if (state.confirmandoTarefa) {
+      return reply({ kind: 'submit', text: state.confirmandoTarefa }, { ...state, confirmandoTarefa: '' })
+    }
     if (state.comentando) return reply({ kind: 'none' }, semAprovacao(state))
     if (state.escolhendo) return reply({ kind: 'none' }, { ...state, escolhendo: false })
     if (state.retomando) return reply({ kind: 'resume', id: state.retomando }, { ...state, retomando: '' })
@@ -180,13 +188,16 @@ export function handle(raw: string, state: SessionState): Reply {
   if (/^#?\d{1,4}$/.test(line)) {
     return reply({ kind: 'plan', id: line.replace('#', '') }, state)
   }
+  if (state.confirmandoTarefa) {
+    return handle(line, { ...state, confirmandoTarefa: '' })
+  }
   if (state.seguindo) {
     return reply({ kind: 'instruct', id: state.seguindo, text: line }, state)
   }
   if (state.pendingPlan) {
-    return reply({ kind: 'submit', text: line }, { ...state, pendingPlan: '' })
+    return reply({ kind: 'confirmar-tarefa', text: line }, { ...state, pendingPlan: '' })
   }
-  return reply({ kind: 'submit', text: line }, state)
+  return reply({ kind: 'confirmar-tarefa', text: line }, state)
 }
 
 export function planShown(state: SessionState, id: string): SessionState {

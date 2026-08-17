@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { arquivoDePreferencias, ehEsforco, ESFORCOS } from '../ai/preferencias'
 import type { PreferenciasDeIa } from '../ai/preferencias'
-import { agentRoles, isProviderName, providerNames } from '../ai/registry'
+import { agentRoles, isProviderName, providerNames, providerNameFor, effortFor } from '../ai/registry'
+import { provedoresDisponiveis } from '../ai/disponibilidade'
 import type { AgentRole } from '../ai/types'
 
 export interface ResultadoEscolha {
@@ -107,16 +108,42 @@ export function ciclarIa(role: AgentRole, dir: -1 | 1): ResultadoEscolha {
 }
 
 export function estadoDaIa(): string[] {
+  const provedores = provedoresDisponiveis()
+  const largura = provedores.reduce((a, p) => Math.max(a, p.nome.length), 0)
+  const linhas = ['', '  provedores']
+  const rotulo: Record<string, string> = {
+    disponivel: 'instalado',
+    ausente: 'NAO instalado',
+    'precisa-servidor': 'precisa do servidor no ar',
+  }
+  for (const p of provedores) {
+    const uso = p.papeis.length ? `em uso: ${p.papeis.join(', ')}` : 'nenhum papel'
+    const modelo = p.modelo ? p.modelo : 'modelo padrao do CLI'
+    linhas.push(`    ${p.nome.padEnd(largura)}  ${(rotulo[p.situacao] ?? '').padEnd(26)}  ${modelo} · ${uso}`)
+    if (p.situacao === 'ausente') linhas.push(`    ${' '.repeat(largura)}  ${p.comoObter}`)
+  }
+  linhas.push('', '  papeis')
+  for (const item of itensPorPapel()) linhas.push(`    ${item}`)
+  return linhas
+}
+
+function itensPorPapel(): string[] {
   const prefs = ler()
   return agentRoles().map((papel) => {
     const p = prefs[papel]
-    const partes = [p?.provider ?? '(padrao)', p?.model ?? '', p?.effort ? `esforco ${p.effort}` : ''].filter(Boolean)
-    return `  ${papel.padEnd(10)} ${partes.join(' · ')}`
+    const partes = [
+      providerNameFor(papel),
+      p?.model ?? '',
+      `esforco ${effortFor(papel) ?? '(padrao)'}`,
+      p ? '' : '(vindo da env ou do padrao)',
+    ].filter(Boolean)
+    return `${papel.padEnd(10)}  ${partes.join(' · ')}`
   })
 }
 
 export function ajuda(): string[] {
   return [
+    '',
     `  provedores: ${providerNames().join(' · ')}`,
     `  papeis: ${agentRoles().join(' · ')}`,
     `  esforco: ${ESFORCOS.join(' · ')}`,

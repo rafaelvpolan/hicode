@@ -6,10 +6,25 @@ import type { Fields } from '../lib/card'
 
 const base = newSession('org/app')
 
-test('texto livre cria tarefa', () => {
+test('texto livre passa pela leitura de intencao antes de virar tarefa', () => {
   const r = handle('FAQ acordeao na home', base)
-  expect(r.effect.kind).toBe('submit')
+  expect(r.effect.kind).toBe('confirmar-tarefa')
   expect(r.effect.text).toBe('FAQ acordeao na home')
+})
+
+test('enter confirma a tarefa duvidosa que o motor questionou', async () => {
+  const { confirmandoTarefa } = await import('../lib/core/session')
+  const r = handle('', confirmandoTarefa(base, 'tem acesso ao ntn?'))
+  expect(r.effect.kind).toBe('submit')
+  expect(r.effect.text).toBe('tem acesso ao ntn?')
+  expect(r.state.confirmandoTarefa).toBe('')
+})
+
+test('reescrever descarta a tarefa duvidosa em vez de criar as duas', async () => {
+  const { confirmandoTarefa } = await import('../lib/core/session')
+  const r = handle('remove o selo beta', confirmandoTarefa(base, 'tem acesso ao ntn?'))
+  expect(r.effect.text).toBe('remove o selo beta')
+  expect(r.state.confirmandoTarefa).toBe('')
 })
 
 test('linha vazia sem plano pendente nao faz nada', () => {
@@ -25,7 +40,7 @@ test('enter com plano pendente aprova e limpa o pendente', () => {
 
 test('texto livre com plano pendente descarta o plano e cria outro card', () => {
   const r = handle('outra tarefa', planShown(base, '042'))
-  expect(r.effect.kind).toBe('submit')
+  expect(r.effect.kind).toBe('confirmar-tarefa')
   expect(r.state.pendingPlan).toBe('')
 })
 
@@ -203,13 +218,12 @@ test('REGRESSAO numero puro MOSTRA o card, nao cria tarefa chamada "20"', () => 
   }
 })
 
-test('texto que so comeca com numero ainda cria tarefa', () => {
-  const r = handle('2 selos no hero', base)
-  expect(r.effect.kind).toBe('submit')
+test('texto que so comeca com numero ainda vira tarefa', () => {
+  expect(handle('2 selos no hero', base).effect.kind).toBe('confirmar-tarefa')
 })
 
 test('numero longo demais para ser id vira tarefa', () => {
-  expect(handle('12345', base).effect.kind).toBe('submit')
+  expect(handle('12345', base).effect.kind).toBe('confirmar-tarefa')
 })
 
 import { perguntando, respondido } from '../lib/core/session'
@@ -334,8 +348,8 @@ test('dentro da tarefa, texto vira instrucao e NAO tarefa nova', () => {
   expect(r.effect.text).toBe('tira tambem o selo do hero')
 })
 
-test('fora da tarefa, o mesmo texto cria tarefa', () => {
-  expect(handle('tira tambem o selo do hero', base).effect.kind).toBe('submit')
+test('fora da tarefa, o mesmo texto vira tarefa', () => {
+  expect(handle('tira tambem o selo do hero', base).effect.kind).toBe('confirmar-tarefa')
 })
 
 test('comando dentro da tarefa continua sendo comando', () => {
