@@ -7,6 +7,7 @@ import type { HopResponse } from '../lib/runner/redirect'
 import type { AddressPin } from '../lib/runner/host-resolve'
 import { run } from '../lib/runner/git'
 import { LOGO } from './fixtures/rede-falsa'
+import { portaDe } from './fixtures/porta-servidor'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-curl-amb-'))
 const SEGREDO = 'AWS_SECRET_ACCESS_KEY=abc123'
@@ -95,7 +96,7 @@ test('REGRESSAO: http_proxy no ambiente nao anula o --resolve — o fetch vai ao
   const dest = join(BASE, 'ref-proxy.png')
   const pin: AddressPin = { host: 'cdn.exemplo.com', port: String(direto.port), addresses: ['127.0.0.1'] }
   try {
-    const hop = await busca(`http://cdn.exemplo.com:${direto.port}/logo.png`, dest, pin, comProxy(proxy.port))
+    const hop = await busca(`http://cdn.exemplo.com:${direto.port}/logo.png`, dest, pin, comProxy(portaDe(proxy)))
 
     expect(hop.status).toBe(200)
     expect(corpo(dest)).toBe('PNGDATA')
@@ -120,7 +121,7 @@ test('REGRESSAO: com proxy no ambiente e endereco aprovado inalcancavel, o downl
   const dest = join(BASE, 'ref-proxy-morto.png')
   const pin: AddressPin = { host: 'cdn.exemplo.com', port: String(portaMorta), addresses: ['127.0.0.1'] }
   try {
-    const hop = await busca(`http://cdn.exemplo.com:${portaMorta}/logo.png`, dest, pin, comProxy(proxy.port))
+    const hop = await busca(`http://cdn.exemplo.com:${portaMorta}/logo.png`, dest, pin, comProxy(portaDe(proxy)))
 
     expect(hop.failed).toBe(true)
     expect(pedidosProxy).toBe(0)

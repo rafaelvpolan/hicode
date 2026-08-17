@@ -4,18 +4,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { handle, newSession } from '../lib/core/session'
 import type { SessionState } from '../lib/core/session'
+import { dispatchIOFalso } from './fixtures/dispatch-io-falso'
 
 let dir = ''
 let saida: string[] = []
 
-const io = {
+const io = dispatchIOFalso({
   log: (l: string) => { saida.push(l) },
-  dim: (t: string) => t,
-  color: false,
-  largura: () => 78,
   plano: async (id: string) => [`plano do #${id}`],
-  atividade: () => [],
-}
+})
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'hicode-disp-'))
@@ -196,8 +193,10 @@ test('instrucao em tarefa que sumiu vira tarefa nova, sem perder o texto', async
   const state = await digitar(['tira tambem o do hero'], seguir(newSession('org/app'), '099'))
   const novos = allCards()
   expect(novos.length).toBe(1)
+  const idNovo = novos[0]?.id
+  if (idNovo === undefined) throw new Error('a instrucao perdida nao virou tarefa nova com id')
   expect(novos[0]?.title).toBe('tira tambem o do hero')
-  expect(state.seguindo).toBe(novos[0]?.id)
+  expect(state.seguindo).toBe(idNovo)
   expect(saida.join(' ')).toContain('virou tarefa nova')
 })
 

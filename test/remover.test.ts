@@ -31,6 +31,14 @@ test('plano lista o que sera limpo e nao apaga nada', async () => {
   expect(existsSync(join(dir, '099-x.md'))).toBe(true)
 })
 
+test('plano carrega o piso do custo direto do card, e o card medido nao inventa piso', async () => {
+  const { planejarRemocao } = await import('../lib/core/remover')
+  card('099', { status: 'READY', title: 'x', repo: 'org/app', cost_usd: '0.7726', cost_floor: 'codex' })
+  card('098', { status: 'READY', title: 'x', repo: 'org/app', cost_usd: '0.7726' })
+  expect(planejarRemocao('099')?.piso).toBe('codex')
+  expect(planejarRemocao('098')?.piso).toBe('')
+})
+
 test('remove o card e SO os arquivos dele', async () => {
   const { remover } = await import('../lib/core/remover')
   card('099', { status: 'READY', title: 'x', repo: 'org/app' })

@@ -92,7 +92,7 @@ test('painel de parada oferece retomar, apagar e sair', () => {
 })
 
 test('painel de parada mostra quanto ja custou', () => {
-  expect(renderParada('022', { gasto: 'US$1.44' }).join('\n')).toContain('US$1.44 ate aqui')
+  expect(renderParada('022', { custo: '1.44' }).join('\n')).toContain('US$1.44 ate aqui')
 })
 
 test('sem gasto, nao inventa numero', () => {
@@ -101,7 +101,7 @@ test('sem gasto, nao inventa numero', () => {
 
 test('painel de parada cabe na largura', () => {
   for (const width of [40, 60, 78]) {
-    for (const l of renderParada('022', { width, gasto: 'US$1.44' })) {
+    for (const l of renderParada('022', { width, custo: '1.44', pisoDoGasto: 'codex, claude' })) {
       expect(visibleLen(l)).toBeLessThanOrEqual(width)
     }
   }

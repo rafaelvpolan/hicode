@@ -3,6 +3,12 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { ROOT, cardsDir, reposFile } from '../lib/runner/config'
 
+const SUFIXO_SEM_CACHE = 'forced'
+
+function configReavaliada(): Promise<typeof import('../lib/runner/config')> {
+  return import(`../lib/runner/config?${SUFIXO_SEM_CACHE}`)
+}
+
 test('ROOT aponta para uma raiz de repo hicode de verdade', () => {
   expect(existsSync(join(ROOT, 'cards')) || existsSync(join(ROOT, 'config', 'repos.json'))).toBe(true)
 })
@@ -32,7 +38,7 @@ test('com override, cardsDir sai do ROOT — e isso e o esperado', () => {
 test('HICODE_ROOT tem precedencia sobre a deteccao', async () => {
   const prev = process.env.HICODE_ROOT
   process.env.HICODE_ROOT = '/tmp/raiz-forcada'
-  const fresh = await import('../lib/runner/config?forced')
+  const fresh = await configReavaliada()
   expect(fresh.ROOT).toBe('/tmp/raiz-forcada')
   if (prev === undefined) delete process.env.HICODE_ROOT
   else process.env.HICODE_ROOT = prev

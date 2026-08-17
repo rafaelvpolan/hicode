@@ -7,6 +7,7 @@ import type { DownloadResult } from '../lib/runner/download'
 import type { AddressPin } from '../lib/runner/host-resolve'
 import type { HopFetcher, HopResponse } from '../lib/runner/redirect'
 import { DNS } from './fixtures/rede-falsa'
+import { portaDe } from './fixtures/porta-servidor'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-resposta-'))
 const HOST = 'cdn.exemplo.com'
@@ -49,8 +50,9 @@ async function baixaDe(nome: string, status: number, corpo: string | null): Prom
   const s = servidor(status, corpo)
   const dest = join(BASE, nome)
   try {
-    const url = `http://${HOST}:${s.port}/ref.png`
-    return { r: await downloadToFile(url, dest, curlFixadoEm(dest, s.port), DNS), dest }
+    const porta = portaDe(s)
+    const url = `http://${HOST}:${porta}/ref.png`
+    return { r: await downloadToFile(url, dest, curlFixadoEm(dest, porta), DNS), dest }
   } finally {
     s.stop(true)
   }
@@ -122,8 +124,9 @@ test('REGRESSAO: 304 no fim da cadeia nao deixa o corpo do salto 302 sobreviver 
   const s = servidorDeCadeia('<html>redirect quebrado</html>')
   const dest = join(BASE, 'ref-304-em-cadeia.png')
   try {
-    const url = `http://${HOST}:${s.port}/ref.png`
-    const r = await downloadToFile(url, dest, curlFixadoEm(dest, s.port), DNS)
+    const porta = portaDe(s)
+    const url = `http://${HOST}:${porta}/ref.png`
+    const r = await downloadToFile(url, dest, curlFixadoEm(dest, porta), DNS)
 
     expect(r.ok).toBe(false)
     expect(motivo(r)).toBe('resposta-de-erro')

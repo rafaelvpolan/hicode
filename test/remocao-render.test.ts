@@ -6,7 +6,7 @@ import type { PlanoLote, PlanoRemocao } from '../lib/core/remover'
 function plano(over: Partial<PlanoRemocao> = {}): PlanoRemocao {
   return {
     id: '023', titulo: 'tarefa qualquer', status: 'READY', repo: 'org/app',
-    branch: '', worktree: '', previewPid: '', runs: [], bloqueio: '', avisos: [], custo: '',
+    branch: '', worktree: '', previewPid: '', runs: [], bloqueio: '', avisos: [], custo: '', piso: '',
     ...over,
   }
 }
@@ -120,6 +120,40 @@ test('titulo longo nao encosta na coluna de custo', () => {
   }), false, { width: 78 })
   const linha = t.find(l => l.includes('US$')) ?? ''
   expect(linha).toMatch(/\s US\$/)
+})
+
+test('um card sem reporte de gasto transforma o total apagado em piso e nomeia o provedor', () => {
+  const t = renderRemocao(lote({
+    removiveis: [plano({ custo: '0.7726', piso: 'codex' }), plano({ id: '024', custo: '1.00' })],
+  }), false, { width: 78 }).join('\n')
+  expect(t).toContain('≥ US$1.77 ja gastos')
+  expect(t).toContain('piso: codex sem reporte de gasto')
+  expect(t).toContain('≥ US$0.77')
+  expect(t).toContain(' US$1.00')
+  expect(t).not.toContain('≥ US$1.00')
+})
+
+test('sem card marcado o total apagado sai afirmativo, como antes do marcador', () => {
+  const t = renderRemocao(lote({ removiveis: [plano({ custo: '0.7726' })] }), false, { width: 78 })
+  expect(t).toContain('    US$0.77 ja gastos')
+  expect(t.join('\n')).not.toContain('≥')
+  expect(t.join('\n')).not.toContain('piso')
+})
+
+test('o piso do lote junta os provedores dos cards apagados sem repetir', () => {
+  const t = renderRemocao(lote({
+    removiveis: [plano({ custo: '1.00', piso: 'codex' }), plano({ id: '024', custo: '1.00', piso: 'codex, claude' })],
+  }), false, { width: 78 }).join('\n')
+  expect(t).toContain('piso: codex, claude sem reporte de gasto')
+})
+
+test('card bloqueado que fica de fora nao empresta o piso dele ao total', () => {
+  const t = renderRemocao(lote({
+    removiveis: [plano({ custo: '1.00' })],
+    bloqueados: [plano({ id: '041', status: 'EXECUTING', custo: '9.00', piso: 'codex' })],
+  }), false, { width: 78 }).join('\n')
+  expect(t).toContain('US$1.00 ja gastos')
+  expect(t).not.toContain('piso:')
 })
 
 test('resultado lista o que foi e o que falhou', () => {

@@ -4,6 +4,7 @@ import { passosDoCard, pulados } from '../lib/core/progresso'
 import { DEFAULT_STEPS } from '../lib/runner/pipeline/config'
 import type { Fields, StepMap } from '../lib/card'
 import type { Passo } from '../lib/core/progresso'
+import type { BoardOptions } from '../lib/core/render/board'
 
 function card(over: Partial<Fields>): Fields {
   return { id: '1', title: 'tarefa', status: 'READY', repo: 'org/app', ...over }
@@ -147,7 +148,7 @@ test('lista vazia orienta a registrar', () => {
 
 import { renderPassos, renderLegenda, corDoPasso } from '../lib/core/render/board'
 
-const opcoes = { color: true, repo: '', daemon: '', now: 0, width: 80, passosDe: (): Passo[] => [] }
+const opcoes: BoardOptions = { color: true, repo: '', daemon: '', now: 0, width: 80, passosDe: (): Passo[] => [], selecionado: '' }
 
 test('cada passo tem cor propria, e a mesma sempre', () => {
   expect(corDoPasso('Arquitetura')).not.toBe(corDoPasso('Testes'))

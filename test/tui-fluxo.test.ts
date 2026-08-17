@@ -8,6 +8,7 @@ import { dispatch } from '../lib/core/dispatch'
 import type { Terminal } from '../lib/core/tui/screen'
 import type { SessionState } from '../lib/core/session'
 import { stripAnsi } from '../lib/core/tui/layout'
+import { dispatchIOFalso } from './fixtures/dispatch-io-falso'
 
 let dir = ''
 
@@ -74,14 +75,9 @@ async function sessao(teclas: string[]): Promise<{ saida: string; state: Session
         state = planShown(state, '999')
         return
       }
-      const d = await dispatch(r.effect, state, {
+      const d = await dispatch(r.effect, state, dispatchIOFalso({
         log: (l) => { registro.push(l); app.log(l) },
-        dim: (t) => t,
-        color: false,
-        largura: () => 78,
-        plano: async () => [],
-        atividade: () => [],
-      })
+      }))
       state = d.state
     },
   })
