@@ -30,6 +30,7 @@ import type { PipelineStep } from '../lib/runner/pipeline/types'
 import { renderOpcoesRodape } from '../lib/core/render/clarify'
 import { renderSugestoes, prefixoComum } from '../lib/core/render/sugestoes'
 import { projetosConhecidos } from '../lib/core/projetos-conhecidos'
+import { itensDeAjuste, ordemDosAjustes, ciclarAjuste } from '../lib/core/ajustes'
 import { etiquetaDoProjeto, corDoProjeto, nomeCurto } from '../lib/core/render/projeto'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { renderCabecalhoTarefa, renderParada } from '../lib/core/render/tarefa'
@@ -42,7 +43,7 @@ import { complete } from '../lib/core/complete'
 import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
 import { parseLog, formatar, resumo, ultimoAgente, ultimaAcao } from '../lib/core/activity'
-import { linhaPropriedades, linhasExecucao, emExecucao, linhasEspera, esperandoVoce } from '../lib/core/render/rodape'
+import { linhaPropriedades, linhasExecucao, emExecucao, linhasEspera, esperandoVoce, linhasAjustes, esperandoEmOutrosProjetos, linhaDeOutrosProjetos } from '../lib/core/render/rodape'
 import { dailySpend, floorProviders, formatProviders } from '../lib/runner/cost-gap'
 import type { DailySpend } from '../lib/runner/cost-gap'
 import { providerNameFor, modelFor } from '../lib/ai/registry'
@@ -227,12 +228,16 @@ function rodapeDa(state: SessionState, noRodape = false): string[] {
     selecionado: noRodape ? selecionado : '',
     maxLinhas: noRodape ? 6 : 3,
   }
+  if (modoAtual === 'ajustes') {
+    return [props, ...linhasAjustes(itensDeAjuste(), { color, width: largura, selecionado })]
+  }
   if (state.perguntando) {
     const p = pendencia(state.perguntando)
     if (p) return [props, ...renderOpcoesRodape(p, { color, width: largura, selecionado: noRodape ? selecionado : '' })]
   }
   const espera = linhasEspera(esperandoVoce(cards, state.repo), marcado)
-  return [props, ...linhasExecucao(rodando, marcado), ...espera]
+  const fora = linhaDeOutrosProjetos(esperandoEmOutrosProjetos(cards, state.repo), marcado)
+  return [props, ...linhasExecucao(rodando, marcado), ...espera, ...fora]
 }
 
 function pintarComando(linha: string): string {
@@ -244,28 +249,36 @@ function pintarComando(linha: string): string {
 }
 
 function dicaDa(state: SessionState, sugerindo = false): string {
-  if (sugerindo) return '↑↓ escolhe  tab completa  enter usa'
-  if (selecionado) return 'setas movem  enter entra  esc sai'
+  const texto = ((): string => {
+    if (modoAtual === 'ajustes') return '↑/↓ escolhe · tab troca · shift+tab sai'
+    if (sugerindo) return '↑/↓ escolhe · tab completa · enter usa'
+    if (selecionado) return '↑/↓ move · enter entra · esc sai'
     if (state.comentando) return 'escreva o ajuste · enter vazio desiste'
-    if (state.aprovando) return '↑/↓ para escolher · 1 aprova · 2 refaz · 3 comenta'
+    if (state.aprovando) return '↑/↓ escolhe · 1 aprova · 2 refaz · 3 comenta'
     if (state.escolhendo) return 'numero ou nome do projeto · enter desiste'
-  if (state.retomando) return 'enter retoma  ctrl+c sai'
-  if (state.removendo) return 'enter confirma  n cancela'
-  if (state.perguntando) return '↓ escolhe  numero responde  enter confirma'
-  if (state.perguntando) return 'numero responde  ctrl+j quebra linha'
-  const esperando = cardsPerguntando(todosOsCards(), state.repo)
-  if (esperando.length) return `/ask responde #${esperando[0]}  ctrl+c sai`
-  if (state.seguindo) return '/board volta  ctrl+c sai'
-  return '/help  ctrl+j quebra linha  ctrl+l limpa  ctrl+c sai'
+    if (state.retomando) return 'enter retoma de onde parou · ctrl+c sai do hii'
+    if (state.removendo) return 'enter confirma · n cancela'
+    if (state.perguntando) return '↑/↓ escolhe · numero responde · enter confirma'
+    if (state.seguindo) return 'escreva para instruir · /board volta'
+    const aqui = cardsPerguntando(todosOsCards(), state.repo)
+    if (aqui.length) return `#${aqui[0]} espera resposta · /ask responde`
+    const noutro = cardsPerguntando(todosOsCards())
+    if (noutro.length) return `#${noutro[0]} espera resposta em outro projeto · /ask ${Number(noutro[0])}`
+    return 'shift+tab ajusta a ia · ctrl+j quebra linha · /help para tudo'
+  })()
+  return color ? `${DIM}${texto}${RESET}` : texto
 }
 
+
 let selecionado = ''
+let modoAtual: ModoNavegacao = ''
 
 function larguraUtil(): number {
   return Math.max(40, (Number(process.stdout.columns) || 78) - 6)
 }
 
-function ordemDoRodape(state: SessionState): string[] {
+function ordemDoRodape(state: SessionState, modo: ModoNavegacao = 'rodape'): string[] {
+  if (modo === 'ajustes') return ordemDosAjustes()
   if (state.aprovando) return ['op:1', 'op:2', 'op:3']
   if (state.perguntando) {
     const p = pendencia(state.perguntando)
@@ -278,7 +291,7 @@ function ordemDoRodape(state: SessionState): string[] {
 }
 
 function navegar(state: SessionState, dir: -1 | 1, modo: ModoNavegacao): boolean {
-  const ordem = modo === 'rodape' ? ordemDoRodape(state) : ordemDoBoard(todosOsCards(), state.repo)
+  const ordem = modo === 'board' ? ordemDoBoard(todosOsCards(), state.repo) : ordemDoRodape(state, modo)
   if (!ordem.length) return false
   const atual = ordem.indexOf(selecionado)
   const proximo = atual < 0 ? 0 : atual + dir
@@ -528,7 +541,6 @@ function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void): Dis
 
 async function tui(state0: SessionState): Promise<void> {
   let state = state0
-  let modoAtual: ModoNavegacao = ''
   const term = nodeTerminal()
   let sairPedido = false
   async function processar(linha: string): Promise<void> {
@@ -608,6 +620,10 @@ async function tui(state0: SessionState): Promise<void> {
       return false
     },
     onNav: (dir, modo) => navegar(state, dir, modo),
+    onCiclarIa: (dir) => {
+      const r = ciclarAjuste(selecionado, dir)
+      app.log(`  ${r.mensagem}`)
+    },
     onAba: (dir) => {
       const nomes = reposRegistrados().map(r => r.name)
       if (nomes.length < 2) return

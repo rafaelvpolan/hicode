@@ -1,6 +1,7 @@
 import type { Fields } from '../../card'
 import { isActive, esperaHumano } from './phases'
 import { idadeDe } from './board'
+import { truncVisible, padVisible } from '../tui/layout'
 
 const RESET = '\x1b[0m'
 const DIM = '\x1b[2m'
@@ -107,6 +108,23 @@ export interface Espera {
   titulo: string
   motivo: string
   comando: string
+  projeto: string
+}
+
+export function esperandoEmOutrosProjetos(cards: Fields[], repo: string): Espera[] {
+  if (!repo) return []
+  return esperandoVoce(cards, '').filter(e => e.projeto !== repo)
+}
+
+export function linhaDeOutrosProjetos(fora: Espera[], opts: Partial<RodapeOptions> = {}): string[] {
+  const o = { ...PADRAO, ...opts }
+  if (!fora.length) return []
+  const projetos = [...new Set(fora.map(e => e.projeto.split('/').filter(Boolean).pop() ?? e.projeto))]
+  const quantos = fora.length === 1 ? '1 tarefa' : `${fora.length} tarefas`
+  const onde = projetos.slice(0, 2).join(', ') + (projetos.length > 2 ? ` +${projetos.length - 2}` : '')
+  const primeiro = fora[0]
+  const como = primeiro ? ` → ${primeiro.comando}` : ''
+  return [truncVisible(paint(`  ${quantos} esperando em ${onde}${como}`, YELLOW, o), o.width)]
 }
 
 export function esperandoVoce(cards: Fields[], repo: string): Espera[] {
@@ -120,6 +138,7 @@ export function esperandoVoce(cards: Fields[], repo: string): Espera[] {
       titulo: String(card.title ?? ''),
       motivo: esp.motivo,
       comando: `${esp.comando} ${Number(card.id)}`,
+      projeto: String(card.repo ?? ''),
     }))
 }
 
@@ -162,4 +181,24 @@ export function linhasExecucao(lista: EmExecucao[], opts: Partial<RodapeOptions>
     const id = paint(`#${e.id.padStart(3, '0')}`, DIM, o)
     return `${marca(e.id, o)}${paint(giro, CYAN, o)} ${id} ${realce(titulo, e.id, o)} ${paint(meio, DIM, o)}${aberta(e.id, o)}`
   }), ...contador(lista.length, visiveis.length, o)]
+}
+
+export interface AjusteVisivel {
+  chave: string
+  rotulo: string
+  valor: string
+}
+
+export function linhasAjustes(itens: AjusteVisivel[], opts: Partial<RodapeOptions> = {}): string[] {
+  const o = { ...PADRAO, ...opts }
+  const largura = itens.reduce((a, i) => Math.max(a, i.rotulo.length), 0)
+  const cabecalho = paint('  ajustes · ↑↓ escolhe · tab troca · shift+tab sai', DIM, o)
+  const linhas = itens.map((i) => {
+    const alvo = o.selecionado === i.chave
+    const marca = alvo ? paint(BARRA, CYAN, o) : ' '
+    const nome = paint(padVisible(i.rotulo, largura), DIM, o)
+    const valor = alvo && o.color ? `${BOLD}${CYAN}${i.valor}${RESET}` : paint(i.valor, CYAN, o)
+    return truncVisible(`${marca} ${nome}  ${valor}`, o.width)
+  })
+  return [cabecalho, ...linhas]
 }

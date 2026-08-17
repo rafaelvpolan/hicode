@@ -37,6 +37,7 @@ export interface AppHooks {
   onNav?: (dir: -1 | 1, modo: ModoNavegacao) => boolean
   onEntrar?: (modo: ModoNavegacao) => void
   onAba?: (dir: -1 | 1) => void
+  onCiclarIa?: (dir: -1 | 1) => void
   podeLimpar?: () => string
   logPrimeiro?: (ctx: CorpoContexto) => boolean
   acima?: (ctx: CorpoContexto) => string[]
@@ -61,6 +62,7 @@ const PADRAO = {
   onNav: (): boolean => false,
   onEntrar: (): void => {},
   onAba: (): void => {},
+  onCiclarIa: (): void => {},
 }
 
 export function createApp(term: Terminal, dados: AppHooks): App {
@@ -207,6 +209,11 @@ export function createApp(term: Terminal, dados: AppHooks): App {
       input = pararNavegacao(input)
       sujo = true
       hooks.onEntrar(modo)
+      return true
+    }
+    if (a.kind === 'ciclar-ia') {
+      sujo = true
+      hooks.onCiclarIa(a.dir)
       return true
     }
     if (a.kind === 'aba') {

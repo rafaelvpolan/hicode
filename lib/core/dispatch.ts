@@ -4,6 +4,9 @@ import * as core from './actions'
 import { planejarLote, removerLote } from './remover'
 import { renderRemocao, renderResultado } from './render/remocao'
 import { projetosConhecidos } from './projetos-conhecidos'
+import { interpretar, aplicar as aplicarIa, limpar as limparIa, ajuda as ajudaDeIa, estadoDaIa } from './escolher-ia'
+import { agentRoles } from '../ai/registry'
+import type { AgentRole } from '../ai/types'
 import { pendencia, responder, cardsPerguntando } from './responder'
 import { renderPergunta, renderRespondidas } from './render/clarify'
 import { instruir } from './instruir'
@@ -200,6 +203,27 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       }
       const r = core.transition(id, 'EXECUTING', 'retomado pelo humano')
       io.log(r ? `#${id} retomado — segue de onde parou` : `nao consegui retomar #${id}`)
+      return state
+    }
+    case 'ia': {
+      const partes = texto.trim().split(/\s+/).filter(Boolean)
+      if (!partes.length) {
+        for (const l of estadoDaIa()) io.log(l)
+        for (const l of ajudaDeIa()) io.log(l)
+        return state
+      }
+      if (partes[0] === 'padrao' || partes[0] === 'reset') {
+        const alvos = partes.slice(1).filter(p => (agentRoles() as string[]).includes(p)) as AgentRole[]
+        io.log(limparIa(alvos.length ? alvos : agentRoles()).mensagem)
+        return state
+      }
+      const { ajuste, erro } = interpretar(partes)
+      if (!ajuste) {
+        io.log(erro || 'uso: /ia [papel] <provedor> [modelo] [esforco]')
+        for (const l of ajudaDeIa()) io.log(l)
+        return state
+      }
+      io.log(aplicarIa(ajuste).mensagem)
       return state
     }
     case 'preview': {

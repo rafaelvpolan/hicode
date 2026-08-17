@@ -29,6 +29,7 @@ function toolsFor(req: AgentRequest): string {
 function argv(req: AgentRequest): string[] {
   const a = ['-p', req.prompt, '--output-format', 'json']
   if (req.model) a.push('--model', req.model)
+  if (req.effort) a.push('--effort', req.effort)
   if (req.mode === 'edit') a.push('--permission-mode', 'acceptEdits', '--allowedTools', toolsFor(req))
   else a.push('--allowedTools', READONLY_TOOLS)
   for (const d of req.dirs) a.push('--add-dir', d)

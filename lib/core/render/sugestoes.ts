@@ -19,6 +19,7 @@ export const AJUDA_DO_COMANDO: Record<string, string> = {
   '/stop': 'para a tarefa em execucao',
   '/halt': 'para a tarefa (mesmo que /stop)',
   '/rm': 'apaga tarefas e limpa o que fica atras',
+  '/ia': 'troca a ia, o modelo e o esforco por papel',
   '/repo': 'troca de projeto',
   '/project': 'troca de projeto (mesmo que /repo)',
   '/exit': 'sai do hii e volta para o shell',

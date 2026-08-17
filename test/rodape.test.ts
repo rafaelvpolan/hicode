@@ -227,3 +227,39 @@ test('estado que espera humano tem motivo e comando', () => {
   expect(esperaHumano('CLARIFY')?.comando).toBe('/ask')
   expect(esperaHumano('EXECUTING')).toBe(null)
 })
+
+import { esperandoEmOutrosProjetos, linhaDeOutrosProjetos } from '../lib/core/render/rodape'
+
+test('REGRESSAO tarefa esperando em OUTRO projeto nao fica invisivel', () => {
+  const cards = [
+    c({ id: '23', status: 'CLARIFY', repo: 'org/outro', title: 'pergunta de outro projeto' }),
+    c({ id: '24', status: 'READY', repo: 'org/app' }),
+  ]
+  const fora = esperandoEmOutrosProjetos(cards, 'org/app')
+  expect(fora.map(e => e.id)).toEqual(['23'])
+  const linha = linhaDeOutrosProjetos(fora, { width: 78 }).join('')
+  expect(linha).toContain('1 tarefa esperando em outro')
+  expect(linha).toContain('/ask 23')
+})
+
+test('sem projeto escolhido, nada e classificado como "outro"', () => {
+  const cards = [c({ id: '23', status: 'CLARIFY', repo: 'org/outro' })]
+  expect(esperandoEmOutrosProjetos(cards, '')).toEqual([])
+})
+
+test('tarefa do projeto atual nao aparece como de outro', () => {
+  const cards = [c({ id: '23', status: 'CLARIFY', repo: 'org/app' })]
+  expect(esperandoEmOutrosProjetos(cards, 'org/app')).toEqual([])
+})
+
+test('varios projetos sao resumidos, nao listados um a um', () => {
+  const cards = ['a', 'b', 'c', 'd'].map((n, i) =>
+    c({ id: String(30 + i), status: 'CLARIFY', repo: `org/${n}` }))
+  const linha = linhaDeOutrosProjetos(esperandoEmOutrosProjetos(cards, 'org/app'), { width: 78 }).join('')
+  expect(linha).toContain('4 tarefas')
+  expect(linha).toContain('+2')
+})
+
+test('sem espera fora, a linha nao existe', () => {
+  expect(linhaDeOutrosProjetos([])).toEqual([])
+})

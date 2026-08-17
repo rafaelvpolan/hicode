@@ -13,6 +13,7 @@ export interface AgentRequest {
   mode: AgentMode
   useAgents: boolean
   model?: string
+  effort?: string
   timeoutMs: number
   liveLog?: string
 }

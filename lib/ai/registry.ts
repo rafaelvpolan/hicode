@@ -3,6 +3,7 @@ import { ClaudeProvider } from './adapters/claude'
 import { CodexProvider } from './adapters/codex'
 import { OllamaProvider } from './adapters/ollama'
 import type { AgentRole, AiProvider, AiProviderName } from './types'
+import { preferenciaDoPapel, esforcoPara } from './preferencias'
 
 export const DEFAULT_PROVIDER: AiProviderName = 'claude'
 
@@ -46,6 +47,8 @@ export function roleQuotaFallbackEnv(role: AgentRole): string {
 
 export function providerNameFor(role: AgentRole, override?: string): AiProviderName {
   if (isProviderName(override)) return override
+  const escolhido = preferenciaDoPapel(role).provider
+  if (isProviderName(escolhido)) return escolhido
   const perRole = process.env[ROLE_PROVIDER_ENV[role]]
   if (isProviderName(perRole)) return perRole
   const dflt = process.env.HICODE_AI_PROVIDER
@@ -58,12 +61,18 @@ export function providerFor(role: AgentRole, override?: string): AiProvider {
 
 export function modelFor(role: AgentRole, override?: string): string | undefined {
   const name = providerNameFor(role, override)
+  const escolhido = preferenciaDoPapel(role).model
+  if (escolhido) return escolhido
   if (name === 'claude') {
     if (role === 'verify') return VERIFY_MODEL
     if (role === 'gate') return GATE_MODEL
     return undefined
   }
   return process.env[PROVIDER_MODEL_ENV[name]] || undefined
+}
+
+export function effortFor(role: AgentRole, doCard?: string): string | undefined {
+  return esforcoPara(role, doCard)
 }
 
 export function quotaFallbackProviderFor(role: AgentRole): AiProviderName | null {

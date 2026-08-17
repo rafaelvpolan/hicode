@@ -17,6 +17,7 @@ function sandbox(mode: AgentMode): string {
 function argv(req: AgentRequest, workdir: string): string[] {
   const a = ['exec', req.prompt, '-C', workdir, '--sandbox', sandbox(req.mode), '-a', 'never', '--json']
   if (req.model) a.push('-m', req.model)
+  if (req.effort) a.push('-c', `model_reasoning_effort="${req.effort}"`)
   for (const d of req.dirs.slice(1)) a.push('--add-dir', d)
   return a
 }

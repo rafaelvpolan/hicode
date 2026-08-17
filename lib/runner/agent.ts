@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { extractObjetivo } from '../card'
 import type { Card, FailureClass, ImplementResult, VerifyResult } from '../card'
 import { cardsDir, ROOT, RUN_TIMEOUT_MS, PROJECT_MEMORY } from './config'
-import { isProviderName, modelFor, providerFor } from '../ai/registry'
+import { isProviderName, modelFor, providerFor, effortFor } from '../ai/registry'
 import { sumTokens } from '../ai/usage'
 import { classifyFailure } from '../ai/failure'
 import type { AiProvider } from '../ai/types'
@@ -91,6 +91,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
     mode: 'edit',
     useAgents: provider.supportsAgents,
     model,
+    effort: effortFor('implement', card.fm.effort),
     timeoutMs: RUN_TIMEOUT_MS,
     liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
   })
@@ -123,6 +124,7 @@ export async function verifyVisual(card: Card, shotPath: string): Promise<Verify
     mode: 'readonly',
     useAgents: false,
     model: modelFor('verify'),
+    effort: effortFor('verify', card.fm.effort),
     timeoutMs: 120000,
   })
   const tokens = sumTokens(res.usage)
@@ -160,6 +162,7 @@ export async function runStep(wt: string, agent: string, instruction: string, id
     mode: 'edit',
     useAgents: provider.supportsAgents,
     model: modelFor('step'),
+    effort: effortFor('step'),
     timeoutMs: RUN_TIMEOUT_MS,
     liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
   })
