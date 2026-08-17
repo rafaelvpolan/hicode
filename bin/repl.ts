@@ -43,6 +43,8 @@ import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
 import { parseLog, formatar, resumo, ultimoAgente, ultimaAcao } from '../lib/core/activity'
 import { linhaPropriedades, linhasExecucao, emExecucao, linhasEspera, esperandoVoce } from '../lib/core/render/rodape'
+import { dailySpend, floorProviders, formatProviders } from '../lib/runner/cost-gap'
+import type { DailySpend } from '../lib/runner/cost-gap'
 import { providerNameFor, modelFor } from '../lib/ai/registry'
 import { readFileSync } from 'node:fs'
 import { STATUSES } from '../lib/card'
@@ -189,12 +191,9 @@ function seguimento(state: SessionState): string[] {
   return ['  nada em execucao nesta tarefa']
 }
 
-function custoDoDia(repo: string): string {
+function custoDoDia(repo: string): DailySpend {
   const hoje = new Date().toISOString().slice(0, 10)
-  const t = todosOsCards()
-    .filter(c => (!repo || c.repo === repo) && String(c.updated ?? '').startsWith(hoje))
-    .reduce((a, c) => a + (parseFloat(String(c.cost_usd ?? '0')) || 0), 0)
-  return t ? t.toFixed(2) : ''
+  return dailySpend(todosOsCards().filter(c => !repo || c.repo === repo), hoje)
 }
 
 function esforcoAtual(state: SessionState): string {
@@ -211,12 +210,14 @@ function papeisDivergentes(): string[] {
 
 function rodapeDa(state: SessionState, noRodape = false): string[] {
   const largura = Number(process.stdout.columns) || 80
+  const gasto = custoDoDia(state.repo)
   const props = linhaPropriedades({
     provedor: providerNameFor('implement'),
     modelo: modelFor('implement') ?? '',
     effort: esforcoAtual(state),
     projeto: state.repo,
-    custoHoje: custoDoDia(state.repo),
+    custoHoje: gasto.total,
+    pisoDoGasto: gasto.floor,
     divergentes: papeisDivergentes(),
   }, { color, width: largura })
   const cards = todosOsCards()
@@ -600,7 +601,8 @@ async function tui(state0: SessionState): Promise<void> {
       state = retomando(state, id)
       const custo = parseFloat(String(card.fm.cost_usd ?? '0')) || 0
       for (const l of renderParada(id, {
-        color, gasto: custo ? `US$${custo.toFixed(2)}` : '',
+        color, custo: custo.toFixed(2),
+        pisoDoGasto: formatProviders(floorProviders(card.fm)),
         width: Math.max(40, (Number(process.stdout.columns) || 78) - 6),
       })) app.log(l)
       return false

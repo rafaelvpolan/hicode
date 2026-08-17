@@ -5,6 +5,7 @@ import { cardsDir } from '../runner/config'
 import { stopPreview } from '../runner/preview'
 import { removeWorktree } from '../runner/git'
 import { remove } from './actions'
+import { floorProviders, formatProviders } from '../runner/cost-gap'
 
 const EM_VOO = ['EXECUTING', 'CORRECTING']
 
@@ -20,6 +21,7 @@ export interface PlanoRemocao {
   bloqueio: string
   avisos: string[]
   custo: string
+  piso: string
 }
 
 function runsDoCard(id: string): string[] {
@@ -46,6 +48,7 @@ export function planejarRemocao(id: string): PlanoRemocao | null {
     previewPid: fm.preview_pid ?? '',
     runs: runsDoCard(id),
     custo: fm.cost_usd ?? '',
+    piso: formatProviders(floorProviders(fm)),
     bloqueio: EM_VOO.includes(status) ? `#${id} esta em ${status} — o motor esta gastando nele agora; pare antes com /halt ${id}` : '',
     avisos,
   }

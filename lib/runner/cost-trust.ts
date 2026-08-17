@@ -2,7 +2,7 @@ import { isoNow } from '../card'
 import type { Fields } from '../card'
 import type { AgentRequest, AgentResult, AiProvider } from '../ai/types'
 import { patchCard, patchCardWith, readCard } from './card-store'
-import { addProvider, classifyCostGap, formatProviders, parseProviders, removeProvider, unionProviders } from './cost-gap'
+import { addProvider, classifyCostGap, floorProviders, formatProviders, parseProviders, removeProvider } from './cost-gap'
 
 function semReporte(fm: Fields, provider: string): boolean {
   return parseProviders(fm.cost_unverified).includes(provider)
@@ -10,10 +10,6 @@ function semReporte(fm: Fields, provider: string): boolean {
 
 function noPiso(fm: Fields, provider: string): boolean {
   return parseProviders(fm.cost_floor).includes(provider)
-}
-
-function pisoDoCard(fm: Fields): string[] {
-  return unionProviders(fm.cost_floor, fm.cost_unverified)
 }
 
 function linhaDeLimpeza(fm: Fields, provider: string): string {
@@ -74,7 +70,7 @@ export async function runProvider(id: string, provider: AiProvider, req: AgentRe
 }
 
 export function warnBudgetWithoutGuarantee(id: string, fm: Fields, budgetUsd: number): void {
-  const provedores = formatProviders(pisoDoCard(fm))
+  const provedores = formatProviders(floorProviders(fm))
   if (!provedores || budgetUsd <= 0) return
   patchCard(id, {}, `${isoNow()} teto de US$${budgetUsd} SEM GARANTIA: ao menos uma chamada a ${provedores} terminou sem reportar gasto — US$${fm.cost_usd || '0'} e piso medido; o total real deste card nao e verificavel`)
 }

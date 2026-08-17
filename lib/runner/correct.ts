@@ -11,6 +11,11 @@ import { implement, runStep } from './agent'
 import { appendAttempt, readAttempts } from './attempts'
 import { applyFailurePolicy } from './failure-policy'
 
+export interface CorrectDeps {
+  implement: typeof implement
+  runStep: typeof runStep
+}
+
 interface StepOutcome {
   ok: boolean
   text: string
@@ -66,17 +71,17 @@ function attemptHistory(id: string): string {
   return `Historico de tentativas anteriores neste card (NAO repita os mesmos erros; leve o feedback em conta):\n${lines}\n\n`
 }
 
-async function redoPreview(card: NonNullable<ReturnType<typeof readCard>>, wt: string, instruction: string): Promise<StepOutcome> {
-  const r = await implement(card, wt, `${attemptHistory(card.fm.id ?? '')}O preview anterior foi REJEITADO pelo revisor. Refaça a tarefa atendendo exatamente: "${instruction}".`, card.fm.surface === 'visual')
+async function redoPreview(card: NonNullable<ReturnType<typeof readCard>>, wt: string, instruction: string, implementar: typeof implement): Promise<StepOutcome> {
+  const r = await implementar(card, wt, `${attemptHistory(card.fm.id ?? '')}O preview anterior foi REJEITADO pelo revisor. Refaça a tarefa atendendo exatamente: "${instruction}".`, card.fm.surface === 'visual')
   return { ok: r.ok, text: r.resultText ?? r.reason ?? '', fullText: r.fullText ?? r.resultText ?? r.reason ?? '', cost: parseFloat(r.cost) || 0, tokens: tokensOf(r.usage), failureClass: r.failureClass, failureReason: r.failureReason, provider: r.provider }
 }
 
-async function scopedFix(wt: string, instruction: string, file: string, line: string, lineText: string, id: string): Promise<StepOutcome> {
-  const r = await runStep(wt, 'limpio', scopedInstruction(instruction, file, line, lineText), id)
+async function scopedFix(wt: string, instruction: string, file: string, line: string, lineText: string, id: string, executar: typeof runStep): Promise<StepOutcome> {
+  const r = await executar(wt, 'limpio', scopedInstruction(instruction, file, line, lineText), id)
   return { ok: r.ok, text: r.text, fullText: r.text, cost: r.cost, tokens: r.tokens, failureClass: r.failureClass, failureReason: r.failureReason, provider: r.provider }
 }
 
-export async function handleCorrect(id: string): Promise<void> {
+export async function handleCorrect(id: string, deps: CorrectDeps = { implement, runStep }): Promise<void> {
   const card = readCard(id)
   if (!card) return
   if (CARD_BUDGET_USD > 0 && (parseFloat(card.fm.cost_usd || '0') || 0) > CARD_BUDGET_USD) {
@@ -96,7 +101,7 @@ export async function handleCorrect(id: string): Promise<void> {
   const target = repoPath(card.fm.repo ?? '')
   const redo = !file
   process.stdout.write(`[runner] #${id}: ${redo ? 'refazendo preview (rejeitado)' : 'aplicando correção'} em ${wt}\n`)
-  const r = redo ? await redoPreview(card, wt, instruction) : await scopedFix(wt, instruction, file, line, lineText, id)
+  const r = redo ? await redoPreview(card, wt, instruction, deps.implement) : await scopedFix(wt, instruction, file, line, lineText, id, deps.runStep)
   appendAttempt(id, redo ? 'reprovacao' : 'correcao', instruction, r.fullText)
   if (!r.ok) {
     const outcome = applyFailurePolicy({

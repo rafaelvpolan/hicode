@@ -1,5 +1,6 @@
 import type { Fields } from '../../card'
 import type { Passo } from '../progresso'
+import { fleetFloorProviders, floorProviders, formatProviders } from '../../runner/cost-gap'
 import { PHASES, isActive, phaseIndex, phaseLabel, waitsHuman, esperaHumano } from './phases'
 
 const RESET = '\x1b[0m'
@@ -105,7 +106,7 @@ function trilha(status: string, o: BoardOptions): string {
 
 function linha(c: Fields, o: BoardOptions): string {
   const id = paint(`#${String(c.id ?? '').padStart(3, '0')}`, DIM, o)
-  const custo = c.cost_usd ? paint(`$${c.cost_usd}`, DIM, o) : ''
+  const custo = c.cost_usd ? paint(`${floorProviders(c).length ? '≥' : ''}$${c.cost_usd}`, DIM, o) : ''
   const idade = idadeDe(c.updated, o.now)
   const passos = o.passosDe(c)
   const bolinhas = renderPassos(passos, o)
@@ -184,8 +185,10 @@ export function linhasDoBoard(cards: Fields[], opts: Partial<BoardOptions> = {})
   const linhas: string[] = []
   const idPorLinha: string[] = []
   const solta = (texto: string, id = ''): void => { linhas.push(texto); idPorLinha.push(id) }
+  const piso = formatProviders(fleetFloorProviders(meus))
   solta(paint(o.repo || '(sem repo)', BOLD, o) + paint(`   daemon ${o.daemon}`, DIM, o))
-  solta(paint(`  ${meus.length} card(s) · US$${somaCusto(meus)} acumulado`, DIM, o))
+  solta(paint(`  ${meus.length} card(s) · ${piso ? '≥ ' : ''}US$${somaCusto(meus)} acumulado`, DIM, o))
+  if (piso) solta(paint(`  piso: ${piso} sem reporte de gasto — o total real nao e verificavel`, YELLOW, o))
   solta(paint('  ' + PHASES.map(p => p.label).join(' › '), DIM, o))
   const cabecalho = linhas.length
   if (!meus.length) {
