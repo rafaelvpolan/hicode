@@ -154,6 +154,30 @@ Quando a leitura erra, `/new-task` cria direto — você declara a intenção em
 heurístico. E `/new-ask` responde a pergunta em modo somente-leitura, mostrando provedor e custo.
 A resposta é **quebrada na largura**, não truncada — resposta cortada com `…` perde conteúdo.
 
+**A pergunta chega respondível.** O `/new-ask` não depende da IA descobrir sozinha o estado da
+máquina: o **motor verifica e entrega o fato**. Junto da pergunta vai um retrato do ambiente — quais
+comandos existem no `PATH` (os que o motor usa, mais os nomes que aparecem na própria pergunta) e
+quais projetos estão registrados:
+
+```
+AMBIENTE DESTA MAQUINA (verificado agora pelo motor, nao suponha nada alem disto):
+comandos no PATH:
+  claude: instalado
+  codex: NAO instalado
+  ntn-cli: NAO instalado          ← extraído da pergunta
+projetos registrados no hii:
+  rafaelvpolan/hicode-site → /home/rpolan/projects/podium/hicode-site
+```
+
+> **Por que isso existe:** `tem acesso ao ntn-cli?` era **impossível de responder por desenho** — as
+> ferramentas do modo leitura são `Read,Glob,Grep`, sem shell, então o agente só podia procurar no
+> código do repositório e respondia sobre o repo em vez da máquina. Ele até avisava que não achava,
+> honestamente; a pergunta é que não tinha como ser respondida.
+
+**Conversa tem memória.** As últimas trocas de `/new-ask` ficam na sessão e vão para o classificador
+e para a resposta. Sem isso, `estou me referindo ao notion cli` chegava sem contexto — sem verbo e
+sem interrogação — e virava tarefa. Agora continuação de conversa é reconhecida como `ask`.
+
 **IA local no desempate (opcional).** O heurístico sabe quando não sabe: `estou me referindo à
 conexão com o Notion` não tem marca de pergunta nem verbo de mudança, então sai como `task` com
 **confiança baixa**. Ligando `HICODE_CLASSIFY=on`, esses casos — e só esses — vão para um modelo

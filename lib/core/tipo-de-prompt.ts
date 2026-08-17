@@ -1,11 +1,16 @@
-const ACAO = new RegExp('\\b(' + [
-  'cri[ae]r?', 'adicion[ae]r?', 'inclu[ai]r?', 'remov[ae]r?', 'apag[ae]r?', 'delet[ae]r?',
-  'corrig[ei]r?', 'ajust[ae]r?', 'arrum[ae]r?', 'consert[ae]r?', 'mud[ae]r?', 'alter[ae]r?',
-  'troc[ae]r?', 'implement[ae]r?', 'refator[ae]r?', 'atualiz[ae]r?', 'migr[ae]r?',
-  'renome[ae]r?', 'mov[ae]r?', 'public[ae]r?', 'instal[ae]r?', 'configur[ae]r?',
-  'padroniz[ae]r?', 'otimiz[ae]r?', 'deix[ae]r?', 'coloc[ae]r?', 'p[oô]r', 'faz', 'fazer',
-  'escrev[ae]r?', 'ger[ae]r?', 'aplic[ae]r?', 'integr[ae]r?', 'valid[ae]r?', 'document[ae]r?',
-].join('|') + ')\\b', 'i')
+const RADICAIS = [
+  'cri', 'adicion', 'inclu', 'remov', 'apag', 'delet', 'exclu',
+  'corrig', 'corrij', 'ajust', 'arrum', 'consert', 'mud', 'alter', 'troc', 'troqu',
+  'implement', 'refator', 'atualiz', 'migr', 'renome', 'renomei', 'mov', 'mud',
+  'public', 'publiqu', 'instal', 'configur', 'padroniz', 'otimiz', 'melhor',
+  'deix', 'coloc', 'coloqu', 'escrev', 'escrev', 'ger', 'aplic', 'apliqu',
+  'integr', 'valid', 'test', 'document', 'verific', 'verifiqu', 'revis',
+  'reduz', 'aument', 'diminu', 'alinh', 'centraliz', 'reorganiz', 'extra',
+]
+
+const SUFIXOS = 'ar|er|ir|a|e|i|o|ue|ei|ou|am|em|ando|endo|indo|ir|a-lo|e-lo'
+
+const ACAO = new RegExp('\\b(?:' + RADICAIS.join('|') + ')(?:' + SUFIXOS + ')\\b|\\b(?:faz|fazer|faca|fa[cç]a|p[oô]r|poe|ponha|sobe|subir|suba)\\b', 'i')
 
 const CONSULTA = new RegExp('^\\s*(' + [
   'tem', 'temos', 'tinha', 'ha', 'havia', 'existe', 'existem',
@@ -21,6 +26,13 @@ const PEDIDO = new RegExp('^\\s*(' + [
 ].join('|') + ')\\b', 'i')
 
 const CONSULTA_MEIO = /\b(tem acesso|temos acesso|ja existe|ja tem|faz sentido|o que (e|significa)|como funciona|qual (e|o|a))\b/i
+
+const SUBORDINADA = /\b(sem|sem precisar|antes de|depois de|caso|se|para que|em vez de|ao inves de)\b/
+
+function oracaoPrincipal(texto: string): string {
+  const corte = texto.search(SUBORDINADA)
+  return corte > 0 ? texto.slice(0, corte) : texto
+}
 
 function semAcento(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -50,7 +62,7 @@ export function lerEntrada(bruto: string): LeituraDaEntrada {
     return { tipo: 'ask', motivo: 'abre consultando — o verbo de acao adiante e finalidade, nao pedido', confianca: 'alta' }
   }
 
-  const temAcao = ACAO.test(texto)
+  const temAcao = ACAO.test(oracaoPrincipal(texto))
   if (PEDIDO.test(texto)) {
     return temAcao
       ? { tipo: 'task', motivo: 'pedido com verbo de mudanca', confianca: 'alta' }

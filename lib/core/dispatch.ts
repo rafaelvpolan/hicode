@@ -12,7 +12,7 @@ import { renderPergunta, renderRespondidas } from './render/clarify'
 import { instruir } from './instruir'
 import { renderHelp } from './render/help'
 import { esperandoVoce } from './render/rodape'
-import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao } from './session'
+import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao, comConversa } from './session'
 import { classificarPrompt } from './classificar'
 import { renderRecusa } from './render/recusa'
 import type { Effect, SessionState } from './session'
@@ -24,7 +24,7 @@ export interface DispatchIO {
   largura: () => number
   subirPreview: (id: string) => Promise<string>
   listarPreviews: (limpar: boolean) => Promise<string[]>
-  responder: (pergunta: string) => Promise<string[]>
+  responder: (pergunta: string, conversa: { pergunta: string; resposta: string }[]) => Promise<string[]>
   classificar?: (prompt: string) => Promise<string>
   plano: (id: string) => Promise<string[]>
   atividade: (id: string) => string[]
@@ -220,7 +220,7 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       return planShown(base, novoId)
     }
     case 'confirmar-tarefa': {
-      const leitura = await classificarPrompt(texto, io.classificar)
+      const leitura = await classificarPrompt(texto, io.classificar, state.conversa)
       if (leitura.tipo === 'task') return aplicar({ kind: 'submit', text: texto }, state, io)
       for (const l of renderRecusa(texto, leitura.motivo, { color: io.color, width: io.largura() })) io.log(l)
       return state
@@ -235,9 +235,10 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
     }
     case 'ask': {
       if (!texto.trim()) { io.log('uso: /new-ask <pergunta>'); return state }
-      io.log(io.dim('  consultando o projeto (leitura, sem alterar arquivo)…'))
-      for (const l of await io.responder(texto)) io.log(l)
-      return state
+      io.log(io.dim('  consultando o ambiente e o projeto (leitura, sem alterar arquivo)…'))
+      const linhas = await io.responder(texto, state.conversa)
+      for (const l of linhas) io.log(l)
+      return comConversa(state, texto, linhas.join(' '))
     }
     case 'ia': {
       const partes = texto.trim().split(/\s+/).filter(Boolean)

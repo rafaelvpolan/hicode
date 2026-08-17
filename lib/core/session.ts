@@ -14,6 +14,7 @@ export interface SessionState {
   escolhendo: boolean
   aprovando: string
   comentando: string
+  conversa: { pergunta: string; resposta: string }[]
 }
 
 export interface Effect {
@@ -57,7 +58,7 @@ export function canonico(comando: string): string {
 export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/new-task', '/new-ask', '/new-session', '/repo', '/project', '/ia', '/model', '/effort', '/exit', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '' }
+  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '', conversa: [] }
 }
 
 export function perguntando(state: SessionState, id: string): SessionState {
@@ -66,6 +67,10 @@ export function perguntando(state: SessionState, id: string): SessionState {
 
 export function respondido(state: SessionState): SessionState {
   return { ...state, perguntando: '' }
+}
+
+export function comConversa(state: SessionState, pergunta: string, resposta: string): SessionState {
+  return { ...state, conversa: [...state.conversa, { pergunta, resposta }].slice(-6) }
 }
 
 export function aprovando(state: SessionState, id: string): SessionState {
@@ -77,7 +82,7 @@ export function comentando(state: SessionState, id: string): SessionState {
 }
 
 export function semAprovacao(state: SessionState): SessionState {
-  return { ...state, aprovando: '', comentando: '' }
+  return { ...state, aprovando: '', comentando: '', conversa: [] }
 }
 
 export function escolhendoRepo(state: SessionState): SessionState {

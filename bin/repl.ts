@@ -535,9 +535,9 @@ function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void, repo
     subirPreview,
     listarPreviews,
     classificar: classificarComIaLocal,
-    responder: async (pergunta) => {
+    responder: async (pergunta, conversa) => {
       const alvo = repoPath(repo)
-      const r = await responderPergunta(pergunta, alvo)
+      const r = await responderPergunta(pergunta, alvo, conversa)
       if (!r.ok && !r.texto) return ['  nao consegui responder — a consulta falhou']
       const corpo = quebrarEmLargura(r.texto, larguraUtil() - 2).map(l => `  ${l}`)
       const gasto = r.custo

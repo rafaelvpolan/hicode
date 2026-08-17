@@ -4,6 +4,7 @@ import { runProvider } from './cost-trust'
 import { readProjectRules } from './hicode-home'
 import { readContract } from '../contract/store'
 import { ROOT } from './config'
+import { snapshotDoAmbiente } from './ambiente'
 
 export interface RespostaDePergunta {
   ok: boolean
@@ -21,13 +22,36 @@ function contexto(alvo: string): string {
   return [stack, regras].filter(Boolean).join('\n')
 }
 
-export async function responderPergunta(pergunta: string, alvo: string): Promise<RespostaDePergunta> {
+export interface TrocaDeConversa {
+  pergunta: string
+  resposta: string
+}
+
+function historico(trocas: TrocaDeConversa[]): string {
+  if (!trocas.length) return ''
+  const ultimas = trocas.slice(-3)
+  return [
+    'CONVERSA ANTERIOR (a mensagem atual pode ser continuacao desta):',
+    ...ultimas.map(t => `  humano: ${t.pergunta}\n  voce: ${t.resposta.replace(/\s+/g, ' ').slice(0, 300)}`),
+  ].join('\n')
+}
+
+export async function responderPergunta(
+  pergunta: string,
+  alvo: string,
+  trocas: TrocaDeConversa[] = [],
+): Promise<RespostaDePergunta> {
   const provider = providerFor('verify')
   const prompt = [
-    'Voce responde uma PERGUNTA sobre um projeto de software. NAO altere nenhum arquivo.',
-    'Se a resposta estiver no codigo, leia o necessario e responda com base no que leu, citando arquivo e linha.',
-    'Se nao houver informacao suficiente no projeto, diga isso claramente em vez de supor.',
+    'Voce responde uma PERGUNTA do usuario. NAO altere nenhum arquivo.',
+    'Voce le arquivos do projeto e recebe abaixo um retrato do AMBIENTE desta maquina.',
+    'Pergunta sobre "tem X instalado" se responde pelo retrato do ambiente, nao pelo codigo do projeto.',
+    'Se a resposta estiver no codigo, leia o necessario e cite arquivo e linha.',
+    'Se a informacao nao estiver nem no ambiente nem no projeto, diga isso claramente em vez de supor.',
     'Responda em portugues, direto, no maximo 12 linhas. Sem preambulo.',
+    '',
+    snapshotDoAmbiente(pergunta),
+    historico(trocas),
     contexto(alvo),
     '',
     `PERGUNTA: ${pergunta}`,

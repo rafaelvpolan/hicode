@@ -208,3 +208,35 @@ test('submit sem projeto avisa em vez de criar card orfao', async () => {
   expect(saida.join(' ')).toContain('sem projeto')
   expect(allCards().length).toBe(antes)
 })
+
+test('REGRESSAO imperativo em portugues conta como verbo de mudanca', () => {
+  for (const t of [
+    'Coloque botao voltar ao topo no canto inferior',
+    'Aplique as melhores praticas de SEO',
+    'Melhore o card apoiar deixando mais chamativo',
+    'Verifique se a resolucao de conflito afetou a versao',
+    'Troque a fonte do titulo',
+    'Publique a nova versao',
+    'Configure o lint do projeto',
+    'Renomeie o componente Header',
+    'Corrija o alinhamento do rodape',
+    'Inclua o link de documentacao',
+    'Mova o botao para a direita',
+    'Faca o rodape sticky',
+    'Reduza o espacamento do hero',
+    'Alinhe os cards da grade',
+  ]) expect(lerEntrada(t), t).toMatchObject({ tipo: 'task', confianca: 'alta' })
+})
+
+test('frase nominal e tarefa por palpite, e o palpite e declarado como baixa confianca', () => {
+  for (const t of ['Selo beta no topo', 'Banner versao de testes', 'Link Documentacao no menu']) {
+    const l = lerEntrada(t)
+    expect(l.tipo, t).toBe('task')
+    expect(l.confianca, t).toBe('baixa')
+  }
+})
+
+test('o imperativo nao engole pergunta', () => {
+  expect(lerEntrada('qual praticas de SEO devo aplicar?').tipo).toBe('ask')
+  expect(lerEntrada('como configuro o lint?').tipo).toBe('ask')
+})

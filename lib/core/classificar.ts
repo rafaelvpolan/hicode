@@ -7,8 +7,18 @@ export function classificadorLigado(): boolean {
   return (process.env.HICODE_CLASSIFY || 'off') === 'on'
 }
 
-export function promptDeClassificacao(texto: string): string {
+export interface TrocaAnterior {
+  pergunta: string
+  resposta: string
+}
+
+export function promptDeClassificacao(texto: string, conversa: TrocaAnterior[] = []): string {
+  const antes = conversa.length
+    ? ['CONVERSA ANTERIOR (a mensagem pode ser continuacao dela):',
+       ...conversa.slice(-2).map(t => `  humano: ${t.pergunta}`), '']
+    : []
   return [
+    ...antes,
     'Classifique a mensagem do usuario em UMA palavra, sem pontuacao e sem explicar.',
     'Responda exatamente "task" se e um pedido para MUDAR codigo ou arquivos do projeto.',
     'Responda exatamente "ask" se e pergunta, duvida, comentario ou continuacao de conversa.',
@@ -27,15 +37,25 @@ export function lerRotulo(bruto: string): TipoDePrompt | null {
   return temTask ? 'task' : 'ask'
 }
 
+export function continuaConversa(texto: string, conversa: TrocaAnterior[]): boolean {
+  if (!conversa.length) return false
+  const t = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+  return /^(estou me referindo|me refiro|quis dizer|era sobre|falo d|sobre o que|isso mesmo|nao,|sim,|e sobre)/.test(t)
+}
+
 export async function classificarPrompt(
   texto: string,
   consultar?: ConsultaDeTipo,
+  conversa: TrocaAnterior[] = [],
 ): Promise<LeituraDaEntrada> {
   const heuristica = lerEntrada(texto)
+  if (continuaConversa(texto, conversa)) {
+    return { tipo: 'ask', motivo: 'continua a conversa anterior, nao pede mudanca', confianca: 'alta' }
+  }
   if (heuristica.confianca === 'alta' || !consultar || !classificadorLigado()) return heuristica
 
   try {
-    const rotulo = lerRotulo(await consultar(promptDeClassificacao(texto)))
+    const rotulo = lerRotulo(await consultar(promptDeClassificacao(texto, conversa)))
     if (!rotulo) return heuristica
     return {
       tipo: rotulo,
