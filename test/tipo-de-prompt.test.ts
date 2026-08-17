@@ -82,20 +82,24 @@ test('quero e gostaria contam como pedido', () => {
 })
 
 test('o tipo ask NAO cria card e nao oferece aprovar nem rejeitar', async () => {
+  const { dispatchIOFalso: ioFalso } = await import('./fixtures/dispatch-io-falso')
+  void ioFalso
   const { handle, newSession } = await import('../lib/core/session')
   const { dispatch } = await import('../lib/core/dispatch')
   const { allCards } = await import('../lib/runner/card-store')
   const saida: string[] = []
   const { dispatchIOFalso } = await import('./fixtures/dispatch-io-falso')
-  const io = dispatchIOFalso({ log: (l: string) => { saida.push(l) } })
+  const io = dispatchIOFalso({
+    log: (l: string) => { saida.push(l) },
+    responder: async () => ['  resposta'],
+  })
   const antes = allCards().length
   const r = handle('tem acesso ao NTN para criar tarefas?', newSession('org/app'))
   await dispatch(r.effect, r.state, io)
   const texto = saida.join(' ')
   expect(allCards().length).toBe(antes)
-  expect(texto).toContain('nao criei card')
-  expect(texto).not.toContain('enter')
-  expect(texto).not.toContain('aprova')
+  expect(texto).toContain('lido como pergunta')
+  expect(texto).not.toContain('enter aprova')
   expect(texto).not.toContain('rejeit')
 })
 
@@ -107,10 +111,12 @@ test('o tipo task segue criando card normalmente', async () => {
   expect(lerEntrada(r.effect.text ?? '').tipo).toBe('task')
 })
 
-test('cada tipo tem uma descricao propria', async () => {
+test('cada tipo descreve o que de fato acontece', async () => {
   const { TIPOS } = await import('../lib/core/tipo-de-prompt')
   expect(Object.keys(TIPOS)).toEqual(['task', 'ask'])
-  expect(TIPOS.ask).not.toContain('respondida')
+  expect(TIPOS.task).toContain('pipeline')
+  expect(TIPOS.ask).toContain('respondida')
+  expect(TIPOS.ask).not.toContain('card')
 })
 
 test('/new-task cria a tarefa direto, sem passar pela leitura de intencao', async () => {

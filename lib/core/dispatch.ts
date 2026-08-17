@@ -14,7 +14,7 @@ import { renderHelp } from './render/help'
 import { esperandoVoce } from './render/rodape'
 import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao, comConversa } from './session'
 import { classificarPrompt } from './classificar'
-import { renderRecusa } from './render/recusa'
+import { renderPergunta as renderPerguntaLida } from './render/pergunta-lida'
 import type { Effect, SessionState } from './session'
 
 export interface DispatchIO {
@@ -222,8 +222,8 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
     case 'confirmar-tarefa': {
       const leitura = await classificarPrompt(texto, io.classificar, state.conversa)
       if (leitura.tipo === 'task') return aplicar({ kind: 'submit', text: texto }, state, io)
-      for (const l of renderRecusa(texto, leitura.motivo, { color: io.color, width: io.largura() })) io.log(l)
-      return state
+      for (const l of renderPerguntaLida(leitura.motivo, { color: io.color, width: io.largura() })) io.log(l)
+      return aplicar({ kind: 'ask', text: texto }, state, io)
     }
     case 'modelo': {
       io.log(definirModelo(texto.trim().split(/\s+/).filter(Boolean)).mensagem)

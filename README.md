@@ -97,7 +97,7 @@ toda instrução virava `CORRECTING` e o motor haltava 2 segundos depois, em la�
 
 | Comando | O quê |
 |---|---|
-| *texto livre* | **lido por tipo**: pedido de mudança cria o card e mostra o plano; pergunta é recusada sem criar nada |
+| *texto livre* | **lido por tipo**: pedido de mudança cria o card e mostra o plano; pergunta é **respondida** sem criar nada |
 | `⏎` (enter) | aprova o plano pendente — e, dentro de uma tarefa, faz a ação que o estado pede |
 | `/new-task <mudança>` | cria a tarefa **direto**, sem a leitura de intenção |
 | `/new-ask <pergunta>` | **responde** lendo o projeto, sem criar card nem worktree |
@@ -131,14 +131,21 @@ O motor executa tarefas. Uma pergunta não tem lugar na fila, então a entrada �
 de gastar qualquer token — a checagem é local, **custo zero**:
 
 ```
-› tem acesso ao NTN da Podium para criar tarefas?
+› tem acesso ao ntn-cli? qual projeto esta configurado?
 
-  ? lido como pergunta  abre consultando — o verbo de acao adiante e finalidade
-    tem acesso ao NTN da Podium para criar tarefas?
+  ? lido como pergunta — respondendo sem criar card (abre consultando)
+  se era tarefa, use /new-task
+    consultando o ambiente e o projeto (leitura, sem alterar arquivo)…
+  Nao ha CLI do Notion instalada: notion, notion-cli, ntn e ntn-cli nao
+  aparecem no PATH. Os projetos registrados sao rafaelvpolan/hicode-site
+  e projects/podium/cashbarber2/.
 
-    nao criei card — pergunta — o hii executa tarefas, entao nao entra na fila
-    para virar tarefa, escreva o que mudar: "remove o selo beta do header"
+    (claude · US$0.0180)
 ```
+
+**Pergunta é respondida, não recusada.** Não é preciso prefixo: se o motor lê como `ask`, ele
+responde ali mesmo — sem card, sem worktree, sem pipeline. O `/new-ask` continua existindo para
+forçar a leitura, e `/new-task` para o contrário.
 
 A distinção que importa é entre **consulta** e **pedido**:
 

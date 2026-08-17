@@ -28,10 +28,17 @@ async function entrar(texto: string, conversa: { pergunta: string; resposta: str
   return { saida: saida.join(' '), criouCard: allCards().length > antes, state: d.state }
 }
 
-test('IO: pergunta sobre o ambiente nao cria card', async () => {
+test('IO: pergunta digitada direto e RESPONDIDA, sem criar card e sem exigir prefixo', async () => {
   const r = await entrar('tem acesso ao ntn-cli? qual projeto esta configurado?')
   expect(r.criouCard).toBe(false)
-  expect(r.saida).toContain('nao criei card')
+  expect(r.saida).toContain('lido como pergunta')
+  expect(r.saida).toContain('resposta fictícia')
+  expect(r.saida).toContain('/new-task')
+})
+
+test('IO: a pergunta respondida direto tambem entra na memoria da conversa', async () => {
+  const r = await entrar('qual modelo o gate usa?')
+  expect(r.state.conversa.length).toBe(1)
 })
 
 test('IO REGRESSAO: continuacao de conversa NAO vira tarefa', async () => {

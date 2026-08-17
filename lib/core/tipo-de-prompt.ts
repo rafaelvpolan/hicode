@@ -50,7 +50,7 @@ export interface LeituraDaEntrada {
 
 export const TIPOS: Record<TipoDePrompt, string> = {
   task: 'pedido de mudanca no projeto — vira card e roda o pipeline',
-  ask: 'pergunta — o hii executa tarefas, entao nao entra na fila',
+  ask: 'pergunta — respondida na hora, sem entrar na fila',
 }
 
 export function lerEntrada(bruto: string): LeituraDaEntrada {
