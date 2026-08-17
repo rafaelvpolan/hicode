@@ -1,9 +1,10 @@
-import { test, expect, afterAll, mock } from 'bun:test'
+import { test, expect, afterAll } from 'bun:test'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, chmodSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { GateResult } from '../lib/runner/codefox-gate'
+import type { FinishDeps } from '../lib/runner/finish'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-finishwait-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
@@ -37,17 +38,10 @@ writeFileSync(process.env.HICODE_REPOS_FILE, JSON.stringify([{ name: 'org/repo',
 
 const GATE_APROVADO: GateResult = { ok: true, verdict: 'APPROVED', reason: 'sem defeito real encontrado', questions: [], cost: 0.01, costMeasured: true, tokens: 100 }
 
-const realCodefoxGate = await import('../lib/runner/codefox-gate')
-mock.module('../lib/runner/codefox-gate', () => ({
-  ...realCodefoxGate,
-  runCodefoxGate: (): Promise<GateResult> => Promise.resolve(GATE_APROVADO),
-}))
-
-const realAgent = await import('../lib/runner/agent')
-mock.module('../lib/runner/agent', () => ({
-  ...realAgent,
+const agenteFinish: FinishDeps = {
   runStep: (): never => { throw new Error('nao deveria chamar runStep — steps: nada nao roda nenhum passo') },
-}))
+  runCodefoxGate: (): Promise<GateResult> => Promise.resolve(GATE_APROVADO),
+}
 
 const PR_FALSO = 'https://github.com/org/repo/pull/998'
 
@@ -93,7 +87,7 @@ test('REGRESSAO: finish bem-sucedido (PR_OPEN) limpa wait_attempts residual de u
   await realGit.ensureWorktree(clone, wt, branch, 'main')
   commitar(wt, 'mudanca.txt', 'conteudo\n', 'feat: mudanca')
 
-  await handleFinish(id)
+  await handleFinish(id, agenteFinish)
   const c = readCard(id)
   expect(c?.fm.status).toBe('PR_OPEN')
   expect(c?.fm.pr_url).toBe(PR_FALSO)

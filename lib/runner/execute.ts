@@ -18,6 +18,11 @@ import { warnBudgetWithoutGuarantee } from './cost-trust'
 import { applyFailurePolicy } from './failure-policy'
 import { quotaFallbackProviderFor } from '../ai/registry'
 
+export interface ExecuteDeps {
+  implement: typeof implement
+  verifyVisual: typeof verifyVisual
+}
+
 interface ExecuteSteps {
   Fila: StepMetric
   Executando: StepMetric
@@ -82,7 +87,7 @@ async function commitAndRecord(id: string, wt: string, card: Card, steps: Execut
   return { costSum, tokensTotal: rec.tokens_total }
 }
 
-export async function handleExecute(id: string): Promise<void> {
+export async function handleExecute(id: string, deps: ExecuteDeps = { implement, verifyVisual }): Promise<void> {
   const card = readCard(id)
   if (!card) return
   const baseCost = parseFloat(card.fm.cost_usd || '0') || 0
@@ -175,7 +180,7 @@ export async function handleExecute(id: string): Promise<void> {
   const shotPath = join(cardsDir(), 'previews', String(id), 'preview.png')
   const steps = initialSteps()
   const tx = Date.now()
-  const res = await implement(card, wt, '', surface.surface === 'visual')
+  const res = await deps.implement(card, wt, '', surface.surface === 'visual')
   steps.Executando.time += toSeconds(Date.now() - tx)
   steps.Executando.cost += parseFloat(res.cost) || 0
   steps.Executando.tokens += tokensOf(res.usage)
@@ -248,7 +253,7 @@ export async function handleExecute(id: string): Promise<void> {
     let vstate = 'inconclusivo'
     let vreason = `preview no ar — confira pelo link (inspecao automatica indisponivel${health.detail ? ': ' + health.detail : ''})`
     if (VISUAL_AI && health.ok) {
-      const v = await verifyVisual(card, shotPath)
+      const v = await deps.verifyVisual(card, shotPath)
       auxCost += v.cost || 0
       auxTokens += v.tokens || 0
       vstate = v.ok ? 'ok' : 'falhou'

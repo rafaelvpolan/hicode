@@ -1,9 +1,10 @@
-import { test, expect, afterAll, mock } from 'bun:test'
+import { test, expect, afterAll } from 'bun:test'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { ImplementResult } from '../lib/card'
+import type { ExecuteDeps } from '../lib/runner/execute'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-quotalock-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
@@ -38,17 +39,14 @@ writeFileSync(process.env.HICODE_REPOS_FILE, JSON.stringify([{ name: 'org/repo',
 
 let resultadoDoAgente: ImplementResult = { ok: false, reason: 'nao configurado', cost: '0', usage: { tokens_in: 0, tokens_out: 0, tokens_cache_create: 0, tokens_cache_read: 0 } }
 
-const realAgent = await import('../lib/runner/agent')
-mock.module('../lib/runner/agent', () => ({
-  ...realAgent,
-  implement: (): Promise<ImplementResult> => Promise.resolve(resultadoDoAgente),
-  verifyVisual: (): Promise<never> => Promise.reject(new Error('nao deveria chamar verifyVisual')),
-  runStep: (): never => { throw new Error('nao deveria chamar runStep') },
-}))
-
 const { createCard, readCard } = await import('../lib/runner/card-store')
 const { handleExecute } = await import('../lib/runner/execute')
 const { quotaFallbackLigado } = await import('../lib/runner/config')
+
+const agente: ExecuteDeps = {
+  implement: (): Promise<ImplementResult> => Promise.resolve(resultadoDoAgente),
+  verifyVisual: (): Promise<never> => Promise.reject(new Error('nao deveria chamar verifyVisual')),
+}
 
 afterAll(() => rmSync(BASE, { recursive: true, force: true }))
 
@@ -78,7 +76,7 @@ test('DECISAO DE PRODUTO: cota esgotada sem HICODE_QUOTA_FALLBACK=on para o card
   const wt = worktreeParaTeste()
   const id = cardExecutando(wt, 'tarefa que estoura cota sem a chave mestra ligada')
 
-  await handleExecute(id)
+  await handleExecute(id, agente)
 
   const card = readCard(id)
   expect(card?.fm.status).toBe('HALTED')

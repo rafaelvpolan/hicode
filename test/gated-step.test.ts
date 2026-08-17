@@ -1,9 +1,10 @@
-import { test, expect, afterAll, mock } from 'bun:test'
+import { test, expect, afterAll } from 'bun:test'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { GateResult } from '../lib/runner/codefox-gate'
 import type { StepResult } from '../lib/runner/agent'
+import type { GatedDeps } from '../lib/runner/gated'
 
 const CARDS = mkdtempSync(join(tmpdir(), 'hicode-gated-'))
 process.env.HICODE_CARDS_DIR = CARDS
@@ -25,23 +26,16 @@ function gate(over: Partial<GateResult>): GateResult {
   return { ok: true, verdict: 'APPROVED', reason: '', questions: [], cost: 0.02, costMeasured: true, tokens: 200, ...over }
 }
 
-const realAgent = await import('../lib/runner/agent')
-mock.module('../lib/runner/agent', () => ({
-  ...realAgent,
+const { createCard } = await import('../lib/runner/card-store')
+const { runGatedStep } = await import('../lib/runner/gated')
+
+const agente: GatedDeps = {
   runStep: (_wt: string, _agent: string, instruction: string): Promise<StepResult> => {
     stepCalls.push({ instrucao: instruction })
     return Promise.resolve(stepQueue.shift() ?? step({}))
   },
-}))
-
-const realCodefoxGate = await import('../lib/runner/codefox-gate')
-mock.module('../lib/runner/codefox-gate', () => ({
-  ...realCodefoxGate,
   runGatedReview: (): Promise<GateResult> => Promise.resolve(gateQueue.shift() ?? gate({})),
-}))
-
-const { createCard } = await import('../lib/runner/card-store')
-const { runGatedStep } = await import('../lib/runner/gated')
+}
 
 afterAll(() => rmSync(CARDS, { recursive: true, force: true }))
 
@@ -53,7 +47,7 @@ function reset(steps: StepResult[], gates: GateResult[]): string {
 }
 
 function run(id: string): Promise<{ ok: boolean; reason: string; metric: { cost: number; tokens: number } }> {
-  return runGatedStep(id, '/tmp/wt', 'main', 'rufus', 'melhore X', 'objetivo', 'Arquitetura')
+  return runGatedStep(id, '/tmp/wt', 'main', 'rufus', 'melhore X', 'objetivo', 'Arquitetura', agente)
 }
 
 test('agente ok + crivo aprova na primeira: passa sem retry', async () => {

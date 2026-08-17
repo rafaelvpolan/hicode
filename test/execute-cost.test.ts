@@ -1,9 +1,10 @@
-import { test, expect, afterAll, mock } from 'bun:test'
+import { test, expect, afterAll } from 'bun:test'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { ImplementResult } from '../lib/card'
+import type { ExecuteDeps } from '../lib/runner/execute'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-execcost-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
@@ -43,16 +44,13 @@ const IMPLEMENT_RESULT: ImplementResult = {
   usage: { tokens_in: 10, tokens_out: 20, tokens_cache_create: 0, tokens_cache_read: 0 },
 }
 
-const realAgent = await import('../lib/runner/agent')
-mock.module('../lib/runner/agent', () => ({
-  ...realAgent,
-  implement: (): Promise<ImplementResult> => Promise.resolve(IMPLEMENT_RESULT),
-  verifyVisual: (): Promise<never> => Promise.reject(new Error('nao deveria chamar verifyVisual')),
-  runStep: (): never => { throw new Error('nao deveria chamar runStep') },
-}))
-
 const { createCard, readCard } = await import('../lib/runner/card-store')
 const { handleExecute } = await import('../lib/runner/execute')
+
+const agente: ExecuteDeps = {
+  implement: (): Promise<ImplementResult> => Promise.resolve(IMPLEMENT_RESULT),
+  verifyVisual: (): Promise<never> => Promise.reject(new Error('nao deveria chamar verifyVisual')),
+}
 
 afterAll(() => rmSync(BASE, { recursive: true, force: true }))
 
@@ -77,7 +75,7 @@ function cardComCustoPrevio(): string {
 
 test('REGRESSAO: custo e tokens ACUMULAM sobre o que ja estava no card, nao sobrescrevem', async () => {
   const id = cardComCustoPrevio()
-  await handleExecute(id)
+  await handleExecute(id, agente)
   const card = readCard(id)
   expect(card?.fm.status).toBe('PREVIEW_OK')
   expect(card?.fm.cost_usd).toBe('1.2845')
@@ -93,7 +91,7 @@ test('card sem custo previo comeca a contar do zero (nao gera NaN)', async () =>
     clarified: 'true',
     worktree: worktreeParaTeste(),
   }, '## Objetivo\noutra coisa\n')
-  await handleExecute(id)
+  await handleExecute(id, agente)
   const card = readCard(id)
   expect(card?.fm.cost_usd).toBe('0.0500')
   expect(card?.fm.tokens_total).toBe('30')

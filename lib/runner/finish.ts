@@ -13,7 +13,7 @@ import { activeSteps } from './pipeline/config'
 import { planSteps } from './analyze'
 import { runGatedStep } from './gated'
 import { updateRunSteps } from './runs'
-import { runCodefoxGate, persistGate, buildPrBody, gateOutcome, gateHaltReason, withGateRetry } from './codefox-gate'
+import { runCodefoxGate, runGatedReview, persistGate, buildPrBody, gateOutcome, gateHaltReason, withGateRetry } from './codefox-gate'
 import { ensureContract } from '../contract/store'
 import { podeAbrirPr } from '../core/doctor'
 import { affectedPackage } from './commands'
@@ -23,6 +23,11 @@ import type { RunCtx } from './finish-gates'
 import { syncWithBase, revalidate } from './finish-sync'
 import { resumeStart, RESUME_POST_STEPS } from './finish-resume'
 import { runStep } from './agent'
+
+export interface FinishDeps {
+  runStep: typeof runStep
+  runCodefoxGate: typeof runCodefoxGate
+}
 
 async function commitAll(wt: string, message: string): Promise<void> {
   await stageAll(wt)
@@ -39,7 +44,7 @@ function pushFailureDiagnostico(push: PushResult): string {
   return `push falhou por um motivo que nao e non-fast-forward — reexecutar sozinho tende a repetir esta falha; confira autenticacao/permissao: ${push.detail}`
 }
 
-export async function handleFinish(id: string): Promise<void> {
+export async function handleFinish(id: string, deps: FinishDeps = { runStep, runCodefoxGate }): Promise<void> {
   const card = readCard(id)
   if (!card) return
   if (CARD_BUDGET_USD > 0 && (parseFloat(card.fm.cost_usd || '0') || 0) > CARD_BUDGET_USD) {
@@ -83,7 +88,7 @@ export async function handleFinish(id: string): Promise<void> {
     const instruction = step.instruction.replace('%s', desc ?? '')
     let r: { time: number; cost: number; costMeasured?: boolean; tokens: number; text: string }
     if (step.gated) {
-      const g = await runGatedStep(id, wt, base, step.agent, instruction, desc ?? '', step.label)
+      const g = await runGatedStep(id, wt, base, step.agent, instruction, desc ?? '', step.label, { runStep: deps.runStep, runGatedReview })
       r = { ...g.metric, text: g.text }
       if (!g.ok) {
         fsteps[step.label] = g.metric
@@ -103,7 +108,7 @@ export async function handleFinish(id: string): Promise<void> {
         return
       }
     } else {
-      const sr = await runStep(wt, step.agent, instruction, id)
+      const sr = await deps.runStep(wt, step.agent, instruction, id)
       if (!sr.ok) {
         fsteps[step.label] = { time: sr.time, cost: sr.cost, tokens: sr.tokens, costMeasured: sr.costMeasured }
         applyStepFailurePolicy(id, card, fsteps, {
@@ -120,26 +125,26 @@ export async function handleFinish(id: string): Promise<void> {
       r = { time: sr.time, cost: sr.cost, costMeasured: sr.costMeasured, tokens: sr.tokens, text: sr.text }
     }
     fsteps[step.label] = { time: r.time, cost: r.cost, tokens: r.tokens, costMeasured: r.costMeasured }
-    if (step.gate === 'test' && !(await testGate(id, wt, ctx, fsteps, step.label))) {
+    if (step.gate === 'test' && !(await testGate(id, wt, ctx, fsteps, step.label, deps.runStep))) {
       haltForInspection(id, card, fsteps, `${isoNow()} ${step.label}->HALTED testes falharam apos reajuste(s)`)
       return
     }
     patchCard(id, { status: step.state, wait_attempts: '' }, `${isoNow()} ${step.label} (${step.agent})${step.gated ? ' [crivo ok]' : ''}: ${r.text || 'ok'} (custo $${r.cost.toFixed(4)} · ${r.tokens} tokens)`)
     process.stdout.write(`[runner] #${id}: ${step.label} (${step.agent}) $${r.cost.toFixed(4)}\n`)
   }
-  if (!(await buildWithReajuste(id, wt, ctx, fsteps, 'Testes', 'Reajuste'))) {
+  if (!(await buildWithReajuste(id, wt, ctx, fsteps, 'Testes', 'Reajuste', deps.runStep))) {
     haltForInspection(id, card, fsteps, `${isoNow()} build->HALTED build falhou apos reajuste(s)`)
     return
   }
   await commitAll(wt, `chore: qualidade Nexus (#${id})`)
-  const sync = await syncWithBase(id, wt, base, desc ?? '', fsteps)
+  const sync = await syncWithBase(id, wt, base, desc ?? '', fsteps, deps.runStep)
   if (!sync.ok) {
     haltForInspection(id, card, fsteps, `${isoNow()} CLEANED->HALTED conflito com ${base} nao resolvido apos ${MAX_CONFLICT}x (precisa de voce)`)
     process.stdout.write(`[runner] #${id}: HALTED conflito com ${base}\n`)
     return
   }
   if (sync.changed) {
-    if (!(await buildWithReajuste(id, wt, ctx, fsteps, 'Conflito', 'Conflito'))) {
+    if (!(await buildWithReajuste(id, wt, ctx, fsteps, 'Conflito', 'Conflito', deps.runStep))) {
       haltForInspection(id, card, fsteps, `${isoNow()} CLEANED->HALTED build falhou apos merge com ${base}`)
       return
     }
@@ -151,7 +156,7 @@ export async function handleFinish(id: string): Promise<void> {
     return
   }
   const gate = await withGateRetry(
-    () => runCodefoxGate(wt, base, desc ?? '', id),
+    () => deps.runCodefoxGate(wt, base, desc ?? '', id),
     reason => patchCard(id, {}, `${isoNow()} codefox gate final: NAO EXECUTOU (${reason}) — repetindo antes de decidir`),
   )
   addMetric(fsteps, 'Codefox', { time: 0, cost: gate.cost, tokens: gate.tokens, costMeasured: gate.costMeasured })

@@ -1,9 +1,10 @@
-import { test, expect, afterAll, mock } from 'bun:test'
+import { test, expect, afterAll } from 'bun:test'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { ImplementResult } from '../lib/card'
+import type { CorrectDeps } from '../lib/runner/correct'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-correctwait-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
@@ -37,14 +38,14 @@ writeFileSync(process.env.HICODE_REPOS_FILE, JSON.stringify([{ name: 'org/repo',
 
 const SUCESSO: ImplementResult = { ok: true, resultText: 'refeito', fullText: 'refeito', cost: '0.0500', usage: { tokens_in: 10, tokens_out: 10, tokens_cache_create: 0, tokens_cache_read: 0 } }
 
-const realAgent = await import('../lib/runner/agent')
-mock.module('../lib/runner/agent', () => ({
-  ...realAgent,
-  implement: (): Promise<ImplementResult> => Promise.resolve(SUCESSO),
-}))
-
+const { runStep } = await import('../lib/runner/agent')
 const { createCard, readCard } = await import('../lib/runner/card-store')
 const { handleCorrect } = await import('../lib/runner/correct')
+
+const agente: CorrectDeps = {
+  implement: (): Promise<ImplementResult> => Promise.resolve(SUCESSO),
+  runStep,
+}
 
 afterAll(() => rmSync(BASE, { recursive: true, force: true }))
 
@@ -59,7 +60,7 @@ test('REGRESSAO: correcao bem-sucedida limpa wait_attempts residual de um incide
     wait_attempts: '3',
   }, '## Objetivo\nalgo\n')
 
-  await handleCorrect(id)
+  await handleCorrect(id, agente)
   const c = readCard(id)
   expect(c?.fm.status).toBe('PREVIEW')
   expect(c?.fm.wait_attempts).toBe('')
