@@ -15,6 +15,8 @@ export function getState(): StateResponse {
     updated: c.updated || '',
     desc: c.desc || '',
     cost_usd: c.cost_usd || '',
+    cost_floor: c.cost_floor || '',
+    cost_unverified: c.cost_unverified || '',
     tokens_total: c.tokens_total || '',
     verify: c.verify || '',
     revalidacao: c.revalidacao || '',
