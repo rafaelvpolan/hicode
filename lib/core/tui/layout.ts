@@ -141,3 +141,25 @@ export function renderFrame(f: FrameInput): Frame {
     cursorCol: (comMoldura ? 5 : 3) + visibleLen(f.prompt) + pos.coluna,
   }
 }
+
+export function quebrarEmLargura(texto: string, largura: number): string[] {
+  const alvo = Math.max(20, largura)
+  const saida: string[] = []
+  for (const bruta of texto.split('\n')) {
+    const linha = bruta.replace(/\s+$/, '')
+    if (visibleLen(linha) <= alvo) { saida.push(linha); continue }
+    const recuo = (linha.match(/^\s*/) ?? [''])[0]
+    let atual = recuo
+    for (const palavra of linha.trim().split(/\s+/)) {
+      const candidata = atual.trim() ? `${atual} ${palavra}` : `${recuo}${palavra}`
+      if (visibleLen(candidata) > alvo && atual.trim()) {
+        saida.push(atual)
+        atual = `${recuo}${palavra}`
+      } else {
+        atual = candidata
+      }
+    }
+    if (atual.trim()) saida.push(atual)
+  }
+  return saida
+}

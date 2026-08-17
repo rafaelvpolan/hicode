@@ -28,9 +28,12 @@ function semAcento(s: string): string {
 
 export type TipoDePrompt = 'task' | 'ask'
 
+export type Confianca = 'alta' | 'baixa'
+
 export interface LeituraDaEntrada {
   tipo: TipoDePrompt
   motivo: string
+  confianca: Confianca
 }
 
 export const TIPOS: Record<TipoDePrompt, string> = {
@@ -40,23 +43,23 @@ export const TIPOS: Record<TipoDePrompt, string> = {
 
 export function lerEntrada(bruto: string): LeituraDaEntrada {
   const texto = semAcento(bruto).trim()
-  if (!texto) return { tipo: 'ask', motivo: 'vazio' }
+  if (!texto) return { tipo: 'ask', motivo: 'vazio', confianca: 'alta' }
 
   const consulta = CONSULTA.test(texto) || CONSULTA_MEIO.test(texto)
   if (consulta) {
-    return { tipo: 'ask', motivo: 'abre consultando — o verbo de acao adiante e finalidade, nao pedido' }
+    return { tipo: 'ask', motivo: 'abre consultando — o verbo de acao adiante e finalidade, nao pedido', confianca: 'alta' }
   }
 
   const temAcao = ACAO.test(texto)
   if (PEDIDO.test(texto)) {
     return temAcao
-      ? { tipo: 'task', motivo: 'pedido com verbo de mudanca' }
-      : { tipo: 'ask', motivo: 'pedido sem verbo de mudanca — pergunta de viabilidade' }
+      ? { tipo: 'task', motivo: 'pedido com verbo de mudanca', confianca: 'alta' }
+      : { tipo: 'ask', motivo: 'pedido sem verbo de mudanca — pergunta de viabilidade', confianca: 'alta' }
   }
 
-  if (temAcao) return { tipo: 'task', motivo: 'tem verbo de mudanca' }
-  if (texto.endsWith('?')) return { tipo: 'ask', motivo: 'termina em interrogacao' }
-  return { tipo: 'task', motivo: 'relato de problema ou pedido direto' }
+  if (temAcao) return { tipo: 'task', motivo: 'tem verbo de mudanca', confianca: 'alta' }
+  if (texto.endsWith('?')) return { tipo: 'ask', motivo: 'termina em interrogacao', confianca: 'baixa' }
+  return { tipo: 'task', motivo: 'sem sinal claro — nem pergunta nem verbo de mudanca', confianca: 'baixa' }
 }
 
 export function pareceTarefa(bruto: string): boolean {

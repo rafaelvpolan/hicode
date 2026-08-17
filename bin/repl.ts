@@ -31,9 +31,9 @@ import { renderOpcoesRodape } from '../lib/core/render/clarify'
 import { renderSugestoes, prefixoComum } from '../lib/core/render/sugestoes'
 import { projetosConhecidos } from '../lib/core/projetos-conhecidos'
 import { itensDeAjuste, ordemDosAjustes, ciclarAjuste } from '../lib/core/ajustes'
-import { lerEntrada } from '../lib/core/tipo-de-prompt'
 import { renderRecusa } from '../lib/core/render/recusa'
-import { responderPergunta } from '../lib/runner/responder-pergunta'
+import { quebrarEmLargura } from '../lib/core/tui/layout'
+import { responderPergunta, classificarComIaLocal } from '../lib/runner/responder-pergunta'
 import { etiquetaDoProjeto, corDoProjeto, nomeCurto } from '../lib/core/render/projeto'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { renderCabecalhoTarefa, renderParada } from '../lib/core/render/tarefa'
@@ -534,11 +534,12 @@ function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void, repo
     largura: () => Math.max(40, (Number(process.stdout.columns) || 78) - 6),
     subirPreview,
     listarPreviews,
+    classificar: classificarComIaLocal,
     responder: async (pergunta) => {
       const alvo = repoPath(repo)
       const r = await responderPergunta(pergunta, alvo)
       if (!r.ok && !r.texto) return ['  nao consegui responder — a consulta falhou']
-      const corpo = r.texto.split('\n').map(l => `  ${l}`)
+      const corpo = quebrarEmLargura(r.texto, larguraUtil() - 2).map(l => `  ${l}`)
       const gasto = r.custo
         ? dim(`  (${r.provedor}${r.custoMedido ? '' : ', custo estimado'} · US$${r.custo.toFixed(4)})`)
         : dim(`  (${r.provedor})`)
@@ -568,16 +569,6 @@ async function tui(state0: SessionState): Promise<void> {
     state = next
     const diga = (s: string): void => app.log('  ' + s)
     if (effect.kind === 'quit') { sairPedido = true; return }
-    if (effect.kind === 'submit') {
-      if (state.perguntando) state = respondido(state)
-      if (!state.repo) return diga('sem projeto — /repo <owner/nome>')
-      const novoId = core.submit({ title: effect.text ?? '', repo: state.repo })
-      diga(`card #${novoId} criado`)
-      for (const l of planoDe(novoId).split('\n')) app.log(l)
-      state = planShown(state, novoId)
-      diga('enter aprova e enfileira · outra tarefa descarta')
-      return
-    }
     const r = await dispatch(effect, state, ioDo(app, diga, state.repo))
     state = r.state
     if (!r.tratado && effect.kind === 'board') {
@@ -710,13 +701,6 @@ async function main(): Promise<void> {
     if (effect.kind === 'reopen-repo') {
       state = { ...state, repo: await escolherProjeto(ask) }
       fleet(state)
-      continue
-    }
-    if (effect.kind === 'submit') {
-      if (!state.repo) { say(dim('  defina o repo-alvo primeiro: /repo <owner/nome>')); continue }
-      const novoId = core.submit({ title: effect.text ?? '', repo: state.repo })
-      say(dim(`  card #${novoId} criado`))
-      state = showPlan(novoId, state)
       continue
     }
     const passo = await dispatch(effect, state, ioDo({ log: (l) => say(l) }, (l) => say(dim('  ' + l)), state.repo))

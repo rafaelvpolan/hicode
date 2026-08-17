@@ -1,4 +1,12 @@
-import { test, expect } from 'bun:test'
+import { test, expect, beforeEach } from 'bun:test'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+beforeEach(() => {
+  process.env.HICODE_CARDS_DIR = mkdtempSync(join(tmpdir(), 'hicode-tipo-'))
+  delete process.env.HICODE_CLASSIFY
+})
 import { lerEntrada, pareceTarefa } from '../lib/core/tipo-de-prompt'
 
 const tarefa = pareceTarefa
@@ -159,4 +167,44 @@ test('os tres comandos novos estao no catalogo e no autocompletar', async () => 
     expect(lista, c).toContain(c)
     expect(AJUDA_DO_COMANDO[c], c).toBeTruthy()
   }
+})
+
+test('REGRESSAO texto de tarefa cria o card — nao cai em "bug do hii"', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const { dispatch } = await import('../lib/core/dispatch')
+  const { dispatchIOFalso } = await import('./fixtures/dispatch-io-falso')
+  const { allCards } = await import('../lib/runner/card-store')
+  const saida: string[] = []
+  const antes = allCards().length
+  const r = handle('estou me referindo a conexao com o notion', newSession('org/app'))
+  const d = await dispatch(r.effect, r.state, dispatchIOFalso({ log: (l) => { saida.push(l) } }))
+  const texto = saida.join(' ')
+  expect(texto).not.toContain('bug do hii')
+  expect(texto).not.toContain('sem tratamento')
+  expect(texto).toContain('criado')
+  expect(allCards().length).toBe(antes + 1)
+  expect(d.state.pendingPlan).toBeTruthy()
+})
+
+test('REGRESSAO o efeito submit tem dono no despachante', async () => {
+  const { dispatch } = await import('../lib/core/dispatch')
+  const { dispatchIOFalso } = await import('./fixtures/dispatch-io-falso')
+  const { newSession } = await import('../lib/core/session')
+  const saida: string[] = []
+  await dispatch({ kind: 'submit', text: 'remove o selo' }, newSession('org/app'),
+    dispatchIOFalso({ log: (l) => { saida.push(l) } }))
+  expect(saida.join(' ')).not.toContain('sem tratamento')
+})
+
+test('submit sem projeto avisa em vez de criar card orfao', async () => {
+  const { dispatch } = await import('../lib/core/dispatch')
+  const { dispatchIOFalso } = await import('./fixtures/dispatch-io-falso')
+  const { newSession } = await import('../lib/core/session')
+  const { allCards } = await import('../lib/runner/card-store')
+  const saida: string[] = []
+  const antes = allCards().length
+  await dispatch({ kind: 'submit', text: 'algo' }, newSession(''),
+    dispatchIOFalso({ log: (l) => { saida.push(l) } }))
+  expect(saida.join(' ')).toContain('sem projeto')
+  expect(allCards().length).toBe(antes)
 })

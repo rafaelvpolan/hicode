@@ -267,3 +267,34 @@ test('REGRESSAO nenhum teste pode depender do terminal de quem roda', () => {
   delete process.env.HICODE_HYPERLINKS
   Object.assign(process.env, guardado)
 })
+
+import { quebrarEmLargura } from '../lib/core/tui/layout'
+
+test('REGRESSAO resposta longa e QUEBRADA, nao truncada — nao come palavras', () => {
+  const t = 'Nao, NTN nao e uma integracao real do hicode — e uma string de exemplo usada so em README.md:90-112 e test/tipo-de-prompt.test.ts para ilustrar a distincao.'
+  const linhas = quebrarEmLargura(t, 60)
+  expect(linhas.length).toBeGreaterThan(1)
+  for (const l of linhas) expect(visibleLen(l)).toBeLessThanOrEqual(60)
+  expect(linhas.join(' ')).toBe(t)
+  expect(linhas.join('')).not.toContain('…')
+})
+
+test('quebra preserva as linhas que o modelo ja separou', () => {
+  expect(quebrarEmLargura('curta\noutra', 60)).toEqual(['curta', 'outra'])
+})
+
+test('quebra mantem o recuo de lista', () => {
+  const linhas = quebrarEmLargura('  - item bem longo que precisa quebrar em mais de uma linha aqui', 30)
+  expect(linhas.length).toBeGreaterThan(1)
+  expect(linhas.every(l => l.startsWith('  '))).toBe(true)
+})
+
+test('palavra maior que a largura nao entra em laco infinito', () => {
+  const linhas = quebrarEmLargura('x'.repeat(200), 40)
+  expect(linhas.length).toBe(1)
+  expect(linhas[0]?.length).toBe(200)
+})
+
+test('texto vazio nao gera linha fantasma', () => {
+  expect(quebrarEmLargura('', 40)).toEqual([''])
+})

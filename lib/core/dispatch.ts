@@ -13,7 +13,7 @@ import { instruir } from './instruir'
 import { renderHelp } from './render/help'
 import { esperandoVoce } from './render/rodape'
 import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao } from './session'
-import { lerEntrada } from './tipo-de-prompt'
+import { classificarPrompt } from './classificar'
 import { renderRecusa } from './render/recusa'
 import type { Effect, SessionState } from './session'
 
@@ -25,6 +25,7 @@ export interface DispatchIO {
   subirPreview: (id: string) => Promise<string>
   listarPreviews: (limpar: boolean) => Promise<string[]>
   responder: (pergunta: string) => Promise<string[]>
+  classificar?: (prompt: string) => Promise<string>
   plano: (id: string) => Promise<string[]>
   atividade: (id: string) => string[]
 }
@@ -208,8 +209,18 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       io.log(r ? `#${id} retomado — segue de onde parou` : `nao consegui retomar #${id}`)
       return state
     }
+    case 'submit': {
+      if (!texto.trim()) { io.log('nada para criar'); return state }
+      if (!state.repo) { io.log('sem projeto — /repo <owner/nome>'); return state }
+      const base = state.perguntando ? respondido(state) : state
+      const novoId = core.submit({ title: texto, repo: base.repo })
+      io.log(`card #${novoId} criado`)
+      for (const l of await io.plano(novoId)) io.log(l)
+      io.log('enter aprova e enfileira · outra tarefa descarta')
+      return planShown(base, novoId)
+    }
     case 'confirmar-tarefa': {
-      const leitura = lerEntrada(texto)
+      const leitura = await classificarPrompt(texto, io.classificar)
       if (leitura.tipo === 'task') return aplicar({ kind: 'submit', text: texto }, state, io)
       for (const l of renderRecusa(texto, leitura.motivo, { color: io.color, width: io.largura() })) io.log(l)
       return state

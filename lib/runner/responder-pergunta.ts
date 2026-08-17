@@ -52,3 +52,20 @@ export async function responderPergunta(pergunta: string, alvo: string): Promise
     provedor: provider.name,
   }
 }
+
+export async function classificarComIaLocal(prompt: string): Promise<string> {
+  const nome = process.env.HICODE_CLASSIFY_PROVIDER
+  const provider = nome === 'ollama' || nome === 'codex' || nome === 'claude'
+    ? providerFor('verify', nome)
+    : providerFor('verify')
+  const res = await runProvider('', provider, {
+    prompt,
+    cwd: ROOT,
+    dirs: [],
+    mode: 'readonly',
+    useAgents: false,
+    model: process.env.HICODE_CLASSIFY_MODEL || undefined,
+    timeoutMs: Number(process.env.HICODE_CLASSIFY_TIMEOUT_MS || 15000),
+  })
+  return res.text || ''
+}
