@@ -880,14 +880,36 @@ reparo apenas o limita.**
 
 ## 16. Incrementos
 
-**0 — Os quatro críticos (antes de tudo).** Não fazem parte do escopo de desenho de D1: são
-correções pontuais, independem do resto, e três delas são pré-condição de segurança para deixar o
-motor mais autônomo.
+**0 — Os quatro críticos (antes de tudo). ✅ CONCLUÍDO em 16/08/2026.** Não faziam parte do escopo de
+desenho de D1: eram correções pontuais, independiam do resto, e três delas eram pré-condição de
+segurança para deixar o motor mais autônomo.
 
-- gate final fail-closed (§2.3.1) — sem isso o §8 inteiro é decorativo;
-- custo cego (§2.2) — orçamento cego é orçamento inexistente;
-- `patchCard` atômico + lock de instância no `runner.ts` (§2.4);
-- SSRF por redirect em `refs.ts` (§2.4), com teste — a defesa hoje não tem cobertura.
+- ~~gate final fail-closed (§2.3.1)~~ — **já estava resolvido** quando este documento foi auditado
+  contra o `main`: `gateOutcome` (`codefox-gate.ts:161`) faz `if (!gate.ok) return 'halt'`, e
+  `withGateRetry` repete antes de decidir. Entrou pelo PR #13;
+- ~~`patchCard` atômico (§2.4)~~ — **idem**: `updateCard` (`card-store.ts`) já usa `withFileLock` +
+  `writeFileAtomic`. Entrou pelo PR #13;
+- ~~custo cego (§2.2)~~ — PR #14. `codex` e `ollama` deixaram de devolver `cost: 0`
+  incondicionalmente; `AgentResult` ganhou `costMeasured`, e o card distingue `cost_unverified` (a
+  chamada não reportou) de `cost_floor` (gastou e morreu antes de reportar). O teto passou a se
+  recusar a dar garantia que não tem;
+- ~~lock de instância no `runner.ts` (§2.4)~~ — PR #14. Saiu do `runner-daemon.sh` e passou para
+  dentro do `runner.ts`, no único ponto por onde todo caminho que despacha job passa, com aquisição
+  por criação exclusiva e retomada de lock órfão;
+- ~~SSRF por redirect em `refs.ts` (§2.4)~~ — PR #14. O `-L` saiu, o host passou a ser validado **a
+  cada salto** e pelo **endereço resolvido**, não pelo nome — `localtest.me` é um hostname público
+  real que resolve para `::1` e furava a blocklist inteira. O endereço aprovado é fixado com
+  `--resolve`. Cobertura: `refs-redirect`, `refs-dns-guard`, `refs-teto-tamanho`,
+  `refs-resposta-de-erro`.
+
+Dois achados colaterais que o incremento produziu e que não estavam previstos aqui: o
+`--max-filesize` não valia para resposta sem `Content-Length` (300 MB em `chunked` eram gravados com
+exit 0), e resposta HTTP ≥ 400 virava "imagem de referência" entregue ao modelo com visão. Os dois
+foram fechados no mesmo PR.
+
+> **Nota de método.** Os dois primeiros itens desta lista já estavam feitos quando o trabalho começou.
+> Auditar o `main` antes de executar o plano custou minutos e evitou reescrever código correto — vale
+> como precondição de qualquer incremento seguinte deste documento.
 
 **1 — Curadoria de contexto + cache do prefixo.** §7.6. Depende do contrato para o prefixo estável,
 mas a curadoria do histórico de tentativas (`correct.ts:57-61`) já rende sozinha e é barata.
