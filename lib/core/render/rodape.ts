@@ -16,6 +16,7 @@ export interface Propriedades {
   effort: string
   projeto: string
   custoHoje: string
+  pisoDoGasto: string
   divergentes: string[]
 }
 
@@ -56,6 +57,16 @@ export function quadroDoGiro(now: number): string {
   return GIRO[Math.floor(now / 120) % GIRO.length] ?? GIRO[0] ?? '⠋'
 }
 
+function gastoDoDia(p: Propriedades, o: RodapeOptions): string {
+  if (!p.custoHoje) return ''
+  return `gasto ${paint(`${p.pisoDoGasto ? '≥ ' : ''}US$${p.custoHoje}`, CYAN, o)}`
+}
+
+function motivoDoPiso(p: Propriedades, o: RodapeOptions): string {
+  if (!p.custoHoje || !p.pisoDoGasto) return ''
+  return paint(` · piso: ${p.pisoDoGasto} sem reporte de gasto`, YELLOW, o)
+}
+
 export function linhaPropriedades(p: Propriedades, opts: Partial<RodapeOptions> = {}): string {
   const o = { ...PADRAO, ...opts }
   const ia = p.modelo ? `${p.provedor}/${p.modelo}` : p.provedor
@@ -63,9 +74,9 @@ export function linhaPropriedades(p: Propriedades, opts: Partial<RodapeOptions> 
     `ia ${paint(ia, CYAN, o)}`,
     `esforco ${paint(p.effort, CYAN, o)}`,
     p.projeto ? `projeto ${paint(p.projeto, CYAN, o)}` : '',
-    p.custoHoje ? `gasto ${paint(`US$${p.custoHoje}`, CYAN, o)}` : '',
+    gastoDoDia(p, o),
   ].filter(Boolean)
-  const base = paint(partes.join(paint(' · ', DIM, o)), DIM, o)
+  const base = paint(partes.join(paint(' · ', DIM, o)), DIM, o) + motivoDoPiso(p, o)
   if (!p.divergentes.length) return base
   return `${base}${paint(`  (${p.divergentes.join(' · ')})`, YELLOW, o)}`
 }

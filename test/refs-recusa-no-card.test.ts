@@ -1,5 +1,4 @@
 import { test, expect, afterAll } from 'bun:test'
-import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -18,6 +17,8 @@ const METADADOS = 'http://169.254.169.254/latest/meta-data/iam/security-credenti
 const SUMIDO = 'https://nao-existe-mesmo.invalid/ref.png'
 const SEM_ESQUEMA = 'www.figma.com/mockup.png'
 const MAIUSCULA = 'HTTPS://CDN.NAO-EXISTE-MESMO.INVALID/logo.png'
+const IP_DE_TESTE = '192.0.2.7'
+const CURL_REAL = Bun.which('curl') ?? '/usr/bin/curl'
 
 mkdirSync(join(CARDS, 'refs'), { recursive: true })
 mkdirSync(WT, { recursive: true })
@@ -30,6 +31,14 @@ writeFileSync(join(BIN, 'claude'), [
   '',
 ].join('\n'))
 chmodSync(join(BIN, 'claude'), 0o755)
+writeFileSync(join(BIN, 'curl'), [
+  '#!/usr/bin/env bash',
+  'args=()',
+  `for a in "$@"; do args+=("\${a//${IP_DE_TESTE}/127.0.0.1}"); done`,
+  `exec ${CURL_REAL} "\${args[@]}"`,
+  '',
+].join('\n'))
+chmodSync(join(BIN, 'curl'), 0o755)
 writeFileSync(IMPLEMENTA, [
   `import { implement } from ${JSON.stringify(join(REPO, 'lib', 'runner', 'agent'))}`,
   `import { readCard } from ${JSON.stringify(join(REPO, 'lib', 'runner', 'card-store'))}`,
@@ -89,21 +98,32 @@ interface SaidaImplement {
   provider: string
 }
 
-function implementar(id: string): SaidaImplement {
-  const r = spawnSync('bun', [IMPLEMENTA, id, WT], {
+async function implementar(id: string): Promise<SaidaImplement> {
+  const p = Bun.spawn(['bun', IMPLEMENTA, id, WT], {
     cwd: REPO,
     env: { ...process.env, PATH: `${BIN}:${process.env.PATH ?? ''}`, ...AMBIENTE },
-    encoding: 'utf8',
+    stdout: 'pipe',
+    stderr: 'pipe',
     timeout: 60000,
   })
-  if (r.status !== 0) throw new Error(`implement falhou (${r.status}): ${String(r.stderr)}`)
-  return JSON.parse(String(r.stdout).trim()) as SaidaImplement
+  const [saida, erro] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text()])
+  await p.exited
+  if (p.exitCode !== 0) throw new Error(`implement falhou (${p.exitCode}): ${erro}`)
+  return JSON.parse(saida.trim()) as SaidaImplement
 }
 
-test('REGRESSAO: SSRF bloqueado nao some na fronteira — o card diz qual referencia foi recusada e por que', () => {
+function servidorLocal(status: number, corpo: string | null): ReturnType<typeof Bun.serve> {
+  return Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    fetch: (): Response => new Response(corpo, { status, headers: { 'content-type': 'image/png' } }),
+  })
+}
+
+test('REGRESSAO: SSRF bloqueado nao some na fronteira — o card diz qual referencia foi recusada e por que', async () => {
   const id = cardComRefs('trocar o hero da home', [METADADOS])
 
-  const r = implementar(id)
+  const r = await implementar(id)
 
   expect(r.ok).toBe(true)
   expect(r.provider).toBe('claude')
@@ -114,10 +134,10 @@ test('REGRESSAO: SSRF bloqueado nao some na fronteira — o card diz qual refere
   expect(body).toContain('implementando sem ela')
 }, 90000)
 
-test('REGRESSAO: recusa transitoria por DNS tambem vira linha no card, com o motivo tipado', () => {
+test('REGRESSAO: recusa transitoria por DNS tambem vira linha no card, com o motivo tipado', async () => {
   const id = cardComRefs('ajustar o rodape', [SUMIDO])
 
-  expect(implementar(id).ok).toBe(true)
+  expect((await implementar(id)).ok).toBe(true)
 
   const body = cardDe(id).body
   expect(body).toContain('referencia recusada')
@@ -125,22 +145,22 @@ test('REGRESSAO: recusa transitoria por DNS tambem vira linha no card, com o mot
   expect(body).toContain('nao-existe-mesmo.invalid')
 }, 90000)
 
-test('uma linha por fonte recusada: a legitima passa e nao gera ruido', () => {
+test('uma linha por fonte recusada: a legitima passa e nao gera ruido', async () => {
   const id = cardComRefs('refazer o menu', [])
   const local = refLocal(id)
   writeFileSync(join(CARDS, 'refs', `${id}.json`), JSON.stringify([METADADOS, local, SUMIDO]))
 
-  expect(implementar(id).ok).toBe(true)
+  expect((await implementar(id)).ok).toBe(true)
 
   const body = cardDe(id).body
   expect(body.split('referencia recusada').length - 1).toBe(2)
   expect(body).not.toContain('mockup.png (')
 }, 90000)
 
-test('REGRESSAO: fonte sem esquema nao some antes do card — o corpo diz que falta o http(s)', () => {
+test('REGRESSAO: fonte sem esquema nao some antes do card — o corpo diz que falta o http(s)', async () => {
   const id = cardComRefs('trocar o mockup do hero', [SEM_ESQUEMA])
 
-  expect(implementar(id).ok).toBe(true)
+  expect((await implementar(id)).ok).toBe(true)
 
   const body = cardDe(id).body
   expect(body).toContain('referencia recusada')
@@ -149,10 +169,10 @@ test('REGRESSAO: fonte sem esquema nao some antes do card — o corpo diz que fa
   expect(body).toContain('https://')
 }, 90000)
 
-test('REGRESSAO: fonte com esquema em MAIUSCULA vira recusa no card em vez de sumir na fronteira', () => {
+test('REGRESSAO: fonte com esquema em MAIUSCULA vira recusa no card em vez de sumir na fronteira', async () => {
   const id = cardComRefs('ajustar o banner', [MAIUSCULA])
 
-  expect(implementar(id).ok).toBe(true)
+  expect((await implementar(id)).ok).toBe(true)
 
   const body = cardDe(id).body
   expect(body).toContain('referencia recusada')
@@ -161,11 +181,49 @@ test('REGRESSAO: fonte com esquema em MAIUSCULA vira recusa no card em vez de su
   expect(body).toContain('cdn.nao-existe-mesmo.invalid')
 }, 90000)
 
-test('card sem fonte recusada nao ganha linha nenhuma (sem alarme falso)', () => {
+test('card sem fonte recusada nao ganha linha nenhuma (sem alarme falso)', async () => {
   const id = cardComRefs('mexer no cabecalho', [])
   writeFileSync(join(CARDS, 'refs', `${id}.json`), JSON.stringify([refLocal(id)]))
 
-  expect(implementar(id).ok).toBe(true)
+  expect((await implementar(id)).ok).toBe(true)
 
   expect(cardDe(id).body).not.toContain('referencia recusada')
+}, 90000)
+
+test('REGRESSAO: 404 do servidor da referencia chega ao card como resposta-de-erro, nao vira imagem', async () => {
+  const s = servidorLocal(404, '<html>404 Not Found — nginx</html>')
+  try {
+    const fonte = `http://${IP_DE_TESTE}:${s.port}/ref.png`
+    const id = cardComRefs('trocar a arte do hero', [fonte])
+
+    expect((await implementar(id)).ok).toBe(true)
+
+    const body = cardDe(id).body
+    expect(body).toContain('referencia recusada')
+    expect(body).toContain('resposta-de-erro')
+    expect(body).toContain('HTTP 404')
+    expect(body).toContain(fonte)
+    expect(body).toContain('implementando sem ela')
+  } finally {
+    s.stop(true)
+  }
+}, 90000)
+
+test('REGRESSAO: 200 com corpo de 0 bytes chega ao card como resposta-vazia, com motivo proprio', async () => {
+  const s = servidorLocal(200, null)
+  try {
+    const fonte = `http://${IP_DE_TESTE}:${s.port}/ref.png`
+    const id = cardComRefs('trocar o mockup do menu', [fonte])
+
+    expect((await implementar(id)).ok).toBe(true)
+
+    const body = cardDe(id).body
+    expect(body).toContain('referencia recusada')
+    expect(body).toContain('resposta-vazia')
+    expect(body).toContain('0 bytes')
+    expect(body).toContain(fonte)
+    expect(body).not.toContain('resposta-de-erro')
+  } finally {
+    s.stop(true)
+  }
 }, 90000)

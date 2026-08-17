@@ -1,13 +1,12 @@
-const IPV4_TEXT = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+import { ipv4Octets } from './ipv4'
+
 const HEXTET = /^[0-9a-f]{1,4}$/
 const GROUPS = 8
 const MAPPED_MARKER = 0xffff
 
 function ipv4AsHextets(part: string): number[] | null {
-  const m = IPV4_TEXT.exec(part)
-  if (!m) return null
-  const octets = m.slice(1).map(Number)
-  if (octets.some(n => n > 255)) return null
+  const octets = ipv4Octets(part)
+  if (!octets) return null
   return [((octets[0] ?? 0) << 8) | (octets[1] ?? 0), ((octets[2] ?? 0) << 8) | (octets[3] ?? 0)]
 }
 
@@ -52,16 +51,20 @@ function ipv4EmbeddedInIpv6(groups: number[]): string {
 }
 
 function isPrivateIpv4(h: string): boolean {
-  if (h === '0.0.0.0') return true
-  if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h)) return true
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true
-  if (/^169\.254\./.test(h)) return true
-  return /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(h)
+  const octets = ipv4Octets(h)
+  if (!octets) return false
+  const [a = 0, b = 0] = octets
+  if (octets.every(n => n === 0)) return true
+  if (a === 127 || a === 10) return true
+  if (a === 192 && b === 168) return true
+  if (a === 172 && b >= 16 && b <= 31) return true
+  if (a === 169 && b === 254) return true
+  return a === 100 && b >= 64 && b <= 127
 }
 
 function isPrivateIpv6(h: string): boolean {
   const groups = ipv6Groups(h)
-  if (!groups) return /^(fe80|fc00|fd)/.test(h)
+  if (!groups) return h.includes(':') && /^(fe80|fc00|fd)/.test(h)
   if (groups.every(g => g === 0)) return true
   if (groups.slice(0, 7).every(g => g === 0) && groups[7] === 1) return true
   const first = groups[0] ?? 0

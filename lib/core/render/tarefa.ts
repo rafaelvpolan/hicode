@@ -1,5 +1,6 @@
 import { truncVisible, padVisible } from '../tui/layout'
 import { estadoDoPreview } from '../preview-estado'
+import { floorProviders, formatProviders } from '../../runner/cost-gap'
 import type { Card } from '../../card'
 
 const RESET = '\x1b[0m'
@@ -56,8 +57,10 @@ export function renderCabecalhoTarefa(card: Card, opts: Partial<TarefaOptions> =
 
   const custo = parseFloat(String(fm.cost_usd ?? '0')) || 0
   const tokens = Number(fm.tokens_total ?? 0)
-  const gasto = [custo ? `US$${custo.toFixed(2)}` : '', tokens ? `${Math.round(tokens / 1000)}k tokens` : ''].filter(Boolean)
+  const piso = formatProviders(floorProviders(fm))
+  const gasto = [custo || piso ? `${piso ? '≥ ' : ''}US$${custo.toFixed(2)}` : '', tokens ? `${Math.round(tokens / 1000)}k tokens` : ''].filter(Boolean)
   if (gasto.length) out.push(campo('gasto', paint(gasto.join(' · '), DIM, o), o))
+  if (piso) out.push(campo('', paint(`piso: ${piso} sem reporte de gasto`, YELLOW, o), o))
 
   out.push('')
   out.push(`  ${paint('escreva para mandar mais instrucoes nesta tarefa', YELLOW, o)}${paint('  ·  /board volta', DIM, o)}`)
@@ -68,16 +71,19 @@ export function renderCabecalhoTarefa(card: Card, opts: Partial<TarefaOptions> =
 export interface ParadaOptions {
   color: boolean
   width: number
-  gasto: string
+  custo: string
+  pisoDoGasto: string
 }
 
 export function renderParada(id: string, opts: Partial<ParadaOptions> = {}): string[] {
-  const o = { ...PADRAO, ...opts, gasto: opts.gasto ?? '' }
+  const o = { ...PADRAO, ...opts, custo: opts.custo ?? '', pisoDoGasto: opts.pisoDoGasto ?? '' }
+  const piso = o.pisoDoGasto
   const linha = (tecla: string, texto: string): string =>
     `    ${paint(padVisible(tecla, 10), CYAN, o)}${paint(texto, DIM, o)}`
   return [
     '',
-    `  ${paint(`#${id} parado`, YELLOW, o)}${o.gasto ? paint(`  ${o.gasto} ate aqui`, DIM, o) : ''}`,
+    `  ${paint(`#${id} parado`, YELLOW, o)}${o.custo ? paint(`  ${piso ? '≥ ' : ''}US$${o.custo} ate aqui`, DIM, o) : ''}`,
+    ...(piso ? [paint(`  piso: ${piso} sem reporte de gasto`, YELLOW, o)] : []),
     '',
     linha('enter', 'retoma de onde parou'),
     linha(`/rm ${Number(id)}`, 'apaga a tarefa e limpa o worktree'),

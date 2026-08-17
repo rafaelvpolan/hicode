@@ -1,9 +1,10 @@
-import { test, expect, afterAll, mock } from 'bun:test'
+import { test, expect, afterAll } from 'bun:test'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, chmodSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { GateResult } from '../lib/runner/codefox-gate'
+import type { FinishDeps } from '../lib/runner/finish'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-pushedsha-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
@@ -37,17 +38,10 @@ writeFileSync(process.env.HICODE_REPOS_FILE, JSON.stringify([{ name: 'org/repo',
 
 const GATE_APROVADO: GateResult = { ok: true, verdict: 'APPROVED', reason: 'sem defeito real encontrado', questions: [], cost: 0.01, costMeasured: true, tokens: 100 }
 
-const realCodefoxGate = await import('../lib/runner/codefox-gate')
-mock.module('../lib/runner/codefox-gate', () => ({
-  ...realCodefoxGate,
-  runCodefoxGate: (): Promise<GateResult> => Promise.resolve(GATE_APROVADO),
-}))
-
-const realAgent = await import('../lib/runner/agent')
-mock.module('../lib/runner/agent', () => ({
-  ...realAgent,
+const agenteFinish: FinishDeps = {
   runStep: (): never => { throw new Error('nao deveria chamar runStep — steps: nada nao roda nenhum passo') },
-}))
+  runCodefoxGate: (): Promise<GateResult> => Promise.resolve(GATE_APROVADO),
+}
 
 const PR_FALSO = 'https://github.com/org/repo/pull/999'
 
@@ -98,7 +92,7 @@ test('REGRESSAO: pushed_sha gravado pelo push anterior DESTE card ancora o push 
   await realGit.ensureWorktree(clone, wt, branch, 'main')
   commitar(wt, 'mudanca1.txt', 'primeira tentativa\n', 'feat: primeira tentativa')
 
-  await handleFinish(id)
+  await handleFinish(id, agenteFinish)
   const apos1 = readCard(id)
   expect(apos1?.fm.status).toBe('PR_OPEN')
   expect(apos1?.fm.pr_url).toBe(PR_FALSO)
@@ -112,7 +106,7 @@ test('REGRESSAO: pushed_sha gravado pelo push anterior DESTE card ancora o push 
   commitar(wt, 'mudanca2.txt', 'segunda tentativa (worktree recriado do zero em cima da base)\n', 'feat: segunda tentativa')
   patchCard(id, { status: 'PREVIEW_OK' }, 'retomado pelo humano (teste) — worktree foi recriado do zero pela reexecucao')
 
-  await handleFinish(id)
+  await handleFinish(id, agenteFinish)
   const apos2 = readCard(id)
   expect(apos2?.fm.status).toBe('PR_OPEN')
   expect(apos2?.fm.cost_usd).toBe('0.0200')

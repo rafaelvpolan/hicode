@@ -1,10 +1,12 @@
-import { test, expect, afterAll, mock } from 'bun:test'
+import { test, expect, afterAll } from 'bun:test'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { GateResult } from '../lib/runner/codefox-gate'
 import type { ImplementResult } from '../lib/card'
+import type { ExecuteDeps } from '../lib/runner/execute'
+import type { FinishDeps } from '../lib/runner/finish'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-finishcost-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
@@ -41,28 +43,24 @@ let implementCalls = 0
 const FALHA: ImplementResult = { ok: false, reason: 'falha simulada (transiente)', cost: '0.1000', usage: { tokens_in: 40, tokens_out: 60, tokens_cache_create: 0, tokens_cache_read: 0 } }
 const SUCESSO: ImplementResult = { ok: true, resultText: 'mudou algo', fullText: 'mudou algo', cost: '0.2500', usage: { tokens_in: 70, tokens_out: 130, tokens_cache_create: 0, tokens_cache_read: 0 } }
 
-const realAgent = await import('../lib/runner/agent')
-mock.module('../lib/runner/agent', () => ({
-  ...realAgent,
+const GATE_BLOCKED: GateResult = { ok: true, verdict: 'BLOCKED', reason: 'defeito real encontrado pelo crivo', questions: [], cost: 0.05, costMeasured: true, tokens: 500 }
+
+const { createCard, readCard, patchCard } = await import('../lib/runner/card-store')
+const { handleExecute } = await import('../lib/runner/execute')
+const { handleFinish } = await import('../lib/runner/finish')
+
+const agenteExecute: ExecuteDeps = {
   implement: (): Promise<ImplementResult> => {
     implementCalls++
     return Promise.resolve(implementCalls === 1 ? FALHA : SUCESSO)
   },
   verifyVisual: (): Promise<never> => Promise.reject(new Error('nao deveria chamar verifyVisual')),
+}
+
+const agenteFinish: FinishDeps = {
   runStep: (): never => { throw new Error('nao deveria chamar runStep — steps: nada nao roda nenhum passo') },
-}))
-
-const GATE_BLOCKED: GateResult = { ok: true, verdict: 'BLOCKED', reason: 'defeito real encontrado pelo crivo', questions: [], cost: 0.05, costMeasured: true, tokens: 500 }
-
-const realCodefoxGate = await import('../lib/runner/codefox-gate')
-mock.module('../lib/runner/codefox-gate', () => ({
-  ...realCodefoxGate,
   runCodefoxGate: (): Promise<GateResult> => Promise.resolve(GATE_BLOCKED),
-}))
-
-const { createCard, readCard, patchCard } = await import('../lib/runner/card-store')
-const { handleExecute } = await import('../lib/runner/execute')
-const { handleFinish } = await import('../lib/runner/finish')
+}
 
 afterAll(() => rmSync(BASE, { recursive: true, force: true }))
 
@@ -84,21 +82,21 @@ test('REGRESSAO: custo do card NUNCA decresce ao longo de execute->halt->resume-
     worktree: wt,
   }, '## Objetivo\najustar o rodape\n')
 
-  await handleExecute(id)
+  await handleExecute(id, agenteExecute)
   const apos1aFalha = readCard(id)
   expect(apos1aFalha?.fm.status).toBe('HALTED')
   expect(apos1aFalha?.fm.cost_usd).toBe('0.1000')
   expect(apos1aFalha?.fm.tokens_total).toBe('100')
 
   patchCard(id, { status: 'EXECUTING' }, 'retomado pelo humano (teste)')
-  await handleExecute(id)
+  await handleExecute(id, agenteExecute)
   const apos2aExecucao = readCard(id)
   expect(apos2aExecucao?.fm.status).toBe('PREVIEW_OK')
   expect(apos2aExecucao?.fm.cost_usd).toBe('0.3500')
   expect(apos2aExecucao?.fm.tokens_total).toBe('300')
   expect(parseFloat(apos2aExecucao?.fm.cost_usd ?? '0')).toBeGreaterThanOrEqual(parseFloat(apos1aFalha?.fm.cost_usd ?? '0'))
 
-  await handleFinish(id)
+  await handleFinish(id, agenteFinish)
   const apos3oGateBloqueado = readCard(id)
   expect(apos3oGateBloqueado?.fm.status).toBe('HALTED')
   expect(apos3oGateBloqueado?.fm.cost_usd).toBe('0.4000')

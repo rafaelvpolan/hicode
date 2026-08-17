@@ -229,7 +229,9 @@ test('REGRESSAO: dois "start" concorrentes deixam UM motor vivo e o PID-file apo
 
   expect(novos.length).toBe(1)
   expect(existsSync(pidfile)).toBe(true)
-  expect(Number(readFileSync(pidfile, 'utf8').trim())).toBe(novos[0])
+  const vencedor = novos[0]
+  if (vencedor === undefined) throw new Error('nenhum motor novo subiu')
+  expect(Number(readFileSync(pidfile, 'utf8').trim())).toBe(vencedor)
 
   expect(daemon('stop', 'corrida').status).toBe(0)
   expect(motoresNaRaiz().filter(pid => !antes.includes(pid)).length).toBe(0)

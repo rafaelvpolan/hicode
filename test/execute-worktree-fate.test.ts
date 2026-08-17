@@ -1,9 +1,10 @@
-import { beforeEach, test, expect, afterAll, mock } from 'bun:test'
+import { beforeEach, test, expect, afterAll } from 'bun:test'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type { ImplementResult } from '../lib/card'
+import type { ExecuteDeps } from '../lib/runner/execute'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-wtfate-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
@@ -38,17 +39,14 @@ writeFileSync(process.env.HICODE_REPOS_FILE, JSON.stringify([{ name: 'org/repo',
 
 let resultadoDoAgente: ImplementResult = { ok: false, reason: 'nao configurado', cost: '0', usage: { tokens_in: 0, tokens_out: 0, tokens_cache_create: 0, tokens_cache_read: 0 } }
 
-const realAgent = await import('../lib/runner/agent')
-mock.module('../lib/runner/agent', () => ({
-  ...realAgent,
-  implement: (): Promise<ImplementResult> => Promise.resolve(resultadoDoAgente),
-  verifyVisual: (): Promise<never> => Promise.reject(new Error('nao deveria chamar verifyVisual')),
-  runStep: (): never => { throw new Error('nao deveria chamar runStep') },
-}))
-
 const { createCard, readCard, patchCard } = await import('../lib/runner/card-store')
 const { handleExecute } = await import('../lib/runner/execute')
 const { maxWaitingAttempts } = await import('../lib/runner/config')
+
+const agente: ExecuteDeps = {
+  implement: (): Promise<ImplementResult> => Promise.resolve(resultadoDoAgente),
+  verifyVisual: (): Promise<never> => Promise.reject(new Error('nao deveria chamar verifyVisual')),
+}
 
 beforeEach(() => { process.env.HICODE_WAITING_MAX_ATTEMPTS = '2' })
 
@@ -80,7 +78,7 @@ test('REGRESSAO: falha terminal (classificacao desconhecida) descarta o worktree
   const wt = worktreeParaTeste()
   const id = cardExecutando(wt, 'tarefa que falha sem timeout')
   expect(existsSync(wt)).toBe(false)
-  await handleExecute(id)
+  await handleExecute(id, agente)
   expect(readCard(id)?.fm.status).toBe('HALTED')
   expect(existsSync(wt)).toBe(false)
 })
@@ -89,7 +87,7 @@ test('REGRESSAO: falha POR TIMEOUT e transiente — vira WAITING (nao HALT) e ma
   resultadoDoAgente = falha({ reason: 'excedeu o tempo limite', timedOut: true, cost: '0.0200', failureClass: 'transient', failureReason: 'timeout — provedor nao respondeu a tempo' })
   const wt = worktreeParaTeste()
   const id = cardExecutando(wt, 'tarefa que estoura o tempo')
-  await handleExecute(id)
+  await handleExecute(id, agente)
   const card = readCard(id)
   expect(card?.fm.status).toBe('WAITING')
   expect(card?.fm.wait_resume_status).toBe('EXECUTING')
@@ -102,7 +100,7 @@ test('transiente que esgota as tentativas finalmente HALTa mas mantem o worktree
   const wt = worktreeParaTeste()
   const id = cardExecutando(wt, 'tarefa sempre transiente')
   patchCard(id, { wait_attempts: String(maxWaitingAttempts()) })
-  await handleExecute(id)
+  await handleExecute(id, agente)
   const card = readCard(id)
   expect(card?.fm.status).toBe('HALTED')
   expect(card?.body).toContain(`esgotou ${maxWaitingAttempts()} tentativas de espera`)
@@ -113,7 +111,7 @@ test('cota esgotada (sem fallback aplicavel, ja no provedor de fallback) para o 
   resultadoDoAgente = { ok: false, reason: 'cota', cost: '0.0100', usage: { tokens_in: 1, tokens_out: 1, tokens_cache_create: 0, tokens_cache_read: 0 }, failureClass: 'quota', failureReason: 'cota do provedor esgotada', provider: 'codex' }
   const wt = worktreeParaTeste()
   const id = cardExecutando(wt, 'tarefa que estoura a cota ja no fallback')
-  await handleExecute(id)
+  await handleExecute(id, agente)
   const card = readCard(id)
   expect(card?.fm.status).toBe('HALTED')
   expect(card?.body).toContain('cota do provedor codex esgotada')
@@ -126,7 +124,7 @@ test('cota esgotada com fallback configurado (HICODE_QUOTA_FALLBACK=on): troca d
     resultadoDoAgente = { ok: false, reason: 'cota', cost: '0.0100', usage: { tokens_in: 1, tokens_out: 1, tokens_cache_create: 0, tokens_cache_read: 0 }, failureClass: 'quota', failureReason: 'cota do provedor esgotada', provider: 'claude' }
     const wt = worktreeParaTeste()
     const id = cardExecutando(wt, 'tarefa que estoura a cota no provedor padrao')
-    await handleExecute(id)
+    await handleExecute(id, agente)
     const card = readCard(id)
     expect(card?.fm.status).toBe('EXECUTING')
     expect(card?.fm.provider_override_implement).toBe('codex')

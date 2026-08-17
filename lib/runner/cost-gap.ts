@@ -1,4 +1,5 @@
 import type { AgentResult } from '../ai/types'
+import type { Fields } from '../card'
 
 export type CostGap = 'measured' | 'call_failed' | 'unreported'
 
@@ -32,4 +33,25 @@ export function removeProvider(raw: string | undefined, provider: string): strin
 
 export function unionProviders(...raws: Array<string | undefined>): string[] {
   return parseProviders(raws.join(','))
+}
+
+export function floorProviders(fm: Fields): string[] {
+  return unionProviders(fm.cost_floor, fm.cost_unverified)
+}
+
+export function fleetFloorProviders(cards: Fields[]): string[] {
+  return unionProviders(...cards.flatMap(c => [c.cost_floor, c.cost_unverified]))
+}
+
+export interface DailySpend {
+  total: string
+  floor: string
+}
+
+export function dailySpend(cards: Fields[], day: string): DailySpend {
+  const ofDay = cards.filter(c => String(c.updated ?? '').startsWith(day))
+  const total = ofDay.reduce((a, c) => a + (parseFloat(String(c.cost_usd ?? '0')) || 0), 0)
+  const floor = formatProviders(fleetFloorProviders(ofDay))
+  if (!total && !floor) return { total: '', floor: '' }
+  return { total: total.toFixed(2), floor }
 }

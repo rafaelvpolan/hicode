@@ -6,6 +6,11 @@ import { runStep } from './agent'
 import { runGatedReview, withGateRetry } from './codefox-gate'
 import type { GateResult } from './codefox-gate'
 
+export interface GatedDeps {
+  runStep: typeof runStep
+  runGatedReview: typeof runGatedReview
+}
+
 export interface GatedResult {
   metric: StepMetric
   ok: boolean
@@ -16,14 +21,14 @@ export interface GatedResult {
   provider?: string
 }
 
-function review(id: string, wt: string, base: string, desc: string, label: string): Promise<GateResult> {
+function review(id: string, wt: string, base: string, desc: string, label: string, revisar: typeof runGatedReview): Promise<GateResult> {
   return withGateRetry(
-    () => runGatedReview(wt, base, desc, id),
+    () => revisar(wt, base, desc, id),
     reason => patchCard(id, {}, `${isoNow()} gate crivo [${label}]: NAO EXECUTOU (${reason}) — repetindo o gate sem reexecutar o agente`),
   )
 }
 
-export async function runGatedStep(id: string, wt: string, base: string, agent: string, instruction: string, desc: string, label: string): Promise<GatedResult> {
+export async function runGatedStep(id: string, wt: string, base: string, agent: string, instruction: string, desc: string, label: string, deps: GatedDeps = { runStep, runGatedReview }): Promise<GatedResult> {
   const t0 = Date.now()
   let cost = 0
   let costMeasured = true
@@ -34,7 +39,7 @@ export async function runGatedStep(id: string, wt: string, base: string, agent: 
   const metric = (): StepMetric => ({ time: Math.round((Date.now() - t0) / 1000), cost, tokens, costMeasured })
   while (attempt <= maxReajuste()) {
     const suffix = attempt === 0 ? '' : `\n\nO revisor CRIVO reprovou a etapa anterior: ${reason}. Corrija exatamente isso, sem quebrar o resto.`
-    const r = await runStep(wt, agent, instruction + suffix, id)
+    const r = await deps.runStep(wt, agent, instruction + suffix, id)
     cost += r.cost
     costMeasured = costMeasured && r.costMeasured
     tokens += r.tokens
@@ -48,7 +53,7 @@ export async function runGatedStep(id: string, wt: string, base: string, agent: 
       attempt++
       continue
     }
-    const gate = await review(id, wt, base, `${desc} — etapa "${label}" (${agent})`, label)
+    const gate = await review(id, wt, base, `${desc} — etapa "${label}" (${agent})`, label, deps.runGatedReview)
     cost += gate.cost
     costMeasured = costMeasured && gate.costMeasured
     tokens += gate.tokens

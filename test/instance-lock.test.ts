@@ -191,8 +191,10 @@ test('REGRESSAO: pidfile com pid vivo que NAO e o motor deste clone nao faz a se
 
     expect(daemonPid()).toBe(0)
 
-    writeFileSync(pidfile, `${motorDaRaiz.pid ?? 0}\n`)
-    expect(await esperarDaemon(5000)).toBe(motorDaRaiz.pid)
+    const pidDaRaiz = motorDaRaiz.pid
+    if (pidDaRaiz === undefined) throw new Error('o motor falso da raiz nao recebeu pid')
+    writeFileSync(pidfile, `${pidDaRaiz}\n`)
+    expect(await esperarDaemon(5000)).toBe(pidDaRaiz)
   } finally {
     motorDaRaiz.kill('SIGKILL')
   }

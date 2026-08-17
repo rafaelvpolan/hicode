@@ -1,6 +1,7 @@
 import { isoNow } from '../card'
 import type { Fields } from '../card'
 import { allCards } from './card-store'
+import { floorProviders } from './cost-gap'
 
 const RESET = '\x1b[0m'
 const BOLD = '\x1b[1m'
@@ -30,7 +31,7 @@ function row(c: Fields & { file: string }): string {
   const id = String(c.id ?? '').padStart(3, '0')
   const title = pad(String(c.title || c.slug || ''), 34)
   const status = pad(String(c.status || 'INBOX'), 13)
-  const cost = c.cost_usd ? `$${c.cost_usd}` : ''
+  const cost = c.cost_usd ? `${floorProviders(c).length ? '≥' : ''}$${c.cost_usd}` : ''
   return ` ${DIM}#${id}${RESET}  ${track(String(c.status || 'INBOX'))}  ${status} ${title} ${DIM}${cost}${RESET}`
 }
 

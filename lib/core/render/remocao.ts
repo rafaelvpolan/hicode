@@ -1,4 +1,5 @@
 import { truncVisible, padVisible, visibleLen } from '../tui/layout'
+import { formatProviders, unionProviders } from '../../runner/cost-gap'
 import type { PlanoLote, PlanoRemocao } from '../remover'
 
 const RESET = '\x1b[0m'
@@ -24,6 +25,10 @@ function custoDe(p: PlanoRemocao): number {
   return parseFloat(p.custo || '0') || 0
 }
 
+function pisoDe(alvos: PlanoRemocao[]): string {
+  return formatProviders(unionProviders(...alvos.map(p => p.piso)))
+}
+
 function limpezaDe(p: PlanoRemocao): string {
   const partes = [
     p.worktree ? 'worktree' : '',
@@ -42,7 +47,7 @@ function regua(largura: number, titulo: string, o: RemocaoOptions): string {
 function linhaDoCard(p: PlanoRemocao, o: RemocaoOptions, compacto: boolean): string[] {
   const id = paint(`#${p.id}`, BOLD, o)
   const custo = custoDe(p)
-  const valor = custo ? `US$${custo.toFixed(2)}` : ''
+  const valor = custo ? `${p.piso ? '≥ ' : ''}US$${custo.toFixed(2)}` : ''
   const limpeza = limpezaDe(p)
   if (compacto) {
     const titulo = truncVisible(p.titulo, Math.max(8, o.width - 12))
@@ -88,16 +93,18 @@ export function renderRemocao(lote: PlanoLote, forcar: boolean, opts: Partial<Re
   }
 
   const total = alvos.reduce((a, p) => a + custoDe(p), 0)
+  const piso = pisoDe(alvos)
   const comBranch = alvos.filter(p => p.branch).length
   const comPr = alvos.filter(p => p.status === 'PR_OPEN').length
   const resumo = [
-    total ? `US$${total.toFixed(2)} ja gastos` : '',
+    total || piso ? `${piso ? '≥ ' : ''}US$${total.toFixed(2)} ja gastos` : '',
     comBranch ? `${comBranch} branch${comBranch > 1 ? 'es' : ''} fica${comBranch > 1 ? 'm' : ''}` : '',
     comPr ? `${comPr} PR fica${comPr > 1 ? 'm' : ''} aberto${comPr > 1 ? 's' : ''} no GitHub` : '',
   ].filter(Boolean)
   if (resumo.length) {
     out.push('')
     out.push(paint(`    ${truncVisible(resumo.join(' · '), o.width - 6)}`, DIM, o))
+    if (piso) out.push(paint(`    ${truncVisible(`piso: ${piso} sem reporte de gasto`, o.width - 6)}`, YELLOW, o))
   }
 
   if (o.confirmacao) {

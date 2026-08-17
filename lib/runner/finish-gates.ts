@@ -14,7 +14,7 @@ export interface RunCtx {
   target: string
 }
 
-export async function buildWithReajuste(id: string, wt: string, ctx: RunCtx, fsteps: StepMap, timeKey: string, reajusteKey: string): Promise<boolean> {
+export async function buildWithReajuste(id: string, wt: string, ctx: RunCtx, fsteps: StepMap, timeKey: string, reajusteKey: string, executar: typeof runStep = runStep): Promise<boolean> {
   const cmd = resolveCommand(ctx.contract, 'build', wt, ctx.pkg)
   if (!cmd) {
     patchCard(id, {}, `${isoNow()} build: alvo sem script de build no contrato — gate de build pulado`)
@@ -28,7 +28,7 @@ export async function buildWithReajuste(id: string, wt: string, ctx: RunCtx, fst
     reajuste++
     const tr = Date.now()
     const detail = String(b.stderr || b.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'rufus', `O build/typecheck/lint falhou (${cmd.label}). Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`, id, ctx.target)
+    const rr = await executar(wt, 'rufus', `O build/typecheck/lint falhou (${cmd.label}). Saida:\n${detail}\nCorrija os erros de tipo/lint/build no codigo alterado sem mudar o comportamento. Nao use any nem unknown.`, id, ctx.target)
     b = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
     addMetric(fsteps, reajusteKey, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens, costMeasured: rr.costMeasured })
     patchCard(id, {}, `${isoNow()} REAJUSTE (${reajuste}/${maxReajuste()}, rufus): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)
@@ -38,7 +38,7 @@ export async function buildWithReajuste(id: string, wt: string, ctx: RunCtx, fst
   return !b.err
 }
 
-export async function testGate(id: string, wt: string, ctx: RunCtx, fsteps: StepMap, label: string): Promise<boolean> {
+export async function testGate(id: string, wt: string, ctx: RunCtx, fsteps: StepMap, label: string, executar: typeof runStep = runStep): Promise<boolean> {
   const cmd = resolveCommand(ctx.contract, 'test', wt, ctx.pkg)
   if (!cmd) {
     patchCard(id, {}, `${isoNow()} ${label}: alvo sem script de teste no contrato — gate de teste pulado`)
@@ -52,7 +52,7 @@ export async function testGate(id: string, wt: string, ctx: RunCtx, fsteps: Step
     reajuste++
     const tr = Date.now()
     const detail = String(t.stderr || t.stdout || '').slice(0, 1500)
-    const rr = await runStep(wt, 'testudo', `Os testes do projeto falharam (${cmd.label}). Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`, id, ctx.target)
+    const rr = await executar(wt, 'testudo', `Os testes do projeto falharam (${cmd.label}). Saida:\n${detail}\nCorrija os testes ou o codigo alterado sem mudar o comportamento pretendido. Nao use any nem unknown.`, id, ctx.target)
     t = await run(cmd.cmd, cmd.args, { cwd: cmd.cwd, timeout: 240000 })
     addMetric(fsteps, label, { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens, costMeasured: rr.costMeasured })
     patchCard(id, {}, `${isoNow()} REAJUSTE testes (${reajuste}/${maxReajuste()}, testudo): ${rr.text || 'ajustou'} (custo $${rr.cost.toFixed(4)} · ${rr.tokens} tokens)`)

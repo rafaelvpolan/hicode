@@ -13,7 +13,7 @@ export interface SyncResult {
   changed: boolean
 }
 
-export async function syncWithBase(id: string, wt: string, base: string, desc: string, fsteps: StepMap): Promise<SyncResult> {
+export async function syncWithBase(id: string, wt: string, base: string, desc: string, fsteps: StepMap, executar: typeof runStep = runStep): Promise<SyncResult> {
   await withGitLock(() => runGit(wt, ['fetch', 'origin', base]))
   const before = (await runGit(wt, ['rev-parse', 'HEAD'])).stdout.trim()
   const merge = await runGit(wt, ['merge', '--no-edit', `origin/${base}`])
@@ -28,7 +28,7 @@ export async function syncWithBase(id: string, wt: string, base: string, desc: s
     attempt++
     const files = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.split('\n').filter(Boolean)
     const tr = Date.now()
-    const rr = await runStep(wt, 'limpio', `Conflito de merge ao integrar origin/${base} na branch. Resolva os conflitos nestes arquivos: ${files.join(', ')}. Preserve o objetivo "${desc}" E as mudancas de ${base}. Remova TODOS os marcadores de conflito (<<<<<<<, =======, >>>>>>>). Nao rode git.`, id)
+    const rr = await executar(wt, 'limpio', `Conflito de merge ao integrar origin/${base} na branch. Resolva os conflitos nestes arquivos: ${files.join(', ')}. Preserve o objetivo "${desc}" E as mudancas de ${base}. Remova TODOS os marcadores de conflito (<<<<<<<, =======, >>>>>>>). Nao rode git.`, id)
     addMetric(fsteps, 'Conflito', { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens, costMeasured: rr.costMeasured })
     if (files.length) await runGit(wt, ['add', ...files])
     const unmerged = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.trim()

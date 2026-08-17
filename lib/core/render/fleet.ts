@@ -1,4 +1,5 @@
 import type { Fields } from '../../card'
+import { fleetFloorProviders, formatProviders } from '../../runner/cost-gap'
 import { PHASES, isActive, phaseIndex, phaseLabel, waitsHuman } from './phases'
 
 const DIM = '\x1b[2m'
@@ -37,6 +38,16 @@ function cell(c: Fields, o: FleetOptions): string {
   return `${paint(id, DIM, o)} ${paint(bar(status), cor, o)}  ${paint(phaseLabel(status).toLowerCase(), cor, o)}`
 }
 
+function custoDaFrota(cards: Fields[], o: FleetOptions): string {
+  if (!o.costToday) return ''
+  const piso = formatProviders(fleetFloorProviders(cards))
+  const teto = o.costCap ? ` / teto US$${o.costCap}` : ''
+  const valor = paint(` · ${piso ? '≥ ' : ''}US$${o.costToday}${teto}`, DIM, o)
+  if (!piso) return valor
+  const folga = o.costCap ? ', folga do teto nao garantida' : ''
+  return `${valor}${paint(` · piso: ${piso} sem reporte de gasto${folga}`, YELLOW, o)}`
+}
+
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
@@ -52,9 +63,8 @@ export function renderFleet(cards: Fields[], opts: Partial<FleetOptions> = {}): 
   const ativos = vivos.filter(c => isActive(String(c.status ?? ''))).length
   const esperando = vivos.filter(c => waitsHuman(String(c.status ?? ''))).length
   const out: string[] = []
-  const custo = o.costToday ? ` · US$${o.costToday}${o.costCap ? ` / teto US$${o.costCap}` : ''}` : ''
   out.push(paint(`hicode · ${o.repo || 'sem repo'}   daemon ${o.daemon}`, DIM, o))
-  out.push(paint(`${ativos} ativo(s) · ${esperando} esperando voce${custo}`, DIM, o))
+  out.push(`${paint(`${ativos} ativo(s) · ${esperando} esperando voce`, DIM, o)}${custoDaFrota(cards, o)}`)
   if (!vivos.length) return out.join('\n')
   out.push('')
   for (const linha of chunk(vivos, 2)) out.push('  ' + linha.map(c => cell(c, o)).join('   '))

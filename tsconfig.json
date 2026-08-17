@@ -4,7 +4,11 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["ES2022"],
-    "types": ["node"],
+    "types": ["node", "bun"],
+    "paths": {
+      "#shared/*": ["./panel/shared/*"]
+    },
+    "allowJs": true,
     "strict": true,
     "noImplicitAny": true,
     "noUncheckedIndexedAccess": true,
@@ -15,6 +19,6 @@
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["runner.ts", "bin/**/*.ts", "lib/**/*.ts"],
-  "exclude": ["node_modules", "panel", "test"]
+  "include": ["runner.ts", "bin/**/*.ts", "lib/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules"]
 }

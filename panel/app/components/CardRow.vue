@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { CardView, RunView } from '#shared/types'
+import { cardCostLabel, cardFloorReason, isCostFloor, runCostLabel, runFloorReason } from '#shared/cost-floor'
 import { ACTIVE_STATUSES, STEP_LIST } from '../composables/usePhases'
 import { fmtDt, fmtTime, runsFor } from '../composables/useFormat'
 import { useCardLog } from '../composables/useCardLog'
@@ -42,6 +43,9 @@ const latestRun = computed(() => cardRuns.value[cardRuns.value.length - 1] ?? nu
 const showAllRuns = ref(false)
 const isReviewable = computed(() => REVIEWABLE_STATUSES.includes(props.card.status))
 const isPreviewable = computed(() => props.card.shot || !!props.card.preview_url)
+const costLabel = computed<string>(() => cardCostLabel(props.card))
+const costIsFloor = computed<boolean>(() => isCostFloor(props.card))
+const costFloorReason = computed<string>(() => cardFloorReason(props.card))
 
 const cardIdRef = computed(() => props.card.id)
 const cardStatusRef = computed(() => props.card.status)
@@ -83,7 +87,7 @@ function evalBadgeClass(score: string): 'ok' | 'warn' | 'bad' {
       <span v-if="card.revalidacao" class="vbadge" :class="card.revalidacao" :title="'Revalidação do projeto vs objetivo da tarefa'">{{ card.revalidacao === 'ok' ? '✓ reval' : '⚠ reval' }}</span>
       <span v-if="card.eval_score" class="vbadge" :class="evalBadgeClass(card.eval_score)" :title="card.eval_notes">★ {{ card.eval_score }}/5</span>
       <span v-if="isCardWorking" class="iaworking" role="status" aria-live="polite"><i class="iadot"></i>IA trabalhando…</span>
-      <span class="erepo">{{ card.repo || '—' }} · {{ card.risk }}<template v-if="card.cost_usd"> · ${{ card.cost_usd }}</template><template v-if="card.tokens_total"> · {{ Number(card.tokens_total).toLocaleString('pt-BR') }} tok</template></span>
+      <span class="erepo">{{ card.repo || '—' }} · {{ card.risk }}<template v-if="card.cost_usd"> · <span class="ecost" :class="{ floor: costIsFloor }" :title="costFloorReason || undefined">{{ costLabel }}</span></template><template v-if="card.tokens_total"> · {{ Number(card.tokens_total).toLocaleString('pt-BR') }} tok</template></span>
       <span class="etools"><button class="icon" title="Editar tarefa" @click="$emit('edit', card)">✏️</button><button class="icon del" title="Remover" @click="$emit('remove', card)">🗑</button></span>
     </div>
     <div v-if="card.desc && card.desc !== card.title" class="edesc">{{ card.desc }}</div>
@@ -177,17 +181,20 @@ function evalBadgeClass(score: string): 'ok' | 'warn' | 'bad' {
       </template>
     </div>
 
+    <div v-if="costFloorReason && !cardRuns.length" class="costnote">{{ costFloorReason }}</div>
+
     <div v-if="cardRuns.length" class="execs">
       <button class="exectoggle" type="button" @click="showAllRuns = !showAllRuns">
         <span class="chev">{{ showAllRuns ? '▾' : '▸' }}</span>
         gasto de tokens · {{ cardRuns.length }} execuç{{ cardRuns.length === 1 ? 'ão' : 'ões' }}
       </button>
+      <div v-if="costFloorReason" class="costnote">{{ costFloorReason }}</div>
 
       <div v-if="!showAllRuns && latestRun" class="exec">
         <div class="exectop">execução atual · {{ fmtDt(latestRun.ts) }}</div>
         <div class="stats">
           <div class="stat t"><b>{{ fmtTime(latestRun.duration_s) }}</b><span>tempo</span></div>
-          <div class="stat c"><b>${{ Number(latestRun.cost_usd || 0).toFixed(4) }}</b><span>valor</span></div>
+          <div class="stat c" :class="{ floor: latestRun.cost_measured === false }" :title="runFloorReason(latestRun) || undefined"><b>{{ runCostLabel(latestRun) }}</b><span>valor</span></div>
           <div class="stat k"><b>{{ Number(latestRun.tokens_total || 0).toLocaleString('pt-BR') }}</b><span>tokens</span></div>
         </div>
       </div>
@@ -208,7 +215,7 @@ function evalBadgeClass(score: string): 'ok' | 'warn' | 'bad' {
         <div class="execlbl">global (consolidado)</div>
         <div class="stats">
           <div class="stat t"><b>{{ fmtTime(r.duration_s) }}</b><span>tempo</span></div>
-          <div class="stat c"><b>${{ Number(r.cost_usd || 0).toFixed(4) }}</b><span>valor</span></div>
+          <div class="stat c" :class="{ floor: r.cost_measured === false }" :title="runFloorReason(r) || undefined"><b>{{ runCostLabel(r) }}</b><span>valor</span></div>
           <div class="stat k"><b>{{ Number(r.tokens_total || 0).toLocaleString('pt-BR') }}</b><span>tokens</span></div>
         </div>
       </div>
@@ -222,6 +229,7 @@ function evalBadgeClass(score: string): 'ok' | 'warn' | 'bad' {
 .ehead{ display:flex; gap:10px; align-items:baseline; flex-wrap:wrap }
 .eid{ color:var(--mut); font-weight:700 } .etitle{ font-weight:600 }
 .erepo{ color:var(--mut); font-size:12px; margin-left:auto }
+.ecost.floor{ color:var(--warn); border-bottom:1px dotted color-mix(in srgb,var(--warn) 55%,transparent); cursor:help }
 .etools{ display:flex; gap:4px }
 button{ font:inherit; color:var(--tx); background:var(--panel2); border:1px solid var(--bd); border-radius:7px; padding:7px 10px; cursor:pointer; font-weight:600 }
 button.icon{ background:transparent; border:1px solid var(--bd); color:var(--mut); padding:2px 8px; border-radius:6px; font-size:12px; font-weight:500 }
@@ -306,6 +314,9 @@ button.icon:hover{ border-color:var(--acc); color:var(--tx) } button.icon.del:ho
 .stat b{ display:block; font-size:15px; color:var(--tx); line-height:1.2 }
 .stat span{ font-size:10px; color:var(--mut); text-transform:uppercase; letter-spacing:.03em }
 .stat.t b{ color:var(--gold) } .stat.c b{ color:var(--ok) } .stat.k b{ color:var(--acc) }
+.stat.c.floor{ border-color:color-mix(in srgb,var(--warn) 45%,transparent); cursor:help }
+.stat.c.floor b{ color:var(--warn) }
+.costnote{ font-size:11px; color:var(--warn); word-break:break-word }
 .steptab{ width:100%; border-collapse:collapse; margin:4px 0 8px; font-size:12px }
 .steptab th{ text-align:right; color:var(--mut); font-weight:600; font-size:10px; text-transform:uppercase; padding:2px 6px; border-bottom:1px solid var(--bd) }
 .steptab th:first-child{ text-align:left }

@@ -4,7 +4,7 @@ import type { Fields } from '../lib/card'
 
 const props = {
   provedor: 'claude', modelo: 'opus', effort: 'medium',
-  projeto: 'org/app', custoHoje: '2.37', divergentes: [],
+  projeto: 'org/app', custoHoje: '2.37', pisoDoGasto: '', divergentes: [],
 }
 
 function card(over: Partial<Fields>): Fields {
@@ -74,10 +74,16 @@ test('limita a 3 linhas, mas diz quantas ficaram de fora', () => {
   expect(linhas[3]).toContain('e mais 5')
 })
 
+function quadroEsperado(indice: number): string {
+  const q = GIRO[indice]
+  if (q === undefined) throw new Error(`GIRO nao tem quadro no indice ${indice}`)
+  return q
+}
+
 test('giro avanca com o tempo e volta ao inicio', () => {
-  expect(quadroDoGiro(0)).toBe(GIRO[0])
-  expect(quadroDoGiro(120)).toBe(GIRO[1])
-  expect(quadroDoGiro(120 * GIRO.length)).toBe(GIRO[0])
+  expect(quadroDoGiro(0)).toBe(quadroEsperado(0))
+  expect(quadroDoGiro(120)).toBe(quadroEsperado(1))
+  expect(quadroDoGiro(120 * GIRO.length)).toBe(quadroEsperado(0))
 })
 
 test('sem cor nao emite escape ANSI', () => {

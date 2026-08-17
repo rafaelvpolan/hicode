@@ -37,9 +37,9 @@ function podar(): void {
   }
 }
 
-export function tick(): void {
+export function tick(verificarMerges: typeof checkMerged = checkMerged): void {
   let ok = true
-  const merged = checkMerged(Date.now()).catch(e => {
+  const merged = verificarMerges(Date.now()).catch(e => {
     reportTickFailure('checkMerged', e as Error)
     ok = false
   })

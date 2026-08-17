@@ -36,5 +36,5 @@ test('step com state fora do enum e descartado (cai no default)', () => {
     version: 1,
     steps: [{ id: 'x', label: 'X', kind: 'quality', agent: 'rufus', state: 'FOO', gate: 'none', enabled: true, instruction: 'z' }],
   }))
-  expect(loadPipeline(d).steps.every(s => s.state !== 'FOO')).toBe(true)
+  expect(loadPipeline(d).steps.map(s => String(s.state))).not.toContain('FOO')
 })

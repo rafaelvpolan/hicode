@@ -15,6 +15,8 @@ export interface CardView {
   updated: string
   desc: string
   cost_usd: string
+  cost_floor: string
+  cost_unverified: string
   tokens_total: string
   verify: string
   revalidacao: string
@@ -47,6 +49,7 @@ export interface RunView {
   title: string
   tokens_total: number
   cost_usd: number
+  cost_measured: boolean
   duration_s: number
   steps?: Record<string, StepMetric>
 }
