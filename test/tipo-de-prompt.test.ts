@@ -78,11 +78,8 @@ test('o tipo ask NAO cria card e nao oferece aprovar nem rejeitar', async () => 
   const { dispatch } = await import('../lib/core/dispatch')
   const { allCards } = await import('../lib/runner/card-store')
   const saida: string[] = []
-  const io = {
-    log: (l: string) => { saida.push(l) }, dim: (t: string) => t, color: false,
-    largura: () => 78, plano: async () => [], atividade: () => [],
-    subirPreview: async () => '', listarPreviews: async () => [],
-  }
+  const { dispatchIOFalso } = await import('./fixtures/dispatch-io-falso')
+  const io = dispatchIOFalso({ log: (l: string) => { saida.push(l) } })
   const antes = allCards().length
   const r = handle('tem acesso ao NTN para criar tarefas?', newSession('org/app'))
   await dispatch(r.effect, r.state, io)
@@ -106,4 +103,60 @@ test('cada tipo tem uma descricao propria', async () => {
   const { TIPOS } = await import('../lib/core/tipo-de-prompt')
   expect(Object.keys(TIPOS)).toEqual(['task', 'ask'])
   expect(TIPOS.ask).not.toContain('respondida')
+})
+
+test('/new-task cria a tarefa direto, sem passar pela leitura de intencao', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const r = handle('/new-task tem acesso ao NTN?', newSession('org/app'))
+  expect(r.effect.kind).toBe('submit')
+  expect(r.effect.text).toBe('tem acesso ao NTN?')
+})
+
+test('/new-task sem texto explica o uso em vez de criar card vazio', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const r = handle('/new-task', newSession('org/app'))
+  expect(r.effect.kind).toBe('error')
+  expect(r.effect.text).toContain('/new-task')
+})
+
+test('/new-ask pergunta sem criar card', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const { dispatch } = await import('../lib/core/dispatch')
+  const { dispatchIOFalso } = await import('./fixtures/dispatch-io-falso')
+  const { allCards } = await import('../lib/runner/card-store')
+  const saida: string[] = []
+  const antes = allCards().length
+  const r = handle('/new-ask qual modelo o gate usa?', newSession('org/app'))
+  expect(r.effect.kind).toBe('ask')
+  await dispatch(r.effect, r.state, dispatchIOFalso({
+    log: (l) => { saida.push(l) },
+    responder: async (p) => [`resposta sobre: ${p}`],
+  }))
+  expect(allCards().length).toBe(antes)
+  expect(saida.join(' ')).toContain('resposta sobre: qual modelo o gate usa?')
+})
+
+test('/new-ask sem pergunta nao chama a ia', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const r = handle('/new-ask', newSession('org/app'))
+  expect(r.effect.kind).toBe('error')
+})
+
+test('/new-session e tratado por quem chamou, nao pelo despachante', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const { dispatch } = await import('../lib/core/dispatch')
+  const { dispatchIOFalso } = await import('./fixtures/dispatch-io-falso')
+  const r = handle('/new-session', newSession('org/app'))
+  expect(r.effect.kind).toBe('nova-sessao')
+  expect((await dispatch(r.effect, r.state, dispatchIOFalso())).tratado).toBe(false)
+})
+
+test('os tres comandos novos estao no catalogo e no autocompletar', async () => {
+  const { COMMANDS } = await import('../lib/core/session')
+  const { AJUDA_DO_COMANDO } = await import('../lib/core/render/sugestoes')
+  const lista: string[] = [...COMMANDS]
+  for (const c of ['/new-task', '/new-ask', '/new-session']) {
+    expect(lista, c).toContain(c)
+    expect(AJUDA_DO_COMANDO[c], c).toBeTruthy()
+  }
 })

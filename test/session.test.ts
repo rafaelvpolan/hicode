@@ -425,3 +425,30 @@ test('enter vazio desiste de escolher projeto', () => {
 test('comando durante a escolha continua sendo comando', () => {
   expect(handle('/board', escolhendoRepo(base)).effect.kind).toBe('board')
 })
+
+import { ALIASES, canonico } from '../lib/core/session'
+
+test('REGRESSAO todo apelido se comporta igual ao comando principal', () => {
+  for (const [principal, apelidos] of Object.entries(ALIASES)) {
+    const esperado = handle(`${principal} x`, base).effect.kind
+    for (const apelido of apelidos) {
+      expect(handle(`${apelido} x`, base).effect.kind, `${apelido} vs ${principal}`).toBe(esperado)
+    }
+  }
+})
+
+test('REGRESSAO apelido completa os mesmos argumentos que o principal', () => {
+  for (const [principal, apelidos] of Object.entries(ALIASES)) {
+    const esperado = complete(`${principal} `, ctx)[0]
+    for (const apelido of apelidos) {
+      expect(complete(`${apelido} `, ctx)[0], `${apelido} vs ${principal}`).toEqual(esperado)
+    }
+  }
+})
+
+test('canonico resolve apelido e deixa comando desconhecido intacto', () => {
+  expect(canonico('/project')).toBe('/repo')
+  expect(canonico('/halt')).toBe('/stop')
+  expect(canonico('/repo')).toBe('/repo')
+  expect(canonico('/inventado')).toBe('/inventado')
+})

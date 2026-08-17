@@ -24,6 +24,7 @@ export interface DispatchIO {
   largura: () => number
   subirPreview: (id: string) => Promise<string>
   listarPreviews: (limpar: boolean) => Promise<string[]>
+  responder: (pergunta: string) => Promise<string[]>
   plano: (id: string) => Promise<string[]>
   atividade: (id: string) => string[]
 }
@@ -33,7 +34,7 @@ export interface DispatchResult {
   tratado: boolean
 }
 
-const FORA = ['quit', 'board', 'none']
+const FORA = ['quit', 'board', 'nova-sessao', 'none']
 
 async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Promise<SessionState> {
   const id = effect.id ?? ''
@@ -211,6 +212,12 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       const leitura = lerEntrada(texto)
       if (leitura.tipo === 'task') return aplicar({ kind: 'submit', text: texto }, state, io)
       for (const l of renderRecusa(texto, leitura.motivo, { color: io.color, width: io.largura() })) io.log(l)
+      return state
+    }
+    case 'ask': {
+      if (!texto.trim()) { io.log('uso: /new-ask <pergunta>'); return state }
+      io.log(io.dim('  consultando o projeto (leitura, sem alterar arquivo)…'))
+      for (const l of await io.responder(texto)) io.log(l)
       return state
     }
     case 'ia': {

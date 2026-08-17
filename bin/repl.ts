@@ -33,6 +33,7 @@ import { projetosConhecidos } from '../lib/core/projetos-conhecidos'
 import { itensDeAjuste, ordemDosAjustes, ciclarAjuste } from '../lib/core/ajustes'
 import { lerEntrada } from '../lib/core/tipo-de-prompt'
 import { renderRecusa } from '../lib/core/render/recusa'
+import { responderPergunta } from '../lib/runner/responder-pergunta'
 import { etiquetaDoProjeto, corDoProjeto, nomeCurto } from '../lib/core/render/projeto'
 import { planejarPreview, inventario, orfaos } from '../lib/core/previews'
 import { renderCabecalhoTarefa, renderParada } from '../lib/core/render/tarefa'
@@ -518,7 +519,7 @@ async function subirPreview(id: string): Promise<string> {
   return subiu ? `#${id} no ar → ${url}` : `#${id} iniciado (pid ${handle.pid}), mas ${url} ainda nao responde`
 }
 
-function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void): DispatchIO {
+function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void, repo = ''): DispatchIO {
   return {
     log: (l) => (l.startsWith(' ') || l === '' ? app.log(l) : diga(l)),
     dim,
@@ -526,6 +527,16 @@ function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void): Dis
     largura: () => Math.max(40, (Number(process.stdout.columns) || 78) - 6),
     subirPreview,
     listarPreviews,
+    responder: async (pergunta) => {
+      const alvo = repoPath(repo)
+      const r = await responderPergunta(pergunta, alvo)
+      if (!r.ok && !r.texto) return ['  nao consegui responder — a consulta falhou']
+      const corpo = r.texto.split('\n').map(l => `  ${l}`)
+      const gasto = r.custo
+        ? dim(`  (${r.provedor}${r.custoMedido ? '' : ', custo estimado'} · US$${r.custo.toFixed(4)})`)
+        : dim(`  (${r.provedor})`)
+      return [...corpo, '', gasto]
+    },
     plano: async (id) => {
       const ctx = await contextoPreview(id)
       if (ctx.plano.acao === 'subir') {
@@ -560,7 +571,7 @@ async function tui(state0: SessionState): Promise<void> {
       diga('enter aprova e enfileira · outra tarefa descarta')
       return
     }
-    const r = await dispatch(effect, state, ioDo(app, diga))
+    const r = await dispatch(effect, state, ioDo(app, diga, state.repo))
     state = r.state
     if (!r.tratado && effect.kind === 'board') {
       state = { ...state, seguindo: '' }
@@ -701,7 +712,7 @@ async function main(): Promise<void> {
       state = showPlan(novoId, state)
       continue
     }
-    const passo = await dispatch(effect, state, ioDo({ log: (l) => say(l) }, (l) => say(dim('  ' + l))))
+    const passo = await dispatch(effect, state, ioDo({ log: (l) => say(l) }, (l) => say(dim('  ' + l)), state.repo))
     state = passo.state
     if (effect.kind === 'approve-plan' && !daemonPid()) say(dim('  daemon offline — vai rodar quando voce subir com `hii start`'))
   }

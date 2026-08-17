@@ -2,7 +2,7 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa' | 'ask' | 'nova-sessao'
 
 export interface SessionState {
   repo: string
@@ -27,7 +27,32 @@ export interface Reply {
   state: SessionState
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/project', '/ia', '/exit', '/quit'] as const
+export const ALIASES: Record<string, string[]> = {
+  '/repo': ['/project', '/projeto'],
+  '/stop': ['/halt', '/parar'],
+  '/exit': ['/quit', '/q'],
+  '/cards': ['/ls'],
+  '/ask': ['/responder'],
+  '/rm': ['/apagar'],
+  '/watch': ['/seguir'],
+  '/preview': ['/subir'],
+  '/ia': ['/modelo'],
+  '/new-task': ['/nova-tarefa'],
+  '/new-ask': ['/nova-pergunta'],
+  '/new-session': ['/nova-sessao'],
+  '/agents': ['/agentes'],
+  '/help': ['/h', '/?'],
+  '/board': ['/quadro'],
+}
+
+export function canonico(comando: string): string {
+  for (const [principal, apelidos] of Object.entries(ALIASES)) {
+    if (comando === principal || apelidos.includes(comando)) return principal
+  }
+  return comando
+}
+
+export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/new-task', '/new-ask', '/new-session', '/repo', '/project', '/ia', '/exit', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
   return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '' }
@@ -83,6 +108,7 @@ function command(line: string, state: SessionState): Reply {
     case '?':
       return reply({ kind: 'help' }, state)
     case 'board':
+    case 'quadro':
       return reply({ kind: 'board' }, { ...state, seguindo: '' })
     case 'cards':
     case 'ls':
@@ -106,6 +132,19 @@ function command(line: string, state: SessionState): Reply {
       return alvos.length
         ? reply({ kind: 'rm', id: alvos.join(' '), text: rest.includes('--force') ? 'force' : '' }, cleared)
         : reply({ kind: 'error', text: 'uso: /rm <id> [id...] — apaga os cards e limpa worktree e preview' }, state)
+    case 'new-task':
+    case 'nova-tarefa':
+      return arg
+        ? reply({ kind: 'submit', text: arg }, cleared)
+        : reply({ kind: 'error', text: 'uso: /new-task <o que mudar> — cria a tarefa sem passar pela leitura de intencao' }, state)
+    case 'new-ask':
+    case 'nova-pergunta':
+      return arg
+        ? reply({ kind: 'ask', text: arg }, cleared)
+        : reply({ kind: 'error', text: 'uso: /new-ask <pergunta> — responde sem criar card' }, state)
+    case 'new-session':
+    case 'nova-sessao':
+      return reply({ kind: 'nova-sessao' }, state)
     case 'ia':
     case 'modelo':
       return reply({ kind: 'ia', text: arg }, state)

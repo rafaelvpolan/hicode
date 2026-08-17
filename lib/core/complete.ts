@@ -1,4 +1,4 @@
-import { COMMANDS } from './session'
+import { COMMANDS, canonico } from './session'
 
 export interface CompleteContext {
   repos: string[]
@@ -23,8 +23,11 @@ export function complete(line: string, ctx: CompleteContext): Completion {
   const arg = partes[partes.length - 1] ?? ''
   if (partes.length > 2) return [[], arg]
 
-  if (head === '/repo') return [byPrefix(ctx.repos, arg), arg]
-  if (head === '/cards' || head === '/ls') return [byPrefix(ctx.statuses, arg.toUpperCase()), arg]
-  if (['/plan', '/watch', '/halt', '/stop', '/rm', '/ask', '/preview', '/ok', '/no', '/agents'].includes(head)) return [byPrefix(ctx.cards, arg), arg]
+  const principal = canonico(head)
+  if (principal === '/repo') return [byPrefix(ctx.repos, arg), arg]
+  if (principal === '/cards') return [byPrefix(ctx.statuses, arg.toUpperCase()), arg]
+  if (['/plan', '/watch', '/stop', '/rm', '/ask', '/preview', '/ok', '/no', '/agents'].includes(principal)) {
+    return [byPrefix(ctx.cards, arg), arg]
+  }
   return [[], arg]
 }
