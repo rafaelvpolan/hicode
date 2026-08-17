@@ -12,20 +12,7 @@ test('texto livre passa pela leitura de intencao antes de virar tarefa', () => {
   expect(r.effect.text).toBe('FAQ acordeao na home')
 })
 
-test('enter confirma a tarefa duvidosa que o motor questionou', async () => {
-  const { confirmandoTarefa } = await import('../lib/core/session')
-  const r = handle('', confirmandoTarefa(base, 'tem acesso ao ntn?'))
-  expect(r.effect.kind).toBe('submit')
-  expect(r.effect.text).toBe('tem acesso ao ntn?')
-  expect(r.state.confirmandoTarefa).toBe('')
-})
 
-test('reescrever descarta a tarefa duvidosa em vez de criar as duas', async () => {
-  const { confirmandoTarefa } = await import('../lib/core/session')
-  const r = handle('remove o selo beta', confirmandoTarefa(base, 'tem acesso ao ntn?'))
-  expect(r.effect.text).toBe('remove o selo beta')
-  expect(r.state.confirmandoTarefa).toBe('')
-})
 
 test('linha vazia sem plano pendente nao faz nada', () => {
   expect(handle('', base).effect.kind).toBe('none')

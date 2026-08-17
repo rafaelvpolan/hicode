@@ -26,34 +26,39 @@ function semAcento(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
 }
 
-export type NaturezaDaEntrada = 'tarefa' | 'pergunta'
+export type TipoDePrompt = 'task' | 'ask'
 
 export interface LeituraDaEntrada {
-  natureza: NaturezaDaEntrada
+  tipo: TipoDePrompt
   motivo: string
+}
+
+export const TIPOS: Record<TipoDePrompt, string> = {
+  task: 'pedido de mudanca no projeto — vira card e roda o pipeline',
+  ask: 'pergunta — o hii executa tarefas, entao nao entra na fila',
 }
 
 export function lerEntrada(bruto: string): LeituraDaEntrada {
   const texto = semAcento(bruto).trim()
-  if (!texto) return { natureza: 'pergunta', motivo: 'vazio' }
+  if (!texto) return { tipo: 'ask', motivo: 'vazio' }
 
   const consulta = CONSULTA.test(texto) || CONSULTA_MEIO.test(texto)
   if (consulta) {
-    return { natureza: 'pergunta', motivo: 'abre consultando (o verbo de acao adiante e finalidade, nao pedido)' }
+    return { tipo: 'ask', motivo: 'abre consultando — o verbo de acao adiante e finalidade, nao pedido' }
   }
 
   const temAcao = ACAO.test(texto)
   if (PEDIDO.test(texto)) {
     return temAcao
-      ? { natureza: 'tarefa', motivo: 'pedido com verbo de mudanca' }
-      : { natureza: 'pergunta', motivo: 'pedido sem verbo de mudanca — pergunta de viabilidade' }
+      ? { tipo: 'task', motivo: 'pedido com verbo de mudanca' }
+      : { tipo: 'ask', motivo: 'pedido sem verbo de mudanca — pergunta de viabilidade' }
   }
 
-  if (temAcao) return { natureza: 'tarefa', motivo: 'tem verbo de mudanca' }
-  if (texto.endsWith('?')) return { natureza: 'pergunta', motivo: 'termina em interrogacao' }
-  return { natureza: 'tarefa', motivo: 'relato de problema ou pedido direto' }
+  if (temAcao) return { tipo: 'task', motivo: 'tem verbo de mudanca' }
+  if (texto.endsWith('?')) return { tipo: 'ask', motivo: 'termina em interrogacao' }
+  return { tipo: 'task', motivo: 'relato de problema ou pedido direto' }
 }
 
 export function pareceTarefa(bruto: string): boolean {
-  return lerEntrada(bruto).natureza === 'tarefa'
+  return lerEntrada(bruto).tipo === 'task'
 }

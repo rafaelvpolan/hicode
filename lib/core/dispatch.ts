@@ -12,8 +12,9 @@ import { renderPergunta, renderRespondidas } from './render/clarify'
 import { instruir } from './instruir'
 import { renderHelp } from './render/help'
 import { esperandoVoce } from './render/rodape'
-import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao, confirmandoTarefa } from './session'
-import { lerEntrada } from './parece-tarefa'
+import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao } from './session'
+import { lerEntrada } from './tipo-de-prompt'
+import { renderRecusa } from './render/recusa'
 import type { Effect, SessionState } from './session'
 
 export interface DispatchIO {
@@ -208,10 +209,9 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
     }
     case 'confirmar-tarefa': {
       const leitura = lerEntrada(texto)
-      if (leitura.natureza === 'tarefa') return aplicar({ kind: 'submit', text: texto }, state, io)
-      io.log(`isso parece pergunta, nao tarefa — ${leitura.motivo}`)
-      io.log(io.dim('  enter cria a tarefa assim mesmo · reescreva para trocar · /help para os comandos'))
-      return confirmandoTarefa(state, texto)
+      if (leitura.tipo === 'task') return aplicar({ kind: 'submit', text: texto }, state, io)
+      for (const l of renderRecusa(texto, leitura.motivo, { color: io.color, width: io.largura() })) io.log(l)
+      return state
     }
     case 'ia': {
       const partes = texto.trim().split(/\s+/).filter(Boolean)

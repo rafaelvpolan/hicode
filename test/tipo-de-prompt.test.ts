@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test'
-import { lerEntrada, pareceTarefa } from '../lib/core/parece-tarefa'
+import { lerEntrada, pareceTarefa } from '../lib/core/tipo-de-prompt'
 
 const tarefa = pareceTarefa
 
@@ -59,8 +59,8 @@ test('frase declarativa sem verbo de acao nao e barrada', () => {
 })
 
 test('a distincao que importa: consulta versus pedido', () => {
-  expect(lerEntrada('tem acesso ao NTN para criar tarefas?').natureza).toBe('pergunta')
-  expect(lerEntrada('pode criar a tarefa do NTN?').natureza).toBe('tarefa')
+  expect(lerEntrada('tem acesso ao NTN para criar tarefas?').tipo).toBe('ask')
+  expect(lerEntrada('pode criar a tarefa do NTN?').tipo).toBe('task')
 })
 
 test('pedido sem verbo de mudanca e pergunta de viabilidade', () => {
@@ -71,4 +71,39 @@ test('pedido sem verbo de mudanca e pergunta de viabilidade', () => {
 test('quero e gostaria contam como pedido', () => {
   expect(tarefa('quero remover o selo beta')).toBe(true)
   expect(tarefa('gostaria de atualizar o vite')).toBe(true)
+})
+
+test('o tipo ask NAO cria card e nao oferece aprovar nem rejeitar', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const { dispatch } = await import('../lib/core/dispatch')
+  const { allCards } = await import('../lib/runner/card-store')
+  const saida: string[] = []
+  const io = {
+    log: (l: string) => { saida.push(l) }, dim: (t: string) => t, color: false,
+    largura: () => 78, plano: async () => [], atividade: () => [],
+    subirPreview: async () => '', listarPreviews: async () => [],
+  }
+  const antes = allCards().length
+  const r = handle('tem acesso ao NTN para criar tarefas?', newSession('org/app'))
+  await dispatch(r.effect, r.state, io)
+  const texto = saida.join(' ')
+  expect(allCards().length).toBe(antes)
+  expect(texto).toContain('nao criei card')
+  expect(texto).not.toContain('enter')
+  expect(texto).not.toContain('aprova')
+  expect(texto).not.toContain('rejeit')
+})
+
+test('o tipo task segue criando card normalmente', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const r = handle('remove o selo beta do header', newSession('org/app'))
+  expect(r.effect.kind).toBe('confirmar-tarefa')
+  const { lerEntrada } = await import('../lib/core/tipo-de-prompt')
+  expect(lerEntrada(r.effect.text ?? '').tipo).toBe('task')
+})
+
+test('cada tipo tem uma descricao propria', async () => {
+  const { TIPOS } = await import('../lib/core/tipo-de-prompt')
+  expect(Object.keys(TIPOS)).toEqual(['task', 'ask'])
+  expect(TIPOS.ask).not.toContain('respondida')
 })
