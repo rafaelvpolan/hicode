@@ -4,6 +4,7 @@ import { arquivoDePreferencias, ehEsforco, ESFORCOS } from '../ai/preferencias'
 import type { PreferenciasDeIa } from '../ai/preferencias'
 import { agentRoles, isProviderName, providerNames, providerNameFor, effortFor } from '../ai/registry'
 import { provedoresDisponiveis } from '../ai/disponibilidade'
+import { modelosDe, arquivoDoCatalogo } from '../ai/catalogo'
 import type { AgentRole } from '../ai/types'
 
 export interface ResultadoEscolha {
@@ -141,6 +142,56 @@ function itensPorPapel(): string[] {
   })
 }
 
+export function papelAlvo(partes: string[]): { papel: AgentRole; resto: string[] } {
+  const primeiro = partes[0] ?? ''
+  if (ehPapel(primeiro)) return { papel: primeiro, resto: partes.slice(1) }
+  return { papel: 'implement', resto: partes }
+}
+
+export function definirModelo(partes: string[]): ResultadoEscolha {
+  const { papel, resto } = papelAlvo(partes)
+  const provedor = providerNameFor(papel)
+  const escolhido = (resto[0] ?? '').trim()
+  if (!escolhido) {
+    const opcoes = modelosDe(provedor)
+    return {
+      ok: false,
+      mensagem: opcoes.length
+        ? `modelos de ${provedor}: ${opcoes.join(' · ')} — use /model <nome>`
+        : `nao conheco modelos de ${provedor} — liste em ${arquivoDoCatalogo()} ou use /model <nome> direto`,
+    }
+  }
+  if (escolhido === 'padrao' || escolhido === 'reset') {
+    aplicar({ papeis: [papel], model: '' })
+    return { ok: true, mensagem: `${papel}: modelo padrao de ${provedor}` }
+  }
+  const conhecido = modelosDe(provedor).includes(escolhido)
+  aplicar({ papeis: [papel], model: escolhido })
+  return {
+    ok: true,
+    mensagem: `${papel}: ${provedor}/${escolhido}${conhecido ? '' : ' (fora do catalogo — se funcionar, adicione ao arquivo)'}`,
+  }
+}
+
+export function definirEsforco(partes: string[]): ResultadoEscolha {
+  const { papel, resto } = papelAlvo(partes)
+  const escolhido = (resto[0] ?? '').trim()
+  if (!escolhido) {
+    return { ok: false, mensagem: `esforco: ${ESFORCOS.join(' · ')} · padrao — use /effort <nivel>` }
+  }
+  if (escolhido === 'padrao' || escolhido === 'reset') {
+    const prefs = ler()
+    const atual = prefs[papel]
+    if (atual) { delete atual.effort; prefs[papel] = atual; gravar(prefs) }
+    return { ok: true, mensagem: `${papel}: esforco volta ao padrao do CLI` }
+  }
+  if (!ehEsforco(escolhido)) {
+    return { ok: false, mensagem: `"${escolhido}" nao e esforco valido — use: ${ESFORCOS.join(' · ')}` }
+  }
+  aplicar({ papeis: [papel], effort: escolhido })
+  return { ok: true, mensagem: `${papel}: esforco ${escolhido} em ${providerNameFor(papel)}` }
+}
+
 export function ajuda(): string[] {
   return [
     '',
@@ -148,10 +199,13 @@ export function ajuda(): string[] {
     `  papeis: ${agentRoles().join(' · ')}`,
     `  esforco: ${ESFORCOS.join(' · ')}`,
     '',
-    '  /ia claude opus                 troca ia e modelo em todos os papeis',
-    '  /ia gate claude opus            so no gate',
-    '  /ia implement codex high        ia, modelo pelo padrao, esforco alto',
-    '  /ia step modelo=gpt-5.5         so o modelo',
+    '  /ia claude                      troca a ia (todos os papeis)',
+    '  /ia gate codex                  troca a ia so do gate',
+    '  /model opus                     modelo da ia atual (papel implement)',
+    '  /model gate opus                modelo da ia do gate',
+    '  /model padrao                   volta ao modelo padrao do CLI',
+    '  /effort high                    esforco da ia atual',
+    '  /effort gate max                esforco do gate',
     '  /ia padrao gate                 volta o gate ao padrao',
   ]
 }

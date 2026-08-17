@@ -62,7 +62,9 @@ const SECOES: Secao[] = [
   {
     titulo: 'projeto',
     itens: [
-      { chave: '/ia', arg: '[papel] <ia> [modelo]', texto: 'troca a ia, o modelo e o esforco' },
+      { chave: '/ia', arg: '[papel] <ia>', texto: 'escolhe a ia que roda cada papel' },
+      { chave: '/model', arg: '[papel] <modelo>', texto: 'escolhe o modelo da ia atual' },
+      { chave: '/effort', arg: '[papel] <nivel>', texto: 'escolhe o esforco da ia atual' },
       { chave: '/repo', arg: '[owner/nome]', texto: 'troca de projeto, ou lista os registrados' },
       { chave: '/exit', arg: '', texto: 'sai do hii e volta para o shell' },
       { chave: '/quit', arg: '', texto: 'o mesmo que /exit' },

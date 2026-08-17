@@ -4,7 +4,7 @@ import * as core from './actions'
 import { planejarLote, removerLote } from './remover'
 import { renderRemocao, renderResultado } from './render/remocao'
 import { projetosConhecidos } from './projetos-conhecidos'
-import { interpretar, aplicar as aplicarIa, limpar as limparIa, ajuda as ajudaDeIa, estadoDaIa } from './escolher-ia'
+import { interpretar, aplicar as aplicarIa, limpar as limparIa, ajuda as ajudaDeIa, estadoDaIa, definirModelo, definirEsforco } from './escolher-ia'
 import { agentRoles } from '../ai/registry'
 import type { AgentRole } from '../ai/types'
 import { pendencia, responder, cardsPerguntando } from './responder'
@@ -214,6 +214,14 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       for (const l of renderRecusa(texto, leitura.motivo, { color: io.color, width: io.largura() })) io.log(l)
       return state
     }
+    case 'modelo': {
+      io.log(definirModelo(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
+      return state
+    }
+    case 'esforco': {
+      io.log(definirEsforco(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
+      return state
+    }
     case 'ask': {
       if (!texto.trim()) { io.log('uso: /new-ask <pergunta>'); return state }
       io.log(io.dim('  consultando o projeto (leitura, sem alterar arquivo)…'))
@@ -244,6 +252,14 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
     case 'preview': {
       if (id) { io.log(await io.subirPreview(id)); return state }
       for (const l of await io.listarPreviews(texto === 'limpar')) io.log(l)
+      return state
+    }
+    case 'modelo': {
+      io.log(definirModelo(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
+      return state
+    }
+    case 'esforco': {
+      io.log(definirEsforco(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
       return state
     }
     case 'ask': {

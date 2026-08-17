@@ -49,7 +49,9 @@ import { parseLog, formatar, resumo, ultimoAgente, ultimaAcao } from '../lib/cor
 import { linhaPropriedades, linhasExecucao, emExecucao, linhasEspera, esperandoVoce, linhasAjustes, esperandoEmOutrosProjetos, linhaDeOutrosProjetos } from '../lib/core/render/rodape'
 import { dailySpend, floorProviders, formatProviders } from '../lib/runner/cost-gap'
 import type { DailySpend } from '../lib/runner/cost-gap'
-import { providerNameFor, modelFor } from '../lib/ai/registry'
+import { providerNameFor, modelFor, effortFor, providerNames, agentRoles } from '../lib/ai/registry'
+import { modelosDe } from '../lib/ai/catalogo'
+import { ESFORCOS } from '../lib/ai/preferencias'
 import { readFileSync } from 'node:fs'
 import { STATUSES } from '../lib/card'
 import type { SessionState } from '../lib/core/session'
@@ -202,7 +204,8 @@ function custoDoDia(repo: string): DailySpend {
 
 function esforcoAtual(state: SessionState): string {
   const alvo = state.seguindo || state.pendingPlan
-  return (alvo ? readCard(alvo)?.fm.effort : '') || process.env.HICODE_EFFORT || 'medium'
+  const doCard = alvo ? readCard(alvo)?.fm.effort : undefined
+  return effortFor('implement', doCard) ?? '(padrao do CLI)'
 }
 
 function papeisDivergentes(): string[] {
@@ -353,6 +356,10 @@ function completer(line: string): [string[], string] {
     repos: reposRegistrados().map(r => r.name),
     cards: todosOsCards().map(c => String(c.id ?? '')).filter(Boolean),
     statuses: [...STATUSES],
+    provedores: providerNames(),
+    modelos: modelosDe(providerNameFor('implement')),
+    esforcos: [...ESFORCOS],
+    papeis: agentRoles(),
   })
 }
 

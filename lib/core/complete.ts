@@ -4,6 +4,10 @@ export interface CompleteContext {
   repos: string[]
   cards: string[]
   statuses: string[]
+  provedores?: string[]
+  modelos?: string[]
+  esforcos?: string[]
+  papeis?: string[]
 }
 
 export type Completion = [string[], string]
@@ -24,6 +28,9 @@ export function complete(line: string, ctx: CompleteContext): Completion {
   if (partes.length > 2) return [[], arg]
 
   const principal = canonico(head)
+  if (principal === '/ia') return [byPrefix([...(ctx.papeis ?? []), ...(ctx.provedores ?? [])], arg), arg]
+  if (principal === '/model') return [byPrefix([...(ctx.papeis ?? []), ...(ctx.modelos ?? []), 'padrao'], arg), arg]
+  if (principal === '/effort') return [byPrefix([...(ctx.papeis ?? []), ...(ctx.esforcos ?? []), 'padrao'], arg), arg]
   if (principal === '/repo') return [byPrefix(ctx.repos, arg), arg]
   if (principal === '/cards') return [byPrefix(ctx.statuses, arg.toUpperCase()), arg]
   if (['/plan', '/watch', '/stop', '/rm', '/ask', '/preview', '/ok', '/no', '/agents'].includes(principal)) {

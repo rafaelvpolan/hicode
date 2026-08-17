@@ -2,7 +2,7 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa' | 'ask' | 'nova-sessao'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa' | 'ask' | 'nova-sessao' | 'modelo' | 'esforco'
 
 export interface SessionState {
   repo: string
@@ -36,7 +36,9 @@ export const ALIASES: Record<string, string[]> = {
   '/rm': ['/apagar'],
   '/watch': ['/seguir'],
   '/preview': ['/subir'],
-  '/ia': ['/modelo'],
+  '/ia': ['/provedor'],
+  '/model': ['/modelo'],
+  '/effort': ['/esforco'],
   '/new-task': ['/nova-tarefa'],
   '/new-ask': ['/nova-pergunta'],
   '/new-session': ['/nova-sessao'],
@@ -52,7 +54,7 @@ export function canonico(comando: string): string {
   return comando
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/new-task', '/new-ask', '/new-session', '/repo', '/project', '/ia', '/exit', '/quit'] as const
+export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/new-task', '/new-ask', '/new-session', '/repo', '/project', '/ia', '/model', '/effort', '/exit', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
   return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '' }
@@ -146,8 +148,14 @@ function command(line: string, state: SessionState): Reply {
     case 'nova-sessao':
       return reply({ kind: 'nova-sessao' }, state)
     case 'ia':
-    case 'modelo':
+    case 'provedor':
       return reply({ kind: 'ia', text: arg }, state)
+    case 'model':
+    case 'modelo':
+      return reply({ kind: 'modelo', text: arg }, state)
+    case 'effort':
+    case 'esforco':
+      return reply({ kind: 'esforco', text: arg }, state)
     case 'preview':
     case 'subir':
       return reply({ kind: 'preview', id: rest[0] ?? '', text: rest.includes('--limpar') ? 'limpar' : '' }, state)

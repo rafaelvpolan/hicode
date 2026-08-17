@@ -217,3 +217,128 @@ test('a listagem do /ia nao esconde provedor sem papel', async () => {
   const texto = estadoDaIa().join('\n')
   for (const n of providerNames()) expect(texto, n).toContain(n)
 })
+
+test('REGRESSAO o rodape nao pode inventar "medium" quando nada esta configurado', async () => {
+  const { effortFor } = await import('../lib/ai/registry')
+  expect(effortFor('implement')).toBeUndefined()
+})
+
+test('o rodape reflete o esforco escolhido, e volta ao padrao quando limpo', async () => {
+  const { aplicar, limpar } = await import('../lib/core/escolher-ia')
+  const { effortFor } = await import('../lib/ai/registry')
+  aplicar({ papeis: ['implement'], effort: 'xhigh' })
+  expect(effortFor('implement')).toBe('xhigh')
+  limpar(['implement'])
+  expect(effortFor('implement')).toBeUndefined()
+})
+
+test('o esforco do card aparece no rodape quando a tarefa esta aberta', async () => {
+  const { effortFor } = await import('../lib/ai/registry')
+  expect(effortFor('implement', 'max')).toBe('max')
+})
+
+test('a env continua valendo como configuracao inicial no rodape', async () => {
+  const { effortFor } = await import('../lib/ai/registry')
+  process.env.HICODE_EFFORT = 'low'
+  expect(effortFor('implement')).toBe('low')
+  delete process.env.HICODE_EFFORT
+})
+
+test('REGRESSAO rodape e motor leem a MESMA fonte de esforco', async () => {
+  const repl = await Bun.file('bin/repl.ts').text()
+  expect(repl).toContain("effortFor('implement', doCard)")
+  expect(repl).not.toContain("|| 'medium'")
+})
+
+test('/model sem argumento lista os modelos da ia atual', async () => {
+  const { definirModelo } = await import('../lib/core/escolher-ia')
+  const r = definirModelo([])
+  expect(r.ok).toBe(false)
+  expect(r.mensagem).toContain('opus')
+})
+
+test('/model define o modelo do papel atual', async () => {
+  const { definirModelo } = await import('../lib/core/escolher-ia')
+  const { modelFor } = await import('../lib/ai/registry')
+  definirModelo(['opus'])
+  expect(modelFor('implement')).toBe('opus')
+})
+
+test('/model <papel> <modelo> mira o papel pedido', async () => {
+  const { definirModelo } = await import('../lib/core/escolher-ia')
+  const { modelFor } = await import('../lib/ai/registry')
+  definirModelo(['gate', 'sonnet'])
+  expect(modelFor('gate')).toBe('sonnet')
+  expect(modelFor('implement')).not.toBe('sonnet')
+})
+
+test('/model fora do catalogo funciona, mas avisa', async () => {
+  const { definirModelo } = await import('../lib/core/escolher-ia')
+  const { modelFor } = await import('../lib/ai/registry')
+  const r = definirModelo(['modelo-que-eu-inventei'])
+  expect(r.ok).toBe(true)
+  expect(r.mensagem).toContain('fora do catalogo')
+  expect(modelFor('implement')).toBe('modelo-que-eu-inventei')
+})
+
+test('/model padrao devolve o modelo do CLI', async () => {
+  const { definirModelo } = await import('../lib/core/escolher-ia')
+  const { modelFor } = await import('../lib/ai/registry')
+  definirModelo(['opus'])
+  definirModelo(['padrao'])
+  expect(modelFor('implement')).toBeUndefined()
+})
+
+test('/effort sem argumento lista os niveis', async () => {
+  const { definirEsforco } = await import('../lib/core/escolher-ia')
+  const r = definirEsforco([])
+  expect(r.ok).toBe(false)
+  expect(r.mensagem).toContain('xhigh')
+})
+
+test('/effort recusa nivel invalido em vez de mandar lixo para o CLI', async () => {
+  const { definirEsforco } = await import('../lib/core/escolher-ia')
+  const { effortFor } = await import('../lib/ai/registry')
+  const r = definirEsforco(['altissimo'])
+  expect(r.ok).toBe(false)
+  expect(effortFor('implement')).toBeUndefined()
+})
+
+test('/effort padrao limpa so o esforco, preservando a ia escolhida', async () => {
+  const { definirEsforco, aplicar } = await import('../lib/core/escolher-ia')
+  const { effortFor, providerNameFor } = await import('../lib/ai/registry')
+  aplicar({ papeis: ['implement'], provider: 'codex' })
+  definirEsforco(['high'])
+  definirEsforco(['padrao'])
+  expect(effortFor('implement')).toBeUndefined()
+  expect(providerNameFor('implement')).toBe('codex')
+})
+
+test('o catalogo de modelos vem de arquivo quando existe', async () => {
+  const { modelosDe, origemDoCatalogo } = await import('../lib/ai/catalogo')
+  expect(origemDoCatalogo('claude')).toBe('semente')
+  expect(modelosDe('claude')).toContain('opus')
+})
+
+test('modelo em uso entra no catalogo mesmo sem estar na semente', async () => {
+  const { definirModelo } = await import('../lib/core/escolher-ia')
+  const { modelosDe } = await import('../lib/ai/catalogo')
+  definirModelo(['implement', 'meu-modelo-local'])
+  expect(modelosDe('claude')).toContain('meu-modelo-local')
+})
+
+test('autocompletar de /ia, /model e /effort oferece as opcoes certas', async () => {
+  const { complete } = await import('../lib/core/complete')
+  const { providerNames, agentRoles } = await import('../lib/ai/registry')
+  const { modelosDe } = await import('../lib/ai/catalogo')
+  const { ESFORCOS } = await import('../lib/ai/preferencias')
+  const ctx = {
+    repos: [], cards: [], statuses: [],
+    provedores: providerNames(), modelos: modelosDe('claude'),
+    esforcos: [...ESFORCOS], papeis: agentRoles(),
+  }
+  expect(complete('/ia ', ctx)[0]).toContain('claude')
+  expect(complete('/model ', ctx)[0]).toContain('opus')
+  expect(complete('/effort ', ctx)[0]).toContain('xhigh')
+  expect(complete('/effort h', ctx)[0]).toEqual(['high'])
+})
