@@ -27,3 +27,6 @@ cards/refs/
 # Configuração local da máquina (caminhos do clone-alvo) — nunca versionar.
 # Template versionado: config/repos.example.json
 config/repos.json
+
+# preferencia de IA em tempo de execucao (por maquina)
+config/ia.json
