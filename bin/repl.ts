@@ -27,6 +27,7 @@ import { renderConfig } from '../lib/core/render/config'
 import { lerConfig } from '../lib/core/config-snapshot'
 import { aplicar as aplicarIa } from '../lib/core/escolher-ia'
 import { renderAprovacao } from '../lib/core/render/aprovacao'
+import { renderOpcoesRodape } from '../lib/core/render/clarify'
 import * as core from '../lib/core/actions'
 
 function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void, repo = ''): DispatchIO {
@@ -84,6 +85,10 @@ async function tui(state0: SessionState): Promise<void> {
     logPrimeiro: () => !!state.seguindo,
     acima: () => {
       if (state.comentando) return renderAprovacao(state.comentando, { color, comentando: true, width: larguraUtil() })
+      if (state.perguntando) {
+        const p = pendencia(state.perguntando)
+        if (p) return renderOpcoesRodape(p, { color, width: larguraUtil(), selecionado: selecionado() })
+      }
       if (state.seguindo) state = sincronizarAprovacao(state, String(readCard(state.seguindo)?.fm.status ?? ''))
       if (!state.aprovando) return []
       return renderAprovacao(state.aprovando, {
