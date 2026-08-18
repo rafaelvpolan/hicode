@@ -7,6 +7,7 @@ import type { AgentRole, AiProviderName } from './types'
 const BINARIO: Partial<Record<AiProviderName, string>> = {
   claude: 'claude',
   codex: 'codex',
+  kimi: 'kimi',
 }
 
 export type Situacao = 'disponivel' | 'ausente' | 'precisa-servidor'
@@ -29,6 +30,7 @@ function comoObter(nome: AiProviderName): string {
   if (nome === 'claude') return 'instale o CLI do Claude Code'
   if (nome === 'codex') return 'instale o CLI do Codex'
   if (nome === 'ollama') return `suba o ollama (${process.env.HICODE_OLLAMA_URL || 'http://localhost:11434'})`
+  if (nome === 'kimi') return 'instale o CLI do Kimi Code'
   return ''
 }
 

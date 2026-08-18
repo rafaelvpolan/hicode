@@ -2,7 +2,8 @@ import { GATE_MODEL, VERIFY_MODEL } from '../runner/config'
 import { ClaudeProvider } from './adapters/claude'
 import { CodexProvider } from './adapters/codex'
 import { OllamaProvider } from './adapters/ollama'
-import type { AgentRole, AiProvider, AiProviderName } from './types'
+import { KimiProvider } from './adapters/kimi'
+import type { AgentRole, AiProvider, AiProviderName, ProviderLimits } from './types'
 import { preferenciaDoPapel, esforcoPara } from './preferencias'
 
 export const DEFAULT_PROVIDER: AiProviderName = 'claude'
@@ -11,6 +12,7 @@ const PROVIDERS: Record<AiProviderName, AiProvider> = {
   claude: new ClaudeProvider(),
   codex: new CodexProvider(),
   ollama: new OllamaProvider(),
+  kimi: new KimiProvider(),
 }
 
 const ROLE_PROVIDER_ENV: Record<AgentRole, string> = {
@@ -23,6 +25,7 @@ const ROLE_PROVIDER_ENV: Record<AgentRole, string> = {
 const PROVIDER_MODEL_ENV: Record<Exclude<AiProviderName, 'claude'>, string> = {
   codex: 'HICODE_CODEX_MODEL',
   ollama: 'HICODE_OLLAMA_MODEL',
+  kimi: 'HICODE_KIMI_MODEL',
 }
 
 export function isProviderName(s: string | undefined): s is AiProviderName {
@@ -57,6 +60,10 @@ export function providerNameFor(role: AgentRole, override?: string): AiProviderN
 
 export function providerFor(role: AgentRole, override?: string): AiProvider {
   return PROVIDERS[providerNameFor(role, override)]
+}
+
+export function providerLimits(name: AiProviderName): ProviderLimits | undefined {
+  return PROVIDERS[name].limits
 }
 
 export function modelFor(role: AgentRole, override?: string): string | undefined {
