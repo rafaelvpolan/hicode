@@ -32,11 +32,11 @@ export function pendenciaDoStatus(status: string, id: string): PendenciaDaTarefa
       }
     case 'PREVIEW':
       return {
-        titulo: 'preview pronto — veja e decida',
+        titulo: 'resultado pronto — veja e decida',
         urgente: true,
         acoes: [
           { tecla: 'enter', texto: 'aprova e segue para o polimento' },
-          { tecla: `/no ${n}`, texto: 'recusa e diz o que ajustar' },
+          { tecla: '1 2 3', texto: 'aprova · refaz do zero · diz o que ajustar' },
         ],
       }
     case 'INBOX':
@@ -48,7 +48,7 @@ export function pendenciaDoStatus(status: string, id: string): PendenciaDaTarefa
         urgente: true,
         acoes: [
           { tecla: 'enter', texto: 'aprova e poe na fila' },
-          { tecla: `/plan ${n}`, texto: 'reve o plano' },
+          { tecla: String(n), texto: 'o numero da tarefa reabre o plano' },
         ],
       }
     case 'HALTED':

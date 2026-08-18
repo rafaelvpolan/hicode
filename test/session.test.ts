@@ -35,27 +35,15 @@ test('espaco em branco conta como enter, nao como tarefa', () => {
   expect(handle('   ', planShown(base, '042')).effect.kind).toBe('approve-plan')
 })
 
-test('/help, /board e /cards', () => {
+test('/help e /board', () => {
   expect(handle('/help', base).effect.kind).toBe('help')
   expect(handle('/board', base).effect.kind).toBe('board')
-  const c = handle('/cards HALTED', base)
-  expect(c.effect.kind).toBe('cards')
-  expect(c.effect.text).toBe('HALTED')
 })
 
-test('/plan exige id', () => {
-  expect(handle('/plan', base).effect.kind).toBe('error')
-})
-
-test('/watch <id> entra em modo seguir', () => {
-  const r = handle('/watch 42', base)
-  expect(r.effect.kind).toBe('watch')
-  expect(r.state.seguindo).toBe('42')
-})
-
-test('/watch sem id para de seguir', () => {
-  const seguindo = { ...base, seguindo: '42' }
-  expect(handle('/watch', seguindo).state.seguindo).toBe('')
+test('comando cortado nao volta pela porta dos fundos', () => {
+  for (const morto of ['/cards HALTED', '/ls', '/plan 42', '/watch 42', '/seguir 42', '/agents 42', '/agentes 42', '/preview', '/subir 42', '/ok 42', '/no 42 torto']) {
+    expect(handle(morto, base).effect.kind, morto).toBe('error')
+  }
 })
 
 test('/board sai do modo seguir', () => {
@@ -159,7 +147,7 @@ test('fleet vazio ainda mostra cabecalho e daemon', () => {
 import { complete } from '../lib/core/complete'
 import { canApprovePlan } from '../lib/core/actions'
 
-const ctx = { repos: ['acme/site', 'acme/api'], cards: ['019', '020'], statuses: ['READY', 'HALTED', 'PREVIEW'] }
+const ctx = { repos: ['acme/site', 'acme/api'], cards: ['019', '020'] }
 
 test('completar: barra sozinha lista os comandos', () => {
   expect(complete('/', ctx)[0]).toContain('/repo')
@@ -171,13 +159,15 @@ test('completar /repo sugere os repos registrados', () => {
   expect(complete('/repo acme/a', ctx)[0]).toEqual(['acme/api'])
 })
 
-test('completar /plan, /watch e /halt sugerem ids de card', () => {
-  for (const c of ['/plan ', '/watch ', '/halt ']) expect(complete(c, ctx)[0]).toEqual(['019', '020'])
-  expect(complete('/plan 02', ctx)[0]).toEqual(['020'])
+test('completar /halt (apelido de /stop) sugere ids de card', () => {
+  expect(complete('/halt ', ctx)[0]).toEqual(['019', '020'])
+  expect(complete('/halt 02', ctx)[0]).toEqual(['020'])
 })
 
-test('completar /cards sugere estados, insensivel a caixa', () => {
-  expect(complete('/cards hal', ctx)[0]).toEqual(['HALTED'])
+test('comando cortado nao completa nada', () => {
+  for (const morto of ['/cards ', '/plan ', '/watch ', '/preview ', '/ok ']) {
+    expect(complete(morto, ctx)[0], morto).toEqual([])
+  }
 })
 
 test('texto livre nao completa', () => {
@@ -451,4 +441,32 @@ test('canonico resolve apelido e deixa comando desconhecido intacto', () => {
   expect(canonico('/halt')).toBe('/stop')
   expect(canonico('/repo')).toBe('/repo')
   expect(canonico('/inventado')).toBe('/inventado')
+})
+
+import { sincronizarAprovacao, comentando } from '../lib/core/session'
+
+test('a ask de aprovacao arma sozinha quando a tarefa que voce segue chega em PREVIEW', () => {
+  const dentro = seguir(base, '022')
+  expect(sincronizarAprovacao(dentro, 'EXECUTING').aprovando).toBe('')
+  expect(sincronizarAprovacao(dentro, 'PREVIEW').aprovando).toBe('022')
+})
+
+test('a ask nao se arma por cima de outra pergunta ja na tela', () => {
+  const dentro = seguir(base, '022')
+  expect(sincronizarAprovacao(base, 'PREVIEW').aprovando).toBe('')
+  expect(sincronizarAprovacao(comentando(dentro, '022'), 'PREVIEW').aprovando).toBe('')
+  expect(sincronizarAprovacao(planShown(dentro, '019'), 'PREVIEW').pendingPlan).toBe('019')
+  expect(sincronizarAprovacao(planShown(dentro, '019'), 'PREVIEW').aprovando).toBe('')
+})
+
+import { aprovando, comentando as comentandoEm } from '../lib/core/session'
+
+test('sair da tarefa fecha a ask de aprovacao junto — ela nao pode ficar boiando sobre o quadro', () => {
+  const armado = aprovando(seguir(base, '022'), '022')
+  for (const saida of ['/board', '/config']) {
+    const r = handle(saida, armado)
+    expect(r.state.seguindo, saida).toBe('')
+    expect(r.state.aprovando, saida).toBe('')
+  }
+  expect(handle('/board', comentandoEm(seguir(base, '022'), '022')).state.comentando).toBe('')
 })

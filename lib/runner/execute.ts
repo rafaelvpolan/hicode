@@ -13,7 +13,7 @@ import type { WorktreeFate } from './git'
 import { ensurePreview, hasDevServer, inspectPreview, previewPort, stopPreview, waitHttp } from './preview'
 import { classifySurface, type SurfaceVerdict } from './classify'
 import { implement, verifyVisual } from './agent'
-import { writeRun } from './runs'
+import { resolvedFailure, writeRun } from './runs'
 import { warnBudgetWithoutGuarantee } from './cost-trust'
 import { applyFailurePolicy } from './failure-policy'
 import { quotaFallbackProviderFor } from '../ai/registry'
@@ -186,12 +186,11 @@ export async function handleExecute(id: string, deps: ExecuteDeps = { implement,
   steps.Executando.tokens += tokensOf(res.usage)
   if (!res.ok) {
     const elapsed = toSeconds(Date.now() - t0)
-    const rec = writeRun(id, res, elapsed, asStepMap(steps))
+    const { failureClass, failureReason } = resolvedFailure(res)
+    const rec = writeRun(id, { ...res, failureClass, failureReason }, elapsed, asStepMap(steps))
     const totalCost = baseCost + auxCost + (parseFloat(res.cost || '0') || 0)
     const totalTokens = baseTokens + auxTokens + rec.tokens_total
     const totals: Fields = { cost_usd: totalCost.toFixed(4), tokens_total: String(totalTokens) }
-    const failureClass = res.failureClass ?? 'terminal'
-    const failureReason = res.failureReason ?? 'falha nao classificada'
     if (failureClass === 'quota' && quotaFallbackLigado()) {
       const fallback = quotaFallbackProviderFor('implement')
       if (fallback && fallback !== res.provider) {

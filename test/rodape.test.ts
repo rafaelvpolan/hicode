@@ -97,14 +97,24 @@ function c(over: Partial<Fields>): Fields {
   return { id: '1', title: 't', status: 'READY', repo: 'org/app', ...over }
 }
 
-test('lista quem espera voce, com o comando que destrava', () => {
+test('lista quem espera voce, com o que digitar para destravar', () => {
   const e = esperandoVoce([
     c({ id: '22', status: 'CLARIFY' }),
     c({ id: '23', status: 'PREVIEW' }),
     c({ id: '24', status: 'READY' }),
     c({ id: '25', status: 'EXECUTING' }),
   ], 'org/app')
-  expect(e.map(x => x.comando)).toEqual(['/ask 22', '/ok 23', '/plan 24'])
+  expect(e.map(x => x.comando)).toEqual(['/ask 22', '23', '24'])
+})
+
+test('REGRESSAO a dica nunca manda digitar comando que nao existe mais', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const estados = ['CLARIFY', 'PREVIEW', 'READY', 'INBOX', 'SPECCED', 'HALTED', 'PR_OPEN']
+  const dicas = esperandoVoce(estados.map((status, i) => c({ id: String(i + 1), status })), 'org/app')
+  expect(dicas.length).toBe(estados.length)
+  for (const d of dicas) {
+    expect(handle(d.comando, newSession('org/app')).effect.kind, d.comando).not.toBe('error')
+  }
 })
 
 test('card rodando nao aparece como esperando voce', () => {

@@ -1,5 +1,4 @@
 import type { Plan, PlanWave } from '../plan'
-import { link } from '../tui/layout'
 
 const DIM = '\x1b[2m'
 const BOLD = '\x1b[1m'
@@ -58,12 +57,6 @@ export function renderPlan(plan: Plan, opts: Partial<RenderOptions> = {}): strin
   out.push('')
   out.push(`    ${'Objetivo'.padEnd(10)} ${oneLine(plan.objetivo, o.width - 16)}`)
   out.push(`    ${'Alvo'.padEnd(10)} ${oneLine(plan.repo, o.width - 16)}`)
-  if (plan.previewUrl || plan.previewRotulo) {
-    const rotulo = plan.previewComando ? `${plan.previewRotulo} — ${plan.previewComando} sobe` : plan.previewRotulo
-    const url = plan.previewUrl ? (o.color ? link(plan.previewUrl) : plan.previewUrl) : ''
-    const corpo = url ? `${url}  ${paint(rotulo, DIM, o)}` : paint(rotulo, DIM, o)
-    out.push(`    ${'Preview'.padEnd(10)} ${corpo}`)
-  }
   out.push(flag('Layout', plan.layout.on, plan.layout.reason, o))
   out.push(flag('Pilha', plan.pilha.on, plan.pilha.reason, o))
   out.push('')
@@ -79,7 +72,7 @@ export function renderPlan(plan: Plan, opts: Partial<RenderOptions> = {}): strin
   out.push(rule('Execucao', o))
   out.push(`    hii approve ${plan.id} --plan     ${paint('aprova o plano e enfileira', DIM, o)}`)
   out.push(`    hii halt ${plan.id} "motivo"      ${paint('descarta o card', DIM, o)}`)
-  out.push(`    ${paint('no REPL: enter aprova · /ok <id> aprova o preview depois', DIM, o)}`)
+  out.push(`    ${paint('no REPL: enter aprova o plano · dentro da tarefa, 1 aprova o resultado', DIM, o)}`)
   out.push('')
   out.push(paint('    Nada foi executado.', WARN, o))
   return out.join('\n')

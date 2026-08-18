@@ -29,9 +29,34 @@ test('nenhum EffectKind repetido na uniao — TypeScript deduplica em silencio',
 test('todo efeito que o parser produz tem um case que o trate', () => {
   const produzidos = new Set([...fonteSession.matchAll(/kind: '([^']+)'/g)].map(m => m[1] ?? ''))
   const tratados = new Set(casesDoSwitch(fonteDispatch))
-  const foraDoDispatch = new Set(['quit', 'board', 'nova-sessao', 'none'])
+  const foraDoDispatch = new Set(['quit', 'board', 'none'])
   const orfaos = [...produzidos].filter(k => !tratados.has(k) && !foraDoDispatch.has(k))
   expect(orfaos).toEqual([])
+})
+
+test('nenhum case do dispatch fica orfao — case que ninguem alcanca e codigo morto', () => {
+  const doParser = [...fonteSession.matchAll(/kind: '([^']+)'/g)].map(m => m[1] ?? '')
+  const doProprioDispatch = [...fonteDispatch.matchAll(/kind: '([^']+)'/g)].map(m => m[1] ?? '')
+  const alcancaveis = new Set([...doParser, ...doProprioDispatch])
+  expect(alcancaveis.size).toBeGreaterThan(10)
+  const orfaos = casesDoSwitch(fonteDispatch).filter(c => !alcancaveis.has(c))
+  expect(orfaos).toEqual([])
+})
+
+test('nenhum comando canonico e apelido de outro — foi assim que /halt, /quit e /project viraram duplicata', () => {
+  for (const cmd of COMMANDS) expect(canonico(cmd), cmd).toBe(cmd)
+})
+
+test('nenhum apelido serve a dois comandos, e apelido nao repete o principal', () => {
+  const vistos = new Set<string>()
+  for (const [principal, apelidos] of Object.entries(ALIASES)) {
+    for (const a of apelidos) {
+      expect(vistos.has(a), `${a} aparece em mais de um comando`).toBe(false)
+      expect(a, `${a} e apelido de si mesmo`).not.toBe(principal)
+      vistos.add(a)
+    }
+  }
+  expect(vistos.size).toBeGreaterThan(0)
 })
 
 test('/ask e /new-ask sao efeitos DISTINTOS — colidiram e quebraram o /ask', () => {

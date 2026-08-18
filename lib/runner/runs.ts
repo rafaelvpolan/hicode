@@ -1,8 +1,44 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { isoNow } from '../card'
-import type { ImplementResult, Run, StepMap } from '../card'
+import type { FailureClass, ImplementResult, Run, StepMap } from '../card'
 import { cardsDir } from './config'
+
+export const MOTIVO_SEM_CLASSIFICACAO = 'falha nao classificada — tratada como terminal'
+
+export interface ResolvedFailure {
+  failureClass: FailureClass
+  failureReason: string
+}
+
+export function resolvedFailure(res: Pick<ImplementResult, 'failureClass' | 'failureReason'>): ResolvedFailure {
+  return {
+    failureClass: res.failureClass ?? 'terminal',
+    failureReason: res.failureReason ?? MOTIVO_SEM_CLASSIFICACAO,
+  }
+}
+
+function failureFields(res: ImplementResult): Pick<Run, 'failure_class' | 'failure_reason'> {
+  if (res.ok) return { failure_class: '', failure_reason: '' }
+  const f = resolvedFailure(res)
+  return { failure_class: f.failureClass, failure_reason: f.failureReason }
+}
+
+function latestRunPath(id: string): string {
+  const dir = join(cardsDir(), 'runs')
+  if (!existsSync(dir)) return ''
+  const files = readdirSync(dir).filter(f => f.startsWith(`${id}-`) && f.endsWith('.json')).sort()
+  const last = files[files.length - 1]
+  return last ? join(dir, last) : ''
+}
+
+function readRunAt(path: string): Run | null {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as Run
+  } catch {
+    return null
+  }
+}
 
 export function writeRun(id: string, res: ImplementResult, durationS = 0, steps: StepMap | null = null): Run {
   const dir = join(cardsDir(), 'runs')
@@ -26,26 +62,34 @@ export function writeRun(id: string, res: ImplementResult, durationS = 0, steps:
     steps: steps || null,
     provider: res.provider || '',
     model: res.model || '',
-    failure_class: res.ok ? '' : (res.failureClass ?? ''),
-    failure_reason: res.ok ? '' : (res.failureReason ?? ''),
+    ...failureFields(res),
   }
   writeFileSync(join(dir, `${id}-${safe}.json`), JSON.stringify(rec, null, 2))
   return rec
 }
 
+function mesmoProvedor(doRegistro: string, queFalhou: string): boolean {
+  return queFalhou === '' || doRegistro === '' || doRegistro === queFalhou
+}
+
+export function stampRunFailure(id: string, failure: ResolvedFailure, provider: string): boolean {
+  const p = latestRunPath(id)
+  if (!p) return false
+  const r = readRunAt(p)
+  if (!r) return false
+  const proprio = mesmoProvedor(r.provider || '', provider)
+  r.ok = false
+  r.failure_class = proprio ? failure.failureClass : ''
+  r.failure_reason = proprio ? failure.failureReason : `${failure.failureReason} (provedor ${provider})`
+  writeFileSync(p, JSON.stringify(r, null, 2))
+  return true
+}
+
 export function updateRunSteps(id: string, fsteps: StepMap): { tokens: number; cost: string } {
-  const dir = join(cardsDir(), 'runs')
-  if (!existsSync(dir)) return { tokens: 0, cost: '' }
-  const files = readdirSync(dir).filter(f => f.startsWith(`${id}-`) && f.endsWith('.json')).sort()
-  const last = files[files.length - 1]
-  if (!last) return { tokens: 0, cost: '' }
-  const p = join(dir, last)
-  let r: Run
-  try {
-    r = JSON.parse(readFileSync(p, 'utf8')) as Run
-  } catch {
-    return { tokens: 0, cost: '' }
-  }
+  const p = latestRunPath(id)
+  if (!p) return { tokens: 0, cost: '' }
+  const r = readRunAt(p)
+  if (!r) return { tokens: 0, cost: '' }
   r.steps = r.steps || {}
   let addTok = 0
   let addCost = 0
@@ -65,14 +109,7 @@ export function updateRunSteps(id: string, fsteps: StepMap): { tokens: number; c
 }
 
 export function readRunSteps(id: string): StepMap | null {
-  const dir = join(cardsDir(), 'runs')
-  if (!existsSync(dir)) return null
-  const files = readdirSync(dir).filter(f => f.startsWith(`${id}-`) && f.endsWith('.json')).sort()
-  const last = files[files.length - 1]
-  if (!last) return null
-  try {
-    return (JSON.parse(readFileSync(join(dir, last), 'utf8')) as Run).steps ?? null
-  } catch {
-    return null
-  }
+  const p = latestRunPath(id)
+  if (!p) return null
+  return readRunAt(p)?.steps ?? null
 }

@@ -11,8 +11,18 @@ test('agrupa por proposito, nao numa lista solta', () => {
 
 test('cobre todos os comandos que a sessao aceita', () => {
   const t = renderHelp().join('\n')
-  for (const c of ['/board', '/cards', '/watch', '/agents', '/ask', '/ok', '/no', '/stop', '/rm', '/repo', '/quit']) {
+  for (const c of ['/board', '/config', '/ask', '/stop', '/rm', '/repo', '/exit', '/new-task', '/new-ask', '/new-session']) {
     expect(t).toContain(c)
+  }
+})
+
+test('todo comando que o /help anuncia e aceito pelo parser', async () => {
+  const { handle, newSession } = await import('../lib/core/session')
+  const texto = renderHelp().join('\n')
+  const anunciados = [...new Set([...texto.matchAll(/(?:^|\s)(\/[a-z?-]+)/gm)].map(m => m[1] ?? ''))]
+  expect(anunciados.length).toBeGreaterThan(8)
+  for (const cmd of anunciados) {
+    expect(handle(`${cmd} 001`, newSession('org/app')).effect.kind, cmd).not.toBe('error')
   }
 })
 

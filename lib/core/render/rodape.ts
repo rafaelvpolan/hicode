@@ -137,7 +137,7 @@ export function esperandoVoce(cards: Fields[], repo: string): Espera[] {
       id: String(card.id ?? ''),
       titulo: String(card.title ?? ''),
       motivo: esp.motivo,
-      comando: `${esp.comando} ${Number(card.id)}`,
+      comando: esp.comando ? `${esp.comando} ${Number(card.id)}` : String(Number(card.id)),
       projeto: String(card.repo ?? ''),
     }))
 }

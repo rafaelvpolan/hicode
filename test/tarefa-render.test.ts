@@ -38,23 +38,18 @@ test('convida a escrever mais instrucoes', () => {
   expect(t).toContain('/board volta')
 })
 
-test('preview vivo aparece com link; parado nao mente', () => {
-  const vivo = renderCabecalhoTarefa(card({ worktree: '/wt' }), {
-    width: 78, temDevServer: true, previewUrl: 'http://localhost:5222', vivo: true,
-  }).join('\n')
-  expect(vivo).toContain('http://localhost:5222')
-  expect(vivo).toContain('no ar agora')
+test('preview so aparece se o card tiver URL — quem sobe e o humano ou o painel', () => {
+  const com = renderCabecalhoTarefa(card({ preview_url: 'http://localhost:5222' }), { width: 78 }).join('\n')
+  expect(com).toContain('http://localhost:5222')
 
-  const futuro = renderCabecalhoTarefa(card({ status: 'CLARIFY' }), {
-    width: 78, temDevServer: true, previewUrl: 'http://localhost:5222',
-  }).join('\n')
-  expect(futuro).not.toContain('localhost:5222')
-  expect(futuro).toContain('sobe quando a tarefa executar')
+  const sem = renderCabecalhoTarefa(card({ worktree: '/wt' }), { width: 78 }).join('\n')
+  expect(sem).not.toContain('preview')
 })
 
-test('projeto sem dev server nao ganha linha de preview', () => {
-  const t = renderCabecalhoTarefa(card(), { width: 78, temDevServer: false }).join('\n')
-  expect(t).not.toContain('preview')
+test('a tela da tarefa nao promete subir preview nem manda rodar comando morto', () => {
+  const t = renderCabecalhoTarefa(card({ worktree: '/wt', preview_url: 'http://localhost:5222' }), { width: 78 }).join('\n')
+  expect(t).not.toContain('sobe quando')
+  expect(t).not.toContain('/preview')
 })
 
 test('mostra o gasto quando existe, e omite quando nao', () => {

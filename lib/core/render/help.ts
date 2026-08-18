@@ -43,18 +43,15 @@ const SECOES: Secao[] = [
   {
     titulo: 'acompanhar',
     itens: [
-      { chave: '/board', arg: '', texto: 'quadro do projeto, ao vivo' },
-      { chave: '/cards', arg: '[estado]', texto: 'lista crua, filtrando por estado' },
-      { chave: '/watch', arg: '<id>', texto: 'segue a execucao da IA, linha a linha' },
-      { chave: '/agents', arg: '<id>', texto: 'agentes, skills e ferramentas usados' },
+      { chave: '/board', arg: '', texto: 'quadro do projeto, ao vivo — ↑↓ e enter entram na tarefa' },
+      { chave: '/config', arg: '', texto: 'ias conectadas, uso da janela e gasto' },
     ],
   },
   {
     titulo: 'decidir',
     itens: [
       { chave: '/ask', arg: '[id]', texto: 'responde a pergunta que travou a tarefa' },
-      { chave: '/ok', arg: '<id>', texto: 'aprova o preview que voce viu' },
-      { chave: '/no', arg: '<id> [ajuste]', texto: 'rejeita e manda corrigir' },
+      { chave: '1 2 3', arg: '', texto: 'dentro da tarefa: aprova, refaz, ou diz o que ajustar' },
       { chave: '/stop', arg: '<id> [motivo]', texto: 'para a tarefa em execucao' },
       { chave: '/rm', arg: '<id> [id...]', texto: 'apaga tarefas e limpa worktree e preview' },
     ],
@@ -66,8 +63,7 @@ const SECOES: Secao[] = [
       { chave: '/model', arg: '[papel] <modelo>', texto: 'escolhe o modelo da ia atual' },
       { chave: '/effort', arg: '[papel] <nivel>', texto: 'escolhe o esforco da ia atual' },
       { chave: '/repo', arg: '[owner/nome]', texto: 'troca de projeto, ou lista os registrados' },
-      { chave: '/exit', arg: '', texto: 'sai do hii e volta para o shell' },
-      { chave: '/quit', arg: '', texto: 'o mesmo que /exit' },
+      { chave: '/exit', arg: '', texto: 'sai do hii — as tarefas seguem rodando' },
     ],
   },
   {

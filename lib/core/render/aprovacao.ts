@@ -45,7 +45,7 @@ export function renderAprovacao(id: string, opts: Partial<AprovacaoOptions> = {}
     ].map(l => truncVisible(l, o.width))
   }
   const alvo = o.url ? paint(`  ${o.url}`, DIM, o) : ''
-  const cabecalho = `  ${paint('◎', CYAN, o)} ${paint(`#${id} aprovar o preview?`, BOLD, o)}${alvo}`
+  const cabecalho = `  ${paint('◎', CYAN, o)} ${paint(`#${id} aprovar o resultado?`, BOLD, o)}${alvo}`
   const linhas = OPCOES_APROVACAO.map((op) => {
     const marcada = o.selecionado === `op:${op.chave}`
     const marca = marcada ? paint('›', CYAN, o) : ' '
