@@ -112,7 +112,22 @@ test('resumo de log sem ferramenta e vazio', () => {
   expect(resumo(parseLog('só texto do modelo aqui'))).toBe('')
 })
 
-test('formatar destaca agente e skill', () => {
-  expect(formatar(classificar({ ferramenta: 'Task', entrada: { subagent_type: 'radix' } }))).toContain('agente radix')
-  expect(formatar(classificar({ ferramenta: 'Skill', entrada: { skill: 'spec' } }))).toContain('skill spec')
+test('formatar usa o estilo do CLI: bullet + Ferramenta(args)', () => {
+  expect(formatar(classificar({ ferramenta: 'Task', entrada: { subagent_type: 'radix' } }))).toBe('● Task(radix)')
+  expect(formatar(classificar({ ferramenta: 'Skill', entrada: { skill: 'spec' } }))).toBe('● Skill(spec)')
+})
+
+test('a prosa da IA chega inteira — cortar em 90 chars comia a resposta', () => {
+  const frase = 'Nao consegui executar: o conector Notion esta conectado, mas bloqueado por permissao nesta sessao, '
+    + 'e por isso nada foi criado no Notion nem alterado no worktree do card.'
+  const a = parseLinha(frase)
+  expect(a?.tipo).toBe('texto')
+  expect(a?.alvo).toBe(frase)
+  expect(a?.alvo.endsWith('…')).toBe(false)
+})
+
+test('entrada de ferramenta continua curta — o corte de 60 vale para tool, nao para prosa', () => {
+  const a = parseLinha('  → Bash({"command":"' + 'x'.repeat(300) + '"})')
+  expect(a?.tipo).toBe('shell')
+  expect(a?.alvo.length).toBeLessThanOrEqual(61)
 })
