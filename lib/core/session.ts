@@ -2,9 +2,10 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa' | 'consultar' | 'nova-sessao' | 'modelo' | 'esforco'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa' | 'consultar' | 'nova-sessao' | 'modelo' | 'esforco' | 'config'
 
 export interface SessionState {
+  tela: '' | 'config'
   repo: string
   pendingPlan: string
   seguindo: string
@@ -46,6 +47,7 @@ export const ALIASES: Record<string, string[]> = {
   '/agents': ['/agentes'],
   '/help': ['/h', '/?'],
   '/board': ['/quadro'],
+  '/config': ['/configuracao'],
 }
 
 export function canonico(comando: string): string {
@@ -55,10 +57,10 @@ export function canonico(comando: string): string {
   return comando
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/new-task', '/new-ask', '/new-session', '/repo', '/project', '/ia', '/model', '/effort', '/exit', '/quit'] as const
+export const COMMANDS = ['/help', '/board', '/config', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/new-task', '/new-ask', '/new-session', '/repo', '/project', '/ia', '/model', '/effort', '/exit', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '', conversa: [] }
+  return { tela: '', repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '', conversa: [] }
 }
 
 export function perguntando(state: SessionState, id: string): SessionState {
@@ -116,7 +118,10 @@ function command(line: string, state: SessionState): Reply {
       return reply({ kind: 'help' }, state)
     case 'board':
     case 'quadro':
-      return reply({ kind: 'board' }, { ...state, seguindo: '' })
+      return reply({ kind: 'board' }, { ...state, seguindo: '', tela: '' })
+    case 'config':
+    case 'configuracao':
+      return reply({ kind: 'config' }, { ...state, tela: 'config', seguindo: '' })
     case 'cards':
     case 'ls':
       return reply({ kind: 'cards', text: arg }, state)

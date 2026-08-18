@@ -228,6 +228,10 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       io.log(definirEsforco(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
       return state
     }
+    case 'config': {
+      io.log(io.dim('  /config — ↑↓ escolhe a ia · enter aplica no papel implement · /board volta'))
+      return state
+    }
     case 'consultar': {
       if (!texto.trim()) { io.log('uso: /new-ask <pergunta>'); return state }
       io.log(io.dim('  consultando o ambiente e o projeto (leitura, sem alterar arquivo)…'))
