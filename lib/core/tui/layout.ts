@@ -70,6 +70,7 @@ export interface FrameInput {
   cols: number
   header: string
   corpo: string[]
+  fixo?: string[]
   input: string
   corInput?: (linha: string) => string
   sugestoes?: string[]
@@ -87,6 +88,9 @@ export interface Frame {
 }
 
 const MIN_CORPO = 3
+const MIN_ROLANTE = 5
+const FATIA_PINADA = 0.4
+const ALTURA_MINIMA = 4
 
 export function posicaoNoTexto(texto: string, cursor: number): { linha: number; coluna: number } {
   const antes = texto.slice(0, Math.max(0, Math.min(cursor, texto.length)))
@@ -97,14 +101,30 @@ export function posicaoNoTexto(texto: string, cursor: number): { linha: number; 
 export function renderFrame(f: FrameInput): Frame {
   const largura = Math.max(24, f.cols)
   const interno = largura - 4
-  const entrada = f.input.split('\n')
-  const alturaEntrada = entrada.length
   const rodape = f.rodape ?? []
   const sugestoes = f.sugestoes ?? []
-  const moldura = f.legenda === undefined ? 0 : 2
-  const linhaDica = f.dica ? 1 : 0
-  const alturaCorpo = Math.max(MIN_CORPO, f.rows - 3 - alturaEntrada - rodape.length - sugestoes.length - moldura - linhaDica)
-  const visiveis = f.corpo.slice(-alturaCorpo)
+  const moldura = f.legenda !== undefined && f.rows >= ALTURA_MINIMA + 2 ? 2 : 0
+  const linhaDica = f.dica && f.rows >= ALTURA_MINIMA + moldura + 1 ? 1 : 0
+  const pos = posicaoNoTexto(f.input, f.cursor)
+  const todasEntradas = f.input.split('\n')
+  const maxEntrada = Math.max(1, f.rows - 3 - moldura - linhaDica - MIN_CORPO)
+  const inicioEntrada = todasEntradas.length <= maxEntrada
+    ? 0
+    : Math.max(0, Math.min(pos.linha - maxEntrada + 1, todasEntradas.length - maxEntrada))
+  const entrada = todasEntradas.slice(inicioEntrada, inicioEntrada + maxEntrada)
+  const alturaEntrada = entrada.length
+  const fixo = 3 + alturaEntrada + moldura + linhaDica
+  const disponivel = Math.max(0, f.rows - fixo)
+  const sugVisiveis = sugestoes.slice(0, Math.max(0, disponivel - 1))
+  const rodapeVisivel = rodape.slice(0, Math.max(0, disponivel - sugVisiveis.length - MIN_CORPO))
+  const alturaCorpo = Math.max(0, disponivel - sugVisiveis.length - rodapeVisivel.length)
+  const pinado = f.fixo ?? []
+  const tetoPinado = Math.max(1, Math.min(alturaCorpo - MIN_ROLANTE, Math.floor(alturaCorpo * FATIA_PINADA)))
+  const quantosPinados = alturaCorpo ? Math.min(pinado.length, tetoPinado) : 0
+  const pinadoVisivel = pinado.slice(0, quantosPinados)
+  const alturaRolante = Math.max(0, alturaCorpo - quantosPinados)
+  const rolantes = alturaRolante ? f.corpo.slice(-alturaRolante) : []
+  const visiveis = [...pinadoVisivel, ...rolantes]
   const lines: string[] = []
   lines.push(padVisible('  ' + truncVisible(f.header, largura - 2), largura))
   lines.push('  ┌' + '─'.repeat(interno) + '┐')
@@ -113,8 +133,8 @@ export function renderFrame(f: FrameInput): Frame {
     lines.push('  │' + padVisible(truncVisible(conteudo, interno), interno) + '│')
   }
   lines.push('  └' + '─'.repeat(interno) + '┘')
-  for (const sg of sugestoes) lines.push(padVisible('  ' + truncVisible(sg, largura - 2), largura))
-  const comMoldura = f.legenda !== undefined
+  for (const sg of sugVisiveis) lines.push(padVisible('  ' + truncVisible(sg, largura - 2), largura))
+  const comMoldura = moldura === 2
   if (comMoldura) {
     const rotulo = f.legenda ? ` ${truncVisible(f.legenda, Math.max(4, interno - 4))} ` : ''
     const sobra = Math.max(0, interno - 1 - visibleLen(rotulo))
@@ -132,12 +152,33 @@ export function renderFrame(f: FrameInput): Frame {
       : padVisible('  ' + conteudo, largura))
   })
   if (comMoldura) lines.push('  └' + '─'.repeat(interno) + '┘')
-  if (f.dica) lines.push(padVisible('    ' + truncVisible(f.dica, largura - 4), largura))
-  for (const r of rodape) lines.push(padVisible('  ' + truncVisible(r, largura - 2), largura))
-  const pos = posicaoNoTexto(f.input, f.cursor)
+  if (linhaDica) lines.push(padVisible('    ' + truncVisible(f.dica ?? '', largura - 4), largura))
+  for (const r of rodapeVisivel) lines.push(padVisible('  ' + truncVisible(r, largura - 2), largura))
   return {
     lines,
-    cursorRow: primeira + pos.linha,
+    cursorRow: primeira + (pos.linha - inicioEntrada),
     cursorCol: (comMoldura ? 5 : 3) + visibleLen(f.prompt) + pos.coluna,
   }
+}
+
+export function quebrarEmLargura(texto: string, largura: number): string[] {
+  const alvo = Math.max(20, largura)
+  const saida: string[] = []
+  for (const bruta of texto.split('\n')) {
+    const linha = bruta.replace(/\s+$/, '')
+    if (visibleLen(linha) <= alvo) { saida.push(linha); continue }
+    const recuo = (linha.match(/^\s*/) ?? [''])[0]
+    let atual = recuo
+    for (const palavra of linha.trim().split(/\s+/)) {
+      const candidata = atual.trim() ? `${atual} ${palavra}` : `${recuo}${palavra}`
+      if (visibleLen(candidata) > alvo && atual.trim()) {
+        saida.push(atual)
+        atual = `${recuo}${palavra}`
+      } else {
+        atual = candidata
+      }
+    }
+    if (atual.trim()) saida.push(atual)
+  }
+  return saida
 }

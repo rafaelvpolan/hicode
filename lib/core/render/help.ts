@@ -32,7 +32,10 @@ const SECOES: Secao[] = [
   {
     titulo: 'comecar',
     itens: [
-      { chave: 'escreva', arg: 'a tarefa', texto: 'qualquer texto vira uma tarefa nova' },
+      { chave: 'escreva', arg: 'a tarefa', texto: 'texto de mudanca vira tarefa; pergunta e respondida' },
+      { chave: '/new-task', arg: '<mudanca>', texto: 'cria a tarefa direto, sem leitura de intencao' },
+      { chave: '/new-ask', arg: '<pergunta>', texto: 'responde sobre o projeto, sem criar card' },
+      { chave: '/new-session', arg: '', texto: 'limpa a area e recomeca a sessao' },
       { chave: '20', arg: '', texto: 'so o numero abre o plano da tarefa' },
       { chave: 'enter', arg: '', texto: 'aprova o plano que acabou de aparecer' },
     ],
@@ -59,6 +62,9 @@ const SECOES: Secao[] = [
   {
     titulo: 'projeto',
     itens: [
+      { chave: '/ia', arg: '[papel] <ia>', texto: 'escolhe a ia que roda cada papel' },
+      { chave: '/model', arg: '[papel] <modelo>', texto: 'escolhe o modelo da ia atual' },
+      { chave: '/effort', arg: '[papel] <nivel>', texto: 'escolhe o esforco da ia atual' },
       { chave: '/repo', arg: '[owner/nome]', texto: 'troca de projeto, ou lista os registrados' },
       { chave: '/exit', arg: '', texto: 'sai do hii e volta para o shell' },
       { chave: '/quit', arg: '', texto: 'o mesmo que /exit' },
@@ -70,7 +76,7 @@ const SECOES: Secao[] = [
       { chave: '↓ enter', arg: '', texto: 'seleciona no board e entra na tarefa' },
       { chave: 'ctrl+j', arg: '', texto: 'quebra linha sem enviar' },
       { chave: 'ctrl+bksp', arg: '', texto: 'apaga a palavra inteira' },
-      { chave: 'tab', arg: '', texto: 'completa comando, id e projeto' },
+      { chave: 'tab', arg: '', texto: 'campo vazio troca a ia · com texto completa' },
     ],
   },
 ]

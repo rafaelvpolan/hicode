@@ -6,11 +6,13 @@ import type { Fields } from '../lib/card'
 
 const base = newSession('org/app')
 
-test('texto livre cria tarefa', () => {
+test('texto livre passa pela leitura de intencao antes de virar tarefa', () => {
   const r = handle('FAQ acordeao na home', base)
-  expect(r.effect.kind).toBe('submit')
+  expect(r.effect.kind).toBe('confirmar-tarefa')
   expect(r.effect.text).toBe('FAQ acordeao na home')
 })
+
+
 
 test('linha vazia sem plano pendente nao faz nada', () => {
   expect(handle('', base).effect.kind).toBe('none')
@@ -25,7 +27,7 @@ test('enter com plano pendente aprova e limpa o pendente', () => {
 
 test('texto livre com plano pendente descarta o plano e cria outro card', () => {
   const r = handle('outra tarefa', planShown(base, '042'))
-  expect(r.effect.kind).toBe('submit')
+  expect(r.effect.kind).toBe('confirmar-tarefa')
   expect(r.state.pendingPlan).toBe('')
 })
 
@@ -203,13 +205,12 @@ test('REGRESSAO numero puro MOSTRA o card, nao cria tarefa chamada "20"', () => 
   }
 })
 
-test('texto que so comeca com numero ainda cria tarefa', () => {
-  const r = handle('2 selos no hero', base)
-  expect(r.effect.kind).toBe('submit')
+test('texto que so comeca com numero ainda vira tarefa', () => {
+  expect(handle('2 selos no hero', base).effect.kind).toBe('confirmar-tarefa')
 })
 
 test('numero longo demais para ser id vira tarefa', () => {
-  expect(handle('12345', base).effect.kind).toBe('submit')
+  expect(handle('12345', base).effect.kind).toBe('confirmar-tarefa')
 })
 
 import { perguntando, respondido } from '../lib/core/session'
@@ -334,8 +335,8 @@ test('dentro da tarefa, texto vira instrucao e NAO tarefa nova', () => {
   expect(r.effect.text).toBe('tira tambem o selo do hero')
 })
 
-test('fora da tarefa, o mesmo texto cria tarefa', () => {
-  expect(handle('tira tambem o selo do hero', base).effect.kind).toBe('submit')
+test('fora da tarefa, o mesmo texto vira tarefa', () => {
+  expect(handle('tira tambem o selo do hero', base).effect.kind).toBe('confirmar-tarefa')
 })
 
 test('comando dentro da tarefa continua sendo comando', () => {
@@ -423,4 +424,31 @@ test('enter vazio desiste de escolher projeto', () => {
 
 test('comando durante a escolha continua sendo comando', () => {
   expect(handle('/board', escolhendoRepo(base)).effect.kind).toBe('board')
+})
+
+import { ALIASES, canonico } from '../lib/core/session'
+
+test('REGRESSAO todo apelido se comporta igual ao comando principal', () => {
+  for (const [principal, apelidos] of Object.entries(ALIASES)) {
+    const esperado = handle(`${principal} x`, base).effect.kind
+    for (const apelido of apelidos) {
+      expect(handle(`${apelido} x`, base).effect.kind, `${apelido} vs ${principal}`).toBe(esperado)
+    }
+  }
+})
+
+test('REGRESSAO apelido completa os mesmos argumentos que o principal', () => {
+  for (const [principal, apelidos] of Object.entries(ALIASES)) {
+    const esperado = complete(`${principal} `, ctx)[0]
+    for (const apelido of apelidos) {
+      expect(complete(`${apelido} `, ctx)[0], `${apelido} vs ${principal}`).toEqual(esperado)
+    }
+  }
+})
+
+test('canonico resolve apelido e deixa comando desconhecido intacto', () => {
+  expect(canonico('/project')).toBe('/repo')
+  expect(canonico('/halt')).toBe('/stop')
+  expect(canonico('/repo')).toBe('/repo')
+  expect(canonico('/inventado')).toBe('/inventado')
 })

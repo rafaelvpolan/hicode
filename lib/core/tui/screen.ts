@@ -58,14 +58,19 @@ export function openScreen(term: Terminal): Screen {
   term.write(ALT_ON + PASTE_ON + TECLAS_ON)
   term.setRaw(true)
   let ultimo: Omit<FrameInput, 'rows' | 'cols'> | null = null
+  let ultimaPintura = ''
   const draw = (conteudo: Omit<FrameInput, 'rows' | 'cols'>): void => {
     if (!aberto) return
     ultimo = conteudo
-    term.write(HIDE)
-    term.write(frameToAnsi(renderFrame({ ...conteudo, rows: term.rows(), cols: term.cols() })))
-    term.write(SHOW)
+    const pintura = frameToAnsi(renderFrame({ ...conteudo, rows: term.rows(), cols: term.cols() }))
+    if (pintura === ultimaPintura) return
+    ultimaPintura = pintura
+    term.write(HIDE + pintura + SHOW)
   }
-  const redesenhar = (): void => { if (ultimo) draw(ultimo) }
+  const redesenhar = (): void => {
+    ultimaPintura = ''
+    if (ultimo) draw(ultimo)
+  }
   term.onResize(redesenhar)
   return {
     draw,

@@ -2,9 +2,10 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa' | 'consultar' | 'nova-sessao' | 'modelo' | 'esforco' | 'config'
 
 export interface SessionState {
+  tela: '' | 'config'
   repo: string
   pendingPlan: string
   seguindo: string
@@ -14,6 +15,7 @@ export interface SessionState {
   escolhendo: boolean
   aprovando: string
   comentando: string
+  conversa: { pergunta: string; resposta: string }[]
 }
 
 export interface Effect {
@@ -27,10 +29,38 @@ export interface Reply {
   state: SessionState
 }
 
-export const COMMANDS = ['/help', '/board', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/repo', '/project', '/exit', '/quit'] as const
+export const ALIASES: Record<string, string[]> = {
+  '/repo': ['/project', '/projeto'],
+  '/stop': ['/halt', '/parar'],
+  '/exit': ['/quit', '/q'],
+  '/cards': ['/ls'],
+  '/ask': ['/responder'],
+  '/rm': ['/apagar'],
+  '/watch': ['/seguir'],
+  '/preview': ['/subir'],
+  '/ia': ['/provedor'],
+  '/model': ['/modelo'],
+  '/effort': ['/esforco'],
+  '/new-task': ['/nova-tarefa'],
+  '/new-ask': ['/nova-pergunta'],
+  '/new-session': ['/nova-sessao'],
+  '/agents': ['/agentes'],
+  '/help': ['/h', '/?'],
+  '/board': ['/quadro'],
+  '/config': ['/configuracao'],
+}
+
+export function canonico(comando: string): string {
+  for (const [principal, apelidos] of Object.entries(ALIASES)) {
+    if (comando === principal || apelidos.includes(comando)) return principal
+  }
+  return comando
+}
+
+export const COMMANDS = ['/help', '/board', '/config', '/cards', '/ok', '/no', '/ask', '/rm', '/stop', '/preview', '/watch', '/agents', '/halt', '/plan', '/new-task', '/new-ask', '/new-session', '/repo', '/project', '/ia', '/model', '/effort', '/exit', '/quit'] as const
 
 export function newSession(repo = ''): SessionState {
-  return { repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '' }
+  return { tela: '', repo, pendingPlan: '', seguindo: '', perguntando: '', removendo: '', retomando: '', escolhendo: false, aprovando: '', comentando: '', conversa: [] }
 }
 
 export function perguntando(state: SessionState, id: string): SessionState {
@@ -39,6 +69,10 @@ export function perguntando(state: SessionState, id: string): SessionState {
 
 export function respondido(state: SessionState): SessionState {
   return { ...state, perguntando: '' }
+}
+
+export function comConversa(state: SessionState, pergunta: string, resposta: string): SessionState {
+  return { ...state, conversa: [...state.conversa, { pergunta, resposta }].slice(-6) }
 }
 
 export function aprovando(state: SessionState, id: string): SessionState {
@@ -50,7 +84,7 @@ export function comentando(state: SessionState, id: string): SessionState {
 }
 
 export function semAprovacao(state: SessionState): SessionState {
-  return { ...state, aprovando: '', comentando: '' }
+  return { ...state, aprovando: '', comentando: '', conversa: [] }
 }
 
 export function escolhendoRepo(state: SessionState): SessionState {
@@ -83,7 +117,11 @@ function command(line: string, state: SessionState): Reply {
     case '?':
       return reply({ kind: 'help' }, state)
     case 'board':
-      return reply({ kind: 'board' }, { ...state, seguindo: '' })
+    case 'quadro':
+      return reply({ kind: 'board' }, { ...state, seguindo: '', tela: '' })
+    case 'config':
+    case 'configuracao':
+      return reply({ kind: 'config' }, { ...state, tela: 'config', seguindo: '' })
     case 'cards':
     case 'ls':
       return reply({ kind: 'cards', text: arg }, state)
@@ -106,6 +144,28 @@ function command(line: string, state: SessionState): Reply {
       return alvos.length
         ? reply({ kind: 'rm', id: alvos.join(' '), text: rest.includes('--force') ? 'force' : '' }, cleared)
         : reply({ kind: 'error', text: 'uso: /rm <id> [id...] — apaga os cards e limpa worktree e preview' }, state)
+    case 'new-task':
+    case 'nova-tarefa':
+      return arg
+        ? reply({ kind: 'submit', text: arg }, cleared)
+        : reply({ kind: 'error', text: 'uso: /new-task <o que mudar> — cria a tarefa sem passar pela leitura de intencao' }, state)
+    case 'new-ask':
+    case 'nova-pergunta':
+      return arg
+        ? reply({ kind: 'consultar', text: arg }, cleared)
+        : reply({ kind: 'error', text: 'uso: /new-ask <pergunta> — responde sem criar card' }, state)
+    case 'new-session':
+    case 'nova-sessao':
+      return reply({ kind: 'nova-sessao' }, state)
+    case 'ia':
+    case 'provedor':
+      return reply({ kind: 'ia', text: arg }, state)
+    case 'model':
+    case 'modelo':
+      return reply({ kind: 'modelo', text: arg }, state)
+    case 'effort':
+    case 'esforco':
+      return reply({ kind: 'esforco', text: arg }, state)
     case 'preview':
     case 'subir':
       return reply({ kind: 'preview', id: rest[0] ?? '', text: rest.includes('--limpar') ? 'limpar' : '' }, state)
@@ -181,9 +241,9 @@ export function handle(raw: string, state: SessionState): Reply {
     return reply({ kind: 'instruct', id: state.seguindo, text: line }, state)
   }
   if (state.pendingPlan) {
-    return reply({ kind: 'submit', text: line }, { ...state, pendingPlan: '' })
+    return reply({ kind: 'confirmar-tarefa', text: line }, { ...state, pendingPlan: '' })
   }
-  return reply({ kind: 'submit', text: line }, state)
+  return reply({ kind: 'confirmar-tarefa', text: line }, state)
 }
 
 export function planShown(state: SessionState, id: string): SessionState {

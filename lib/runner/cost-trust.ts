@@ -1,6 +1,8 @@
 import { isoNow } from '../card'
 import type { Fields } from '../card'
 import type { AgentRequest, AgentResult, AiProvider } from '../ai/types'
+import { COST_UNKNOWN } from '../ai/cost'
+import { emptyUsage } from '../ai/usage'
 import { patchCard, patchCardWith, readCard } from './card-store'
 import { addProvider, classifyCostGap, floorProviders, formatProviders, parseProviders, removeProvider } from './cost-gap'
 
@@ -63,7 +65,29 @@ export function recordCostTrust(id: string, provider: string, res: AgentResult):
   else if (gap === 'call_failed') markCostFloor(id, provider)
 }
 
+export function recusaPorLimite(provider: AiProvider, req: AgentRequest): string {
+  const limites = provider.limits
+  if (!limites) return ''
+  if (req.mode === 'readonly' && !limites.isolatesReadonly) {
+    return `${provider.name} nao sabe rodar em modo somente-leitura (nao restringe ferramenta) — um papel de verificacao nele poderia editar arquivo`
+  }
+  return ''
+}
+
 export async function runProvider(id: string, provider: AiProvider, req: AgentRequest): Promise<AgentResult> {
+  const recusa = recusaPorLimite(provider, req)
+  if (recusa) {
+    return {
+      ok: false,
+      failed: true,
+      timedOut: false,
+      isError: false,
+      detail: recusa,
+      text: '',
+      ...COST_UNKNOWN,
+      usage: emptyUsage(),
+    }
+  }
   const res = await provider.run(req)
   recordCostTrust(id, provider.name, res)
   return res

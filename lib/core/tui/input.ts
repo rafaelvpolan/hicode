@@ -1,6 +1,6 @@
 import { ehCola, textoDaCola } from './keys'
 
-export type ModoNavegacao = '' | 'board' | 'rodape'
+export type ModoNavegacao = '' | 'board' | 'rodape' | 'ajustes'
 
 export interface InputState {
   buffer: string
@@ -26,6 +26,7 @@ export type InputAction =
   | { kind: 'entrar'; modo: ModoNavegacao }
   | { kind: 'limpar' }
   | { kind: 'aba'; dir: -1 | 1 }
+  | { kind: 'ciclar-ia'; dir: -1 | 1 }
 
 export interface KeyResult {
   state: InputState
@@ -148,8 +149,13 @@ export function keypress(state: InputState, key: string): KeyResult {
     if (key === UP || key === DOWN) {
       return { state, action: { kind: 'nav', dir: key === UP ? -1 : 1, modo: state.navegando } }
     }
-    if (key === '\t') return { state, action: { kind: 'aba', dir: 1 } }
-    if (key === '\x1b[Z') return { state, action: { kind: 'aba', dir: -1 } }
+    if (state.navegando === 'ajustes') {
+      if (key === '\x1b[Z') return { state: { ...state, navegando: '' }, action: { kind: 'redraw' } }
+      if (key === '\t') return { state, action: { kind: 'ciclar-ia', dir: 1 } }
+    } else {
+      if (key === '\t') return { state, action: { kind: 'aba', dir: 1 } }
+      if (key === '\x1b[Z') return { state, action: { kind: 'aba', dir: -1 } }
+    }
     return keypress({ ...state, navegando: '' }, key)
   }
   if (ENTER.includes(key) && state.buffer.endsWith('\\')) {
@@ -173,6 +179,9 @@ export function keypress(state: InputState, key: string): KeyResult {
       : { state, action: { kind: 'eof' } }
   }
   if (key === '\t') return { state, action: { kind: 'complete', line: state.buffer } }
+  if (key === '\x1b[Z' && !state.buffer) {
+    return { state: { ...state, navegando: 'ajustes' }, action: { kind: 'nav', dir: 1, modo: 'ajustes' } }
+  }
   if (LIMPAR.includes(key)) return { state, action: { kind: 'limpar' } }
   if (BACKSPACE.includes(key)) {
     if (!state.cursor) return { state, action: { kind: 'none' } }

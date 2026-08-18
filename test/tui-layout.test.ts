@@ -46,9 +46,42 @@ test('corpo mostra as ULTIMAS linhas quando estoura a altura', () => {
   expect(texto).not.toContain('linha 0\n')
 })
 
-test('altura minima do corpo respeitada em terminal minusculo', () => {
-  const f = quadro({ rows: 3, cols: 30 })
-  expect(f.lines.length).toBeGreaterThanOrEqual(6)
+test('o quadro nunca passa da altura do terminal — se passar, a tela rola e o cursor mente', () => {
+  const corpo = Array.from({ length: 200 }, (_, i) => `linha ${i}`)
+  for (const rows of [6, 8, 10, 12, 14, 16, 18, 20, 24, 30, 60]) {
+    for (const nSug of [0, 1, 4, 8]) {
+      for (const nRod of [0, 3, 6]) {
+        for (const nEnt of [1, 2, 3, 20, 60]) {
+          const input = Array.from({ length: nEnt }, (_, i) => `linha${i}`).join('\n')
+          const f = quadro({
+            rows,
+            corpo,
+            input,
+            cursor: input.length,
+            legenda: 'projeto',
+            dica: 'dica',
+            sugestoes: Array.from({ length: nSug }, (_, i) => `s${i}`),
+            rodape: Array.from({ length: nRod }, (_, i) => `r${i}`),
+          })
+          expect(f.lines.length).toBeLessThanOrEqual(rows)
+          expect(f.cursorRow).toBeGreaterThanOrEqual(1)
+          expect(f.cursorRow).toBeLessThanOrEqual(rows)
+        }
+      }
+    }
+  }
+})
+
+test('entrada gigante rola em janela e mantem a linha do cursor visivel', () => {
+  const input = Array.from({ length: 80 }, (_, i) => `linha${i}`).join('\n')
+  const f = quadro({ rows: 14, input, cursor: input.length, legenda: 'projeto' })
+  expect(f.lines.length).toBeLessThanOrEqual(14)
+  expect(f.lines.join('\n')).toContain('linha79')
+})
+
+test('terminal minusculo derruba a mobilia opcional em vez de estourar', () => {
+  const f = quadro({ rows: 6, cols: 30, legenda: 'projeto', dica: 'dica', rodape: ['r1', 'r2'] })
+  expect(f.lines.length).toBeLessThanOrEqual(6)
 })
 
 test('largura minima evita moldura negativa', () => {
@@ -266,4 +299,35 @@ test('REGRESSAO nenhum teste pode depender do terminal de quem roda', () => {
 
   delete process.env.HICODE_HYPERLINKS
   Object.assign(process.env, guardado)
+})
+
+import { quebrarEmLargura } from '../lib/core/tui/layout'
+
+test('REGRESSAO resposta longa e QUEBRADA, nao truncada — nao come palavras', () => {
+  const t = 'Nao, NTN nao e uma integracao real do hicode — e uma string de exemplo usada so em README.md:90-112 e test/tipo-de-prompt.test.ts para ilustrar a distincao.'
+  const linhas = quebrarEmLargura(t, 60)
+  expect(linhas.length).toBeGreaterThan(1)
+  for (const l of linhas) expect(visibleLen(l)).toBeLessThanOrEqual(60)
+  expect(linhas.join(' ')).toBe(t)
+  expect(linhas.join('')).not.toContain('…')
+})
+
+test('quebra preserva as linhas que o modelo ja separou', () => {
+  expect(quebrarEmLargura('curta\noutra', 60)).toEqual(['curta', 'outra'])
+})
+
+test('quebra mantem o recuo de lista', () => {
+  const linhas = quebrarEmLargura('  - item bem longo que precisa quebrar em mais de uma linha aqui', 30)
+  expect(linhas.length).toBeGreaterThan(1)
+  expect(linhas.every(l => l.startsWith('  '))).toBe(true)
+})
+
+test('palavra maior que a largura nao entra em laco infinito', () => {
+  const linhas = quebrarEmLargura('x'.repeat(200), 40)
+  expect(linhas.length).toBe(1)
+  expect(linhas[0]?.length).toBe(200)
+})
+
+test('texto vazio nao gera linha fantasma', () => {
+  expect(quebrarEmLargura('', 40)).toEqual([''])
 })

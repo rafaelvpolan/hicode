@@ -23,6 +23,9 @@ export interface RegistroDeRun {
   ok: boolean
   custoUsd: number
   tokens: number
+  tokensEntrada: number
+  tokensSaida: number
+  tokensCache: number
   provedor: string
   provedorIdentificado: boolean
   modelo: string
@@ -64,10 +67,24 @@ export function instanteDoNome(nome: string): number {
   return Date.parse(`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}T${d.slice(8, 10)}:${d.slice(10, 12)}:${d.slice(12, 14)}Z`)
 }
 
-function tokensDe(bruto: RunEmDisco): number {
+interface TokensPorTipo {
+  entrada: number
+  saida: number
+  cache: number
+}
+
+function tokensPorTipoDe(bruto: RunEmDisco): TokensPorTipo {
+  return {
+    entrada: Number(bruto.tokens_in) || 0,
+    saida: Number(bruto.tokens_out) || 0,
+    cache: Number(bruto.tokens_cache_create) || 0,
+  }
+}
+
+function tokensDe(bruto: RunEmDisco, porTipo: TokensPorTipo): number {
   const total = Number(bruto.tokens_total) || 0
   if (total > 0) return total
-  return (Number(bruto.tokens_in) || 0) + (Number(bruto.tokens_out) || 0) + (Number(bruto.tokens_cache_create) || 0)
+  return porTipo.entrada + porTipo.saida + porTipo.cache
 }
 
 function classeDeFalhaDe(bruto: string | undefined, ok: boolean): FailureClass | '' {
@@ -86,6 +103,7 @@ function normalizar(caminho: string, bruto: RunEmDisco): RegistroDeRun | null {
   if (!Number.isFinite(quando)) return null
   const provedor = String(bruto.provider ?? '').trim()
   const ok = bruto.ok === true
+  const porTipo = tokensPorTipoDe(bruto)
   return {
     arquivo: nome,
     card: String(bruto.id ?? ''),
@@ -93,7 +111,10 @@ function normalizar(caminho: string, bruto: RunEmDisco): RegistroDeRun | null {
     concluidoEmMs: quando,
     ok,
     custoUsd: parseFloat(String(bruto.cost_usd ?? '')) || 0,
-    tokens: tokensDe(bruto),
+    tokens: tokensDe(bruto, porTipo),
+    tokensEntrada: porTipo.entrada,
+    tokensSaida: porTipo.saida,
+    tokensCache: porTipo.cache,
     provedor: provedor || PROVEDOR_DESCONHECIDO,
     provedorIdentificado: provedor !== '',
     modelo: String(bruto.model ?? '').trim(),

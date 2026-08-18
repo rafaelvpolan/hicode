@@ -1,3 +1,5 @@
+import { linhasDaAtividade } from './render/execucao'
+
 export type TipoAtividade = 'sessao' | 'agente' | 'skill' | 'arquivo' | 'shell' | 'busca' | 'mcp' | 'texto' | 'fim'
 
 export interface Atividade {
@@ -5,6 +7,8 @@ export interface Atividade {
   nome: string
   alvo: string
   ts: string
+  args?: string
+  resultado?: string
 }
 
 export interface EntradaFerramenta {
@@ -64,13 +68,15 @@ export function classificar(ev: EventoBruto, ts = ''): Atividade {
   }
   if (f.startsWith('mcp__')) {
     const partes = f.split('__')
-    return { tipo: 'mcp', nome: partes[1] ?? 'mcp', alvo: partes[2] ?? '', ts }
+    const args = curto(e.query || e.url || e.pattern || e.description || e.args)
+    return { tipo: 'mcp', nome: partes[1] ?? 'mcp', alvo: partes[2] ?? '', ts, ...(args ? { args } : {}) }
   }
-  return { tipo: 'texto', nome: f, alvo: curto(e.description || e.prompt), ts }
+  return { tipo: 'texto', nome: f, alvo: curto(e.description || e.prompt || e.query || e.pattern || e.args), ts }
 }
 
-const RE_TOOL = /^\s*→\s*([A-Za-z_][\w]*)\((.*)$/
+const RE_TOOL = /^\s*→\s*([A-Za-z_][\w.-]*)\((.*)$/
 const RE_SESSAO = /^—\s*sessao iniciada(?:\s*\(([^)]+)\))?/
+const RE_CHAMADA = /^—\s*chamada em (\S+)/
 const RE_FIM = /^—\s*concluido \(custo \$([0-9.]+)\)/
 const RE_TIMEOUT = /^—\s*TIMEOUT/
 
@@ -87,14 +93,20 @@ function entradaDe(bruto: string): EntradaFerramenta {
   } catch {
     const out: EntradaFerramenta = {}
     for (const k of CHAVES) {
-      const m = limpo.match(new RegExp(`"${k}"\\s*:\\s*"([^"]*)"`))
-      if (m?.[1]) out[k] = m[1]
+      const m = limpo.match(new RegExp(`"${k}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)`))
+      if (m?.[1]) out[k] = desescapar(m[1])
     }
     return out
   }
 }
 
+function desescapar(s: string): string {
+  return s.replace(/\\(["\\/])/g, '$1').replace(/\\[nrt]/g, ' ')
+}
+
 export function parseLinha(linha: string, ts = ''): Atividade | null {
+  const chamada = linha.match(RE_CHAMADA)
+  if (chamada) return { tipo: 'sessao', nome: 'chamada', alvo: '', ts: chamada[1] ?? ts }
   const sessao = linha.match(RE_SESSAO)
   if (sessao) return { tipo: 'sessao', nome: 'sessao', alvo: sessao[1] ?? '', ts }
   const fim = linha.match(RE_FIM)
@@ -106,32 +118,60 @@ export function parseLinha(linha: string, ts = ''): Atividade | null {
     return classificar({ ferramenta: tool[1], entrada: entradaDe(bruto) }, ts)
   }
   if (linha.trimStart().startsWith('←')) return null
-  const texto = linha.trim()
-  return texto ? { tipo: 'texto', nome: '', alvo: curto(texto, 90), ts } : null
+  const texto = linha.trimEnd()
+  return texto.trim() ? { tipo: 'texto', nome: '', alvo: texto, ts } : null
+}
+
+export function ehProsa(a: Atividade): boolean {
+  return a.tipo === 'texto' && !a.nome
+}
+
+export function ehFerramenta(a: Atividade): boolean {
+  return a.tipo !== 'sessao' && a.tipo !== 'fim' && !ehProsa(a)
+}
+
+function lerResultado(linha: string): string | null {
+  const t = linha.trimStart()
+  return t.startsWith('←') ? t.slice(1).trim() : null
 }
 
 export function parseLog(conteudo: string): Atividade[] {
-  return conteudo.split('\n').map(l => parseLinha(l)).filter((a): a is Atividade => a !== null)
+  const saida: Atividade[] = []
+  const esperandoResultado: Atividade[] = []
+  for (const linha of conteudo.split('\n')) {
+    const resultado = lerResultado(linha)
+    const ultima = saida[saida.length - 1]
+    if (resultado !== null) {
+      const dono = esperandoResultado.shift()
+      if (dono) dono.resultado = resultado
+      continue
+    }
+    const a = parseLinha(linha)
+    if (!a) {
+      if (!linha.trim() && ultima && ehProsa(ultima)) ultima.alvo = `${ultima.alvo}\n`
+      continue
+    }
+    if (ultima && ehProsa(ultima) && ehProsa(a)) {
+      ultima.alvo = `${ultima.alvo}\n${a.alvo}`
+      continue
+    }
+    if (ultima?.nome === 'chamada' && a.nome === 'sessao') {
+      ultima.nome = 'sessao'
+      ultima.alvo = a.alvo
+      continue
+    }
+    if (ehFerramenta(a)) esperandoResultado.push(a)
+    saida.push(a)
+  }
+  return saida
 }
 
-const ICONE: Record<TipoAtividade, string> = {
-  sessao: '◇',
-  agente: '◆',
-  skill: '✦',
-  arquivo: '·',
-  shell: '$',
-  busca: '?',
-  mcp: '⊞',
-  texto: ' ',
-  fim: '◇',
+function corLigada(): boolean {
+  return process.stdout.isTTY === true && !process.env.NO_COLOR
 }
 
 export function formatar(a: Atividade): string {
-  const icone = ICONE[a.tipo]
-  if (a.tipo === 'agente') return `${icone} agente ${a.nome}${a.alvo ? ` — ${a.alvo}` : ''}`
-  if (a.tipo === 'skill') return `${icone} skill ${a.nome}${a.alvo ? ` ${a.alvo}` : ''}`
-  if (a.tipo === 'texto') return a.nome ? `${icone} ${a.nome} ${a.alvo}` : `  ${a.alvo}`
-  return `${icone} ${a.nome}${a.alvo ? ` ${a.alvo}` : ''}`
+  return linhasDaAtividade(a, { color: corLigada() }).join('\n')
 }
 
 export function agentesUsados(atividades: Atividade[]): string[] {

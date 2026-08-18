@@ -57,6 +57,11 @@ const PROVIDER_SIGNALS: Record<AiProviderName, ProviderSignals> = {
     quota: [],
     transient: [{ pattern: /connection refused/i, reason: 'ollama nao esta respondendo (servidor local fora do ar)' }],
   },
+  kimi: {
+    terminal: [{ pattern: /kimi login|device.?code|not authenticated/i, reason: 'kimi sem autenticacao (rode: kimi login)' }],
+    quota: [],
+    transient: [],
+  },
 }
 
 function firstMatch(haystack: string, signals: Signal[]): Signal | undefined {

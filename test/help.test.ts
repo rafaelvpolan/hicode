@@ -18,7 +18,7 @@ test('cobre todos os comandos que a sessao aceita', () => {
 
 test('ensina o que nao e comando: texto livre, numero e enter', () => {
   const t = renderHelp().join('\n')
-  expect(t).toContain('vira uma tarefa nova')
+  expect(t).toContain('vira tarefa')
   expect(t).toContain('abre o plano')
   expect(t).toContain('aprova o plano')
 })

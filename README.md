@@ -28,44 +28,183 @@ bun link             # registra os binários `hii` e `hicode` no PATH (~/.bun/bi
 aprova — tudo no terminal:
 
 ```
-hii · org/app · seguindo #021          daemon online (pid 48213)
-┌──────────────────────────────────────────────────────────────┐
-│ seguindo #021 · EXECUTING · adicionar selo beta no hero       │
-│   vitro, frontiteto · 1 skill(s) · 9 arquivo(s)               │
-│   preview → http://localhost:5221                             │
-│                                                              │
-│ ◆ agente vitro — criar o selo no hero                        │
-│ ✦ skill frontend-design                                      │
-│ · edit src/App.vue                                            │
-│ $ bash npm run build                                          │
-└──────────────────────────────────────────────────────────────┘
-› _                                        /board volta  ctrl+c sai
-ia claude/opus · esforco medium · projeto org/app · gasto US$4.08
-⠇ #021 adicionar selo beta no hero  executing · vitro · 2min
+  hii   daemon online (pid 48213)
+  ┌──────────────────────────────────────────────────────────────┐
+  │  #021 executing  adicionar selo beta no hero                 │
+  │  ────────────────────────────────────────────────────────    │
+  │  prompt   adicionar um selo "beta" no topo do hero           │
+  │  depois   1. deixa o selo alinhado com o badge               │
+  │  preview  http://localhost:5221  no ar agora                 │
+  │  gasto    US$1.20 · 42k tokens                               │
+  │                                                              │
+  │  ⚑ precisa de voce  preview pronto — veja e decida           │
+  │      enter    aprova e segue para o polimento                │
+  │      /no 21   recusa e diz o que ajustar                     │
+  │                                                              │
+  │  ● Arquitetura   3min · US$1.20                              │
+  │  ◐ Review      ← crivo · Read App.vue · 2min                 │
+  │  ○ Limpeza                                                   │
+  │                                                              │
+  │  ⠹ vitro editando src/App.vue                                │
+  └──────────────────────────────────────────────────────────────┘
+  ┌─ ● hicode-site rafaelvpolan  tarefa #021 ────────────────────┐
+  │ ›                                                            │
+  └──────────────────────────────────────────────────────────────┘
+    escreva para instruir · /board volta
+  ia claude/opus · esforco (padrao do CLI) · gasto US$4.08
+ ▌⠹ #021 adicionar selo beta no hero  executing · vitro · 2min  ← aberta
+  ● #022 remova o selo do header      precisa da sua resposta → /ask 22
+  1 tarefa esperando em cashbarber2 → /ask 23
 ```
 
-**Abaixo do input** ficam fixas as propriedades em uso (provedor/modelo, esforço, projeto, gasto
-do dia — e um destaque quando algum papel usa provedor diferente) e as **tarefas em execução**,
-com spinner, agente atual e há quanto tempo. Continua visível enquanto você digita.
+A **área do prompt é um fieldset**: a legenda carrega o projeto (bolinha com cor própria por repo,
+nome curto, dono) e, dentro de uma tarefa, o número dela. A dica fica em linha própria abaixo do
+campo, discreta — não disputa espaço com o que você digita.
 
-**Seguir a execução:** `/watch <id>` troca o corpo pelo **stream da IA ao vivo** — agente, skill,
-arquivo, comando — e `/board` volta. Aprovar um plano já entra em modo seguir automaticamente.
+**Abaixo do input** ficam fixas as propriedades em uso (provedor/modelo, esforço, projeto, gasto
+do dia — e um destaque quando algum papel usa provedor diferente), as **tarefas em execução** com
+spinner e agente atual, e as que **esperam você**, cada uma com o comando que destrava. A tarefa
+aberta leva barra na margem e `← aberta`. Tudo continua visível enquanto você digita.
+
+Tarefa esperando em **outro projeto** também aparece, resumida — sem isso ela ficava invisível: o
+card #023 estava em `CLARIFY` no `cashbarber2` enquanto o terminal apontava para o `hicode-site`, e
+o filtro por projeto escondia a pergunta. Parecia que o clarify não funcionava.
+
+### Dentro da tarefa
+
+Entrar numa tarefa (`enter` no board ou no rodapé, ou `/watch <id>`) troca o corpo pela **tela da
+tarefa**, com o cabeçalho **fixo** no topo enquanto a execução rola por baixo. Ele responde as
+perguntas que importam:
+
+- **prompt** original e os **sub-prompts** que você mandou depois (as 3 últimas, com contagem das
+  anteriores);
+- **preview** — o link só aparece quando responde de verdade;
+- **gasto** acumulado da tarefa;
+- **o que a tarefa precisa de você**, por estado, com a tecla que resolve;
+- **o estado de cada passo** do pipeline: feito mostra tempo e custo lidos de `cards/runs`; o
+  corrente leva seta e diz quem está trabalhando e em que ferramenta; pulado explica que o perfil o
+  dispensou; parado diz `parado aqui`, então dá para ver onde travou.
+
+**O que você escreve ali vira instrução daquela tarefa** — não cria card novo. Instrução em tarefa
+já executada marca correção e reexecuta; em tarefa que ainda não executou, apenas anota; em tarefa
+entregue, é recusada com a explicação de que isso pede tarefa nova. Colagem multilinha entra como
+**uma** instrução, com as quebras preservadas como `⏎`.
+
+Se o worktree tiver sumido, a instrução **refaz do zero** em vez de virar correção morta — sem isso,
+toda instrução virava `CORRECTING` e o motor haltava 2 segundos depois, em laço.
+
+`ctrl+c` dentro da tarefa **para a tarefa**, não o `hii`, e oferece retomar de onde parou.
 
 | Comando | O quê |
 |---|---|
-| *texto livre* | cria o card e **mostra o plano**; nada executa antes da aprovação |
-| `⏎` (enter) | aprova o plano pendente e enfileira |
-| `/board` | **quadro do projeto AO VIVO** — tela cheia, atualiza sozinho, `q` volta |
+| *texto livre* | **lido por tipo**: pedido de mudança cria o card e mostra o plano; pergunta é **respondida** sem criar nada |
+| `⏎` (enter) | aprova o plano pendente — e, dentro de uma tarefa, faz a ação que o estado pede |
+| `/new-task <mudança>` | cria a tarefa **direto**, sem a leitura de intenção |
+| `/new-ask <pergunta>` | **responde** lendo o projeto, sem criar card nem worktree |
+| `/new-session` | limpa a área e recomeça a sessão, mantendo o projeto |
+| `/board` | abre o **quadro do projeto em tela própria** (`←` também abre) |
 | `/cards [STATUS]` | lista, opcionalmente filtrando (`/cards HALTED`) |
 | `/plan <id>` | reexibe o plano de um card |
-| `/watch <id>` | últimas transições do card + link do preview |
+| `/watch <id>` | entra na tarefa e segue a execução ao vivo |
 | `/agents <id>` | **agentes, skills e ferramentas** que rodaram no card |
+| `/ask [id]` | responde a pergunta que travou a tarefa (sem id, pega a primeira) |
 | **`/ok <id>`** | **aprova o preview que você viu no dev server** |
 | **`/no <id> [o que]`** | rejeita o preview; com motivo, pede correção em vez de refazer |
-| `/halt <id> [motivo]` | para um card |
-| `/repo` | troca de projeto (reabre a lista); `/repo <nome>` vai direto |
+| `/preview [id]` | sobe o dev server da tarefa; sem id, lista os que rodam (`--limpar` derruba órfãos) |
+| `/stop <id> [motivo]` | para a tarefa em execução (`/halt` é o mesmo) |
+| `/rm <id> [id...]` | apaga tarefas **em lote** e limpa worktree, preview e logs |
+| `/ia [papel] <provedor>` | escolhe a IA que roda cada papel |
+| `/model [papel] <modelo>` | escolhe o modelo da IA atual |
+| `/effort [papel] <nível>` | escolhe o esforço da IA atual |
+| `/repo` | troca de projeto (reabre a lista); `/repo <nome>` vai direto (`/project` é o mesmo) |
 | `20` ou `#20` | mostra o plano do card 20 — **número puro consulta, não cria tarefa** |
-| `/quit` | sai — **não** derruba o daemon nem os cards |
+| `/exit` | sai — **não** derruba o daemon nem os cards (`/quit` é o mesmo) |
+
+Todo comando tem apelido em português (`/nova-tarefa`, `/parar`, `/apagar`, `/modelo`, `/esforco`,
+`/projeto`…), e um teste de varredura garante que **apelido e principal se comportam igual** —
+mesmo efeito e mesmo autocompletar. Sem argumento, `/ia`, `/model` e `/effort` **listam as opções**
+em vez de dar erro.
+
+### Tipo de prompt: `task` e `ask`
+
+O motor executa tarefas. Uma pergunta não tem lugar na fila, então a entrada é classificada antes
+de gastar qualquer token — a checagem é local, **custo zero**:
+
+```
+› tem acesso ao ntn-cli? qual projeto esta configurado?
+
+  ? lido como pergunta — respondendo sem criar card (abre consultando)
+  se era tarefa, use /new-task
+    consultando o ambiente e o projeto (leitura, sem alterar arquivo)…
+  Nao ha CLI do Notion instalada: notion, notion-cli, ntn e ntn-cli nao
+  aparecem no PATH. Os projetos registrados sao rafaelvpolan/hicode-site
+  e projects/podium/cashbarber2/.
+
+    (claude · US$0.0180)
+```
+
+**Pergunta é respondida, não recusada.** Não é preciso prefixo: se o motor lê como `ask`, ele
+responde ali mesmo — sem card, sem worktree, sem pipeline. O `/new-ask` continua existindo para
+forçar a leitura, e `/new-task` para o contrário.
+
+A distinção que importa é entre **consulta** e **pedido**:
+
+| padrão | leitura | exemplo |
+|---|---|---|
+| consulta no início (`tem`, `existe`, `qual`, `como`, `é possível`, `você sabe`) | `ask` — **mesmo com verbo de ação depois** | `tem acesso ao NTN para criar tarefas?` |
+| pedido + verbo de mudança (`pode`, `consegue`, `dá pra`) | `task` | `pode remover o selo beta?` |
+| pedido sem verbo de mudança | `ask` (viabilidade) | `dá pra rodar isso local?` |
+| verbo de mudança sozinho | `task` | `remove o selo beta` |
+| relato de problema | `task` | `o rodapé está desalinhado no mobile` |
+
+Quando a leitura erra, `/new-task` cria direto — você declara a intenção em vez de discutir com o
+heurístico. E `/new-ask` responde a pergunta em modo somente-leitura, mostrando provedor e custo.
+A resposta é **quebrada na largura**, não truncada — resposta cortada com `…` perde conteúdo.
+
+**A pergunta chega respondível.** O `/new-ask` não depende da IA descobrir sozinha o estado da
+máquina: o **motor verifica e entrega o fato**. Junto da pergunta vai um retrato do ambiente — quais
+comandos existem no `PATH` (os que o motor usa, mais os nomes que aparecem na própria pergunta) e
+quais projetos estão registrados:
+
+```
+AMBIENTE DESTA MAQUINA (verificado agora pelo motor, nao suponha nada alem disto):
+comandos no PATH:
+  claude: instalado
+  codex: NAO instalado
+  ntn-cli: NAO instalado          ← extraído da pergunta
+projetos registrados no hii:
+  rafaelvpolan/hicode-site → /home/rpolan/projects/podium/hicode-site
+```
+
+> **Por que isso existe:** `tem acesso ao ntn-cli?` era **impossível de responder por desenho** — as
+> ferramentas do modo leitura são `Read,Glob,Grep`, sem shell, então o agente só podia procurar no
+> código do repositório e respondia sobre o repo em vez da máquina. Ele até avisava que não achava,
+> honestamente; a pergunta é que não tinha como ser respondida.
+
+**Conversa tem memória.** As últimas trocas de `/new-ask` ficam na sessão e vão para o classificador
+e para a resposta. Sem isso, `estou me referindo ao notion cli` chegava sem contexto — sem verbo e
+sem interrogação — e virava tarefa. Agora continuação de conversa é reconhecida como `ask`.
+
+**IA local no desempate (opcional).** O heurístico sabe quando não sabe: `estou me referindo à
+conexão com o Notion` não tem marca de pergunta nem verbo de mudança, então sai como `task` com
+**confiança baixa**. Ligando `HICODE_CLASSIFY=on`, esses casos — e só esses — vão para um modelo
+local classificar:
+
+```bash
+HICODE_CLASSIFY=on
+HICODE_CLASSIFY_PROVIDER=ollama     # qualquer provedor registrado
+HICODE_CLASSIFY_MODEL=llama3.2      # modelo pequeno basta: entra texto, sai um rótulo
+HICODE_CLASSIFY_TIMEOUT_MS=15000
+```
+
+É cascata, não substituição: **confiança alta não gasta chamada** (a maioria dos casos), e a
+classificação custa ~0 quando o modelo é local. Se a IA responder ambíguo, se estiver fora do ar ou
+se o timeout estourar, o heurístico prevalece — a classificação nunca fica sem resposta.
+
+> **Por que isso existe:** sem essa checagem, `tem acesso ao NTN?` virou o card #023, subiu worktree
+> e branch, e o clarify perguntou *"o que a implementação deve entregar?"* oferecendo badge e
+> integração. O prompt do clarify **afirma** que a entrada é tarefa, então a IA inventou uma
+> implementação para poder responder. US$0,21 gastos numa pergunta.
 
 Com mais de um projeto registrado, a sessão **abre pela lista de projetos** — com quantos cards
 cada um tem, quantos esperam você, quantos rodam e quantos pararam. Você entra em um e tudo depois
@@ -78,6 +217,30 @@ marcador compacto (`[colado #1 · 47 linhas]`) e só expande no envio.
 **URL vira clicável** (OSC 8) no log e no board — `ctrl+clique` no terminal que suportar; nos
 demais aparece como texto normal.
 
+**Navegação por tecla — três destinos, decididos pelo estado do campo:**
+
+Com o campo **vazio**, as setas e o `shift+tab` deixam de mexer no texto e passam a navegar:
+
+| Tecla (campo vazio) | Vai para |
+|---|---|
+| `↓` | as **tarefas fixadas no rodapé** — em execução primeiro, depois as que esperam você |
+| `←` | o **board em tela própria**, sem log e sem input |
+| `shift+tab` | os **ajustes de IA** no rodapé |
+
+Dentro de qualquer um: `↑↓` movem, `enter` entra na tarefa, `→` ou `esc` saem. No board, `tab`
+troca de projeto. Nos ajustes, `tab` troca o valor do campo escolhido e `shift+tab` sai.
+
+```
+  ajustes · ↑↓ escolhe · tab troca · shift+tab sai
+  executa · ia       claude
+▌ executa · esforco  high
+  revisa · ia        codex
+  revisa · esforco   (padrao)
+```
+
+São **IA e esforço por papel** — dá para deixar o revisor no topo de linha e baratear só quem
+executa. A troca vale na **próxima instrução**, sem reiniciar nada.
+
 **Teclas do input:**
 
 | Tecla | O quê |
@@ -87,16 +250,18 @@ demais aparece como texto normal.
 | `alt+d` | apaga a palavra à frente |
 | `ctrl+u` · `ctrl+k` | apaga até o início · até o fim da linha |
 | `ctrl+a` `ctrl+e` · `home` `end` | início · fim |
-| `↑` `↓` | histórico (preserva o rascunho) |
-| `tab` | completa comando, projeto ou id de card |
-| **`alt+enter`** ou **`\` + `enter`** | **quebra linha** sem enviar |
+| `↑` `↓` | histórico (com o campo escrito; vazio, `↓` navega o rodapé) |
+| `tab` | completa comando, projeto, id, provedor, modelo ou esforço |
+| **`ctrl+j`** ou **`\` + `enter`** | **quebra linha** sem enviar |
+| `ctrl+l` | limpa a área de execuções — **menos** com tarefa rodando |
+| `ctrl+c` | dentro de uma tarefa, **para a tarefa** e oferece retomar; fora, sai |
 | `enter` | envia |
 
 > **Sobre `shift+enter`:** a maioria dos terminais **não distingue** `shift+enter` de `enter` — os
-> dois mandam o mesmo byte, então não há como diferenciar. Funciona em terminais com o protocolo
-> de teclado do Kitty (aceito aqui como `\x1b[13;2u`). Nos demais, use `alt+enter` ou terminar a
-> linha com `\`. `\x08` é tratado como `ctrl+backspace` (padrão do Windows Terminal e VS Code);
-> o backspace comum manda `\x7f`.
+> dois mandam o mesmo byte. Rode **`hii teclas`** para ver o que o seu manda de fato; ele diz se
+> funciona e, quando não, imprime o trecho de `settings.json` do Windows Terminal que resolve.
+> **`hii teclas --corrigir`** aplica esse trecho sozinho (com backup e validação do JSON antes de
+> gravar). Enquanto isso, `ctrl+j` quebra linha em qualquer terminal.
 
 Duas garantias de desenho:
 
@@ -124,6 +289,10 @@ hii approve <id>     # aprova o preview (PREVIEW -> PREVIEW_OK)
 hii approve <id> --plan   # aprova o plano e enfileira (READY -> EXECUTING)
 hii reject <id> [o que]   # rejeita o preview; com motivo, pede correção
 hii halt <id> [motivo]    # para o card
+hii rm <id> [id...] --yes  # apaga cards e limpa worktree, preview e logs
+hii board [repo]     # o quadro do projeto fora do REPL (--watch atualiza sozinho)
+hii teclas           # mostra o que o seu terminal manda em cada tecla
+hii teclas --corrigir     # ensina o Windows Terminal a mandar shift+enter
 hii doctor           # confere gh, IA, daemon, push e contrato — ANTES de gastar token
 hii archive          # arquiva os entregues acima do teto (10 por projeto)
 hii archive ls       # o que está arquivado
@@ -141,12 +310,26 @@ O painel (opcional, para visualizar e revisar diff):
 bun run panel        # Nuxt em http://localhost:4318
 ```
 
+Também há um script Node puro, sem TUI e sem IA, para apagar card:
+
+```bash
+node scripts/apagar-card.mjs 23 24 25 --yes   # sem --yes, só mostra o que faria
+```
+
 Suíte de qualidade do próprio hicode:
 
 ```bash
 bun run test         # tsc --noEmit + lint no-any + testes (bun test) + typecheck do painel
 bun run test:unit    # só os testes unitários
 ```
+
+> **Rode `bun run test`, não os quatro em separado.** É o que a CI roda. Numa sessão inteira eu
+> rodei `typecheck`, `test:unit` e `typecheck:panel` isolados e deixei o `lint:types` de fora — a
+> falha só apareceu no GitHub.
+>
+> Verde local também não é prova: três testes de OSC 8 passavam por lerem `WT_SESSION` do terminal
+> do dev e falhavam na CI, que não tem variável de terminal. Teste que depende do ambiente de quem
+> roda não testa nada.
 
 > O `typecheck:panel` exige as dependências do painel instaladas (`cd panel && bun install`).
 > Sem elas o comando falha com `nuxt: command not found` — e **não** é um typecheck que passou.
@@ -490,6 +673,32 @@ com `SIGTERM`→`SIGKILL`; **no timeout o worktree é preservado** p/ inspeção
 `HALTED` precisa de resolução humana — no painel, **`↻ Resolver e retomar`** o devolve para
 `EXECUTING`.
 
+**Falha passageira não vira HALT.** Rede fora, 5xx, timeout e 429 mandam o card para `WAITING`, com
+motivo legível, número da tentativa e horário do próximo retry no frontmatter. Uma sonda barata testa
+o provedor; quando ele volta, a tarefa **retoma do passo em que parou**, sozinha. Credencial inválida
+e provedor ausente continuam haltando na hora — e **falha desconhecida cai em terminal**, o lado
+seguro: errar para o lado de parar custa uma retomada manual, errar para o lado de repetir custa
+dinheiro em laço.
+
+O contador de tentativas só cresce quando a **sonda** falha, e a execução caro só acontece depois de
+uma sonda que passou. Então o teto (`HICODE_WAITING_MAX_ATTEMPTS`, default 8) mede **duração da
+indisponibilidade** — cerca de 38 min com o backoff até 10 min — e não execuções pagas. `WAITING`
+sobrevive a reinício: vencido volta para a fila, no prazo continua esperando.
+
+**Cota estourada PARA.** Ao detectar limite de cota, o motor não troca de provedor sozinho, mesmo
+havendo outro configurado — trocar de modelo no meio muda o resultado da tarefa em silêncio. A troca
+existe por configuração explícita (`HICODE_QUOTA_FALLBACK=on`), desligada por padrão, e há teste
+trancando esse comportamento.
+
+**O daemon sobrevive a um tick com erro.** `setInterval(tick)` rodava sem `try/catch`: uma exceção
+em `podar()` ou uma promise rejeitada derrubava o daemon inteiro, e você só descobria porque nada
+andava. Agora o erro é registrado, o próximo tick acontece, e falha repetida vira alerta em vez de
+silêncio.
+
+**Fechar o terminal não derruba o daemon** — ele já sobe com `nohup`, sem terminal de controle
+(`PPID=1`), e o estado vive nos cards. `git pull` também não muda o processo em execução: depois de
+atualizar, **`hii restart`**.
+
 ### Steps configuráveis
 
 A fase de polimento é **dados**, não código: `config/pipeline.json` (override por projeto em
@@ -580,13 +789,68 @@ então ela grava `cost_floor` — mas **não** grava `cost_unverified`, porque n
 "não sabe medir", foi a chamada que não chegou ao fim. O card ganha a linha `chamada a <provedor>
 terminou sem concluir` e o gate de teto passa a recusar a garantia dali em diante.
 
-**Seleção por papel** (default global + overrides):
+### Escolher IA, modelo e esforço
+
+A escolha é **por papel** — é o que permite revisor caro com execução barata. Três formas, com
+precedência do mais específico para o mais geral:
+
+| Fonte | Onde | Vale quando |
+|---|---|---|
+| override do card | `provider_override_implement` | escrito pelo motor (fallback de cota) |
+| **preferência** | `config/ia.json` | **na próxima instrução, sem reiniciar** |
+| variável de ambiente | `.env` na raiz | **no arranque** do processo |
+| padrão | `claude` | nada configurado |
+
+**Sem reiniciar** — pela sessão (`shift+tab` nos ajustes, ou comando):
+
+```
+/ia gate codex          # troca a IA do gate
+/model gate opus        # modelo daquela IA
+/effort implement high  # esforço de quem executa
+/ia padrao gate         # volta o gate ao padrão
+```
+
+Isso grava `config/ia.json` (local, fora do git), lido **por chamada** com invalidação por mtime.
+O painel expõe a mesma leitura e escrita em `GET`/`POST /api/ia`.
+
+**Configuração inicial** — `.env` na raiz, lido pelo Bun no arranque do daemon:
 
 ```bash
 HICODE_AI_PROVIDER=claude          # default de todos os papéis
 HICODE_IMPLEMENT_PROVIDER=codex    # override por papel: implement | verify | gate | step
 HICODE_VERIFY_PROVIDER=ollama
 HICODE_GATE_PROVIDER=claude
+HICODE_EFFORT=high                 # esforço default
+```
+
+Depois de mexer no `.env`, **`hii restart`** — o daemon carrega o código e as variáveis no arranque,
+e `git pull` sozinho não muda o processo que já está rodando.
+
+### Esforço
+
+Vai para o CLI como argumento real: `--effort` no `claude` (aceita `low` `medium` `high` `xhigh`
+`max`) e `-c model_reasoning_effort` no `codex`. Quando nada está configurado, **nada é enviado** e
+o CLI usa o próprio padrão — o rodapé mostra `(padrao do CLI)` em vez de inventar um valor.
+
+### Catálogo de modelos
+
+Os CLIs **não listam modelos** (`claude --help` só tem `--model <model>`), então o catálogo é
+arquivo, não constante: `config/modelos.json`, com semente mínima e os modelos em uso. Um modelo
+fora do catálogo é **aceito com aviso** — não invento lista nem bloqueio o que pode funcionar.
+
+```json
+{ "claude": ["opus", "sonnet", "haiku"], "codex": ["gpt-5.5"] }
+```
+
+`/ia`, sem argumento, mostra o que você **realmente** tem: por provedor, se o CLI está no `PATH`,
+se depende de servidor no ar, o modelo em vigor e quais papéis o usam.
+
+```
+  provedores
+    claude  instalado                   modelo padrao do CLI · em uso: implement, verify, gate, step
+    codex   NAO instalado               modelo padrao do CLI · nenhum papel
+            instale o CLI do Codex
+    ollama  precisa do servidor no ar   modelo padrao do CLI · nenhum papel
 ```
 
 Nome de provedor **desconhecido não passa em silêncio**. No arranque o motor escreve em stderr
@@ -649,9 +913,16 @@ não do protocolo.
 | `HICODE_{IMPLEMENT,VERIFY,GATE,STEP}_PROVIDER` | — | override por papel |
 | `HICODE_VERIFY_MODEL` / `HICODE_GATE_MODEL` | `sonnet` | modelo (claude) de verify/gate |
 | `HICODE_CODEX_MODEL` / `HICODE_OLLAMA_MODEL` | — | modelo por provedor |
+| `HICODE_EFFORT` | — | esforço default; vazio = padrão do próprio CLI |
+| `HICODE_IA_FILE` | `<root>/config/ia.json` | preferências de IA por papel (lidas **por chamada**) |
+| `HICODE_MODELOS_FILE` | `<root>/config/modelos.json` | catálogo de modelos por provedor |
 | `HICODE_OLLAMA_URL` | `http://localhost:11434` | endpoint do Ollama |
 | `HICODE_VISUAL_AI` | `off` | `on` liga o check visual por IA (default: só screenshot + humano) |
 | `HICODE_CLARIFY` | `on` | `off` desliga a fase de perguntas |
+| `HICODE_CLASSIFY` | `off` | `on` usa IA para desempatar task vs ask em caso de dúvida |
+| `HICODE_CLASSIFY_PROVIDER` / `_MODEL` / `_TIMEOUT_MS` | — / — / `15000` | provedor, modelo e teto do classificador |
+| `HICODE_WAITING_MAX_ATTEMPTS` | `8` | tentativas de espera antes de HALT (mede duração do outage) |
+| `HICODE_QUOTA_FALLBACK` | `off` | `on` permite trocar de provedor quando a cota estoura |
 | `HICODE_IDEATE_FRAMES` / `_IDEAS` / `_TOPK` | `4`/`5`/`3` | lentes, ideias por lente e tamanho da shortlist |
 | `HICODE_EVAL` | `on` | `off` desliga a nota de qualidade pós-preview |
 | `HICODE_PROJECT_MEMORY` | `on` | `off` não injeta nem grava `.hii/memory` |
@@ -671,6 +942,17 @@ não do protocolo.
 | `HICODE_RUNNER_LOCK` | `<root>/.runner.lock` | trava de instância única — tomada pelo daemon **e** pelo `--once` |
 | `HICODE_LOCK_STALE_MS` | `15000` | idade a partir da qual um lock de card é considerado morto |
 | `HICODE_LOCK_TIMEOUT_MS` | `10000` | espera máxima por um lock antes de quebrá-lo |
+| `HICODE_HYPERLINKS` | detectado | `on`/`off` força ou desliga link clicável (OSC 8) |
+
+**Env é configuração inicial** — lida no arranque do processo. Para trocar de IA, modelo ou esforço
+**sem reiniciar**, use `/ia`, `/model`, `/effort` ou os ajustes (`shift+tab`), que gravam
+`config/ia.json` e valem na próxima instrução.
+
+Os três arquivos locais (`config/repos.json`, `config/ia.json`, `config/modelos.json`) ficam **fora
+do git** por decisão: alvo e credencial de máquina não vão para o repositório. Isso tem um custo que
+vale saber — o `config/repos.json` já sumiu uma vez e o board apareceu sem projeto. O motor hoje
+sobrevive a isso (os projetos citados pelos cards entram na lista, marcados como fora do registro),
+mas se você usa mais de uma máquina, guarde uma cópia fora do repo.
 
 ---
 
@@ -731,6 +1013,22 @@ escrita, a lista de estados dele divergiu da do motor — faltava `CORRECTING`.
 
 > Escrevendo um cliente novo (MCP, bot, CI)? Importe `lib/core/actions`. Nunca escreva o `.md`
 > direto — é o caminho que reintroduz a corrida e a divergência.
+
+---
+
+## Isolamento dos próprios testes
+
+Três testes de varredura em `test/isolamento-de-testes.test.ts` leem o código dos **outros testes**
+e reprovam padrões que já causaram estrago real:
+
+| Regra | Por que existe |
+|---|---|
+| teste que escreve card **isola** `HICODE_CARDS_DIR` | sem isso, o teste cria card no `cards/` de verdade — aconteceu, seis cards vazaram |
+| teste que usa `link()`/`linkificar()` **fixa** `HICODE_HYPERLINKS` | três testes passavam por lerem `WT_SESSION` do dev e falhavam na CI |
+| nenhum teste aponta para `config/{repos,ia,modelos}.json` real | é config local do usuário, não fixture |
+
+O padrão comum: **verde na máquina de quem escreveu não é prova**. Esses três leem a fonte em vez de
+confiar em disciplina.
 
 ---
 

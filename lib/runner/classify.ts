@@ -1,3 +1,5 @@
+import { lerAcaoExterna } from './externo'
+
 export type Surface = 'visual' | 'none'
 
 export interface SurfaceVerdict {
@@ -49,6 +51,8 @@ function norm(s: string): string {
 
 export function classifySurface(title: string, objetivo: string, hasSurface: boolean): SurfaceVerdict {
   if (!hasSurface) return { surface: 'none', reason: 'repo sem dev server (nada a renderizar)' }
+  const externa = lerAcaoExterna(title, objetivo)
+  if (externa.externo) return { surface: 'none', reason: externa.motivo }
   const text = ` ${norm(title)} ${norm(objetivo)} `
   const vis = text.match(VISUAL_RE)
   if (vis) return { surface: 'visual', reason: `sinal visual: "${vis[0]}"` }

@@ -2,7 +2,7 @@ import type { Usage } from '../card'
 
 export type AgentRole = 'implement' | 'verify' | 'gate' | 'step'
 
-export type AiProviderName = 'claude' | 'codex' | 'ollama'
+export type AiProviderName = 'claude' | 'codex' | 'ollama' | 'kimi'
 
 export type AgentMode = 'edit' | 'readonly'
 
@@ -13,8 +13,10 @@ export interface AgentRequest {
   mode: AgentMode
   useAgents: boolean
   model?: string
+  effort?: string
   timeoutMs: number
   liveLog?: string
+  extraTools?: string[]
 }
 
 export interface AgentResult {
@@ -29,10 +31,19 @@ export interface AgentResult {
   usage: Usage
 }
 
+export interface ProviderLimits {
+  readonly restrictsTools: boolean
+  readonly isolatesReadonly: boolean
+  readonly acceptsEffort: boolean
+  readonly reportsCostUsd: boolean
+  readonly reportsTokens: boolean
+}
+
 export interface AiProvider {
   readonly name: AiProviderName
   readonly supportsAgents: boolean
   readonly supportsVision: boolean
   readonly agentic: boolean
+  readonly limits?: ProviderLimits
   run(req: AgentRequest): Promise<AgentResult>
 }

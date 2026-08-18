@@ -3,7 +3,7 @@ import type { Terminal } from './screen'
 import { newInput, keypress, aplicarCompletar, pararNavegacao, classificarNavegacao } from './input'
 import type { ModoNavegacao } from './input'
 import { tokenizeParcial, agruparColagem } from './keys'
-import { linkificar } from './layout'
+import { linkificar, quebrarEmLargura } from './layout'
 import type { InputState } from './input'
 
 interface ErroLancado {
@@ -37,6 +37,7 @@ export interface AppHooks {
   onNav?: (dir: -1 | 1, modo: ModoNavegacao) => boolean
   onEntrar?: (modo: ModoNavegacao) => void
   onAba?: (dir: -1 | 1) => void
+  onCiclarIa?: (dir: -1 | 1) => void
   podeLimpar?: () => string
   logPrimeiro?: (ctx: CorpoContexto) => boolean
   acima?: (ctx: CorpoContexto) => string[]
@@ -61,6 +62,7 @@ const PADRAO = {
   onNav: (): boolean => false,
   onEntrar: (): void => {},
   onAba: (): void => {},
+  onCiclarIa: (): void => {},
 }
 
 export function createApp(term: Terminal, dados: AppHooks): App {
@@ -91,11 +93,12 @@ export function createApp(term: Terminal, dados: AppHooks): App {
       }
       const fixo = hooks.fixo(ctx)
       const corpo = hooks.corpo(ctx)
+      const interno = Math.max(20, term.cols() - 4)
       const rolante = ctx.navegando === 'board'
         ? corpo
-        : hooks.logPrimeiro(ctx) ? [...extras, ...corpo] : [...corpo, ...extras]
-      const sobra = Math.max(1, ctx.altura - fixo.length)
-      quadro = { fixo, corpo: rolante.slice(-sobra), rodape }
+        : (hooks.logPrimeiro(ctx) ? [...extras, ...corpo] : [...corpo, ...extras])
+            .flatMap(l => quebrarEmLargura(l, interno))
+      quadro = { fixo, corpo: rolante.slice(-Math.max(1, ctx.altura)), rodape }
       sujo = false
     }
     const rodape = quadro.rodape
@@ -107,7 +110,8 @@ export function createApp(term: Terminal, dados: AppHooks): App {
     const acima = hooks.acima(ctx)
     screen.draw({
       header: hooks.header(),
-      corpo: [...quadro.fixo, ...quadro.corpo],
+      corpo: quadro.corpo,
+      fixo: quadro.fixo,
       input: ctx.navegando === 'board' ? '' : input.buffer,
       cursor: ctx.navegando === 'board' ? 0 : input.cursor,
       dica: hooks.dica(ctx),
@@ -207,6 +211,11 @@ export function createApp(term: Terminal, dados: AppHooks): App {
       input = pararNavegacao(input)
       sujo = true
       hooks.onEntrar(modo)
+      return true
+    }
+    if (a.kind === 'ciclar-ia') {
+      sujo = true
+      hooks.onCiclarIa(a.dir)
       return true
     }
     if (a.kind === 'aba') {

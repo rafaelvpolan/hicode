@@ -4,12 +4,17 @@ import * as core from './actions'
 import { planejarLote, removerLote } from './remover'
 import { renderRemocao, renderResultado } from './render/remocao'
 import { projetosConhecidos } from './projetos-conhecidos'
+import { interpretar, aplicar as aplicarIa, limpar as limparIa, ajuda as ajudaDeIa, estadoDaIa, definirModelo, definirEsforco } from './escolher-ia'
+import { agentRoles } from '../ai/registry'
+import type { AgentRole } from '../ai/types'
 import { pendencia, responder, cardsPerguntando } from './responder'
 import { renderPergunta, renderRespondidas } from './render/clarify'
 import { instruir } from './instruir'
 import { renderHelp } from './render/help'
 import { esperandoVoce } from './render/rodape'
-import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao } from './session'
+import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao, comConversa } from './session'
+import { classificarPrompt } from './classificar'
+import { renderPergunta as renderPerguntaLida } from './render/pergunta-lida'
 import type { Effect, SessionState } from './session'
 
 export interface DispatchIO {
@@ -19,6 +24,8 @@ export interface DispatchIO {
   largura: () => number
   subirPreview: (id: string) => Promise<string>
   listarPreviews: (limpar: boolean) => Promise<string[]>
+  responder: (pergunta: string, conversa: { pergunta: string; resposta: string }[]) => Promise<string[]>
+  classificar?: (prompt: string) => Promise<string>
   plano: (id: string) => Promise<string[]>
   atividade: (id: string) => string[]
 }
@@ -28,7 +35,7 @@ export interface DispatchResult {
   tratado: boolean
 }
 
-const FORA = ['quit', 'board', 'none']
+const FORA = ['quit', 'board', 'nova-sessao', 'none']
 
 async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Promise<SessionState> {
   const id = effect.id ?? ''
@@ -118,13 +125,8 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
     }
     case 'instruct': {
       if (!readCard(id)) {
-        if (!state.repo) { io.log('sem projeto — /repo <owner/nome>'); return state }
-        io.log(`#${id} nao existe mais — virou tarefa nova`)
-        const novoId = core.submit({ title: texto, repo: state.repo })
-        io.log(`card #${novoId} criado`)
-        for (const l of await io.plano(novoId)) io.log(l)
-        io.log('enter aprova e enfileira')
-        return seguir(planShown({ ...state, seguindo: '' }, novoId), novoId)
+        io.log(`#${id} nao existe mais — lendo a intencao do texto do zero`)
+        return aplicar({ kind: 'confirmar-tarefa', text: texto }, { ...state, seguindo: '' }, io)
       }
       const r = instruir(id, texto)
       if (!r.ok) { io.log(r.reason); return state }
@@ -200,6 +202,62 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       }
       const r = core.transition(id, 'EXECUTING', 'retomado pelo humano')
       io.log(r ? `#${id} retomado — segue de onde parou` : `nao consegui retomar #${id}`)
+      return state
+    }
+    case 'submit': {
+      if (!texto.trim()) { io.log('nada para criar'); return state }
+      if (!state.repo) { io.log('sem projeto — /repo <owner/nome>'); return state }
+      const base = state.perguntando ? respondido(state) : state
+      const novoId = core.submit({ title: texto, repo: base.repo })
+      io.log(`card #${novoId} criado`)
+      for (const l of await io.plano(novoId)) io.log(l)
+      io.log('enter aprova e enfileira · outra tarefa descarta')
+      return planShown(base, novoId)
+    }
+    case 'confirmar-tarefa': {
+      const leitura = await classificarPrompt(texto, io.classificar, state.conversa)
+      if (leitura.tipo === 'task') return aplicar({ kind: 'submit', text: texto }, state, io)
+      for (const l of renderPerguntaLida(leitura.motivo, { color: io.color, width: io.largura() })) io.log(l)
+      return aplicar({ kind: 'consultar', text: texto }, state, io)
+    }
+    case 'modelo': {
+      io.log(definirModelo(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
+      return state
+    }
+    case 'esforco': {
+      io.log(definirEsforco(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
+      return state
+    }
+    case 'config': {
+      io.log(io.dim('  /config — ↑↓ escolhe a ia · enter aplica no papel implement · /board volta'))
+      return state
+    }
+    case 'consultar': {
+      if (!texto.trim()) { io.log('uso: /new-ask <pergunta>'); return state }
+      io.log(io.dim('  consultando o ambiente e o projeto (leitura, sem alterar arquivo)…'))
+      const linhas = await io.responder(texto, state.conversa)
+      for (const l of linhas) io.log(l)
+      return comConversa(state, texto, linhas.join(' '))
+    }
+    case 'ia': {
+      const partes = texto.trim().split(/\s+/).filter(Boolean)
+      if (!partes.length) {
+        for (const l of estadoDaIa()) io.log(l)
+        for (const l of ajudaDeIa()) io.log(l)
+        return state
+      }
+      if (partes[0] === 'padrao' || partes[0] === 'reset') {
+        const alvos = partes.slice(1).filter(p => (agentRoles() as string[]).includes(p)) as AgentRole[]
+        io.log(limparIa(alvos.length ? alvos : agentRoles()).mensagem)
+        return state
+      }
+      const { ajuste, erro } = interpretar(partes)
+      if (!ajuste) {
+        io.log(erro || 'uso: /ia [papel] <provedor> [modelo] [esforco]')
+        for (const l of ajudaDeIa()) io.log(l)
+        return state
+      }
+      io.log(aplicarIa(ajuste).mensagem)
       return state
     }
     case 'preview': {

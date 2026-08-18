@@ -1,6 +1,7 @@
 import type { PipelineStep } from './pipeline/types'
+import { lerAcaoExterna } from './externo'
 
-export type StepProfile = 'completo' | 'padrao' | 'deps' | 'enxuto'
+export type StepProfile = 'completo' | 'padrao' | 'deps' | 'enxuto' | 'externo'
 
 export interface TaskInput {
   title?: string
@@ -41,6 +42,8 @@ function norm(s: string | undefined): string {
 
 interface Signals {
   riskHigh: boolean
+  externo: boolean
+  motivoExterno: string
   sec: boolean
   backend: boolean
   data: boolean
@@ -67,8 +70,11 @@ function signalsOf(task: TaskInput): Signals {
   const codey = logic || backend || data || deps
   const cosmeticOnly = cosmetic && !codey && !sec
   const visualOnly = visual && !backend && !data && !deps && !sec && !logic
+  const externa = lerAcaoExterna(task.title ?? '', task.objetivo ?? '')
   return {
     riskHigh: task.risk === 'high',
+    externo: externa.externo,
+    motivoExterno: externa.motivo,
     sec, backend, data, deps, logic, cosmetic, visual, codey,
     cosmeticOnly, visualOnly,
     lean: cosmeticOnly || visualOnly,
@@ -78,6 +84,7 @@ function signalsOf(task: TaskInput): Signals {
 
 function keepStep(step: PipelineStep, s: Signals): boolean {
   if (s.riskHigh) return true
+  if (s.externo) return false
   if (step.kind === 'security') return s.sec || s.backend || s.data || s.deps || s.ambiguous
   if (step.kind === 'review') return !s.lean
   if (step.kind === 'cleanup') return !s.cosmeticOnly
@@ -90,6 +97,7 @@ function keepStep(step: PipelineStep, s: Signals): boolean {
 
 function profileOf(s: Signals): StepProfile {
   if (s.riskHigh) return 'completo'
+  if (s.externo) return 'externo'
   if (s.lean) return 'enxuto'
   if (s.deps && !s.logic && !s.backend && !s.data) return 'deps'
   return 'padrao'
@@ -97,6 +105,7 @@ function profileOf(s: Signals): StepProfile {
 
 function reasonOf(s: Signals): string {
   if (s.riskHigh) return 'risco alto — roda tudo'
+  if (s.externo) return s.motivoExterno
   if (s.sec) return 'sinal de seguranca — inclui escudo'
   if (s.cosmeticOnly) return 'mudanca cosmetica/texto — pula qualidade e seguranca'
   if (s.visualOnly) return 'mudanca so visual — pula seguranca/arquitetura/testes'

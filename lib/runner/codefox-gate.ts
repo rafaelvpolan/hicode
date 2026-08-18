@@ -3,7 +3,7 @@ import type { FailureClass } from '../card'
 import { GATE_DIFF_LIMIT, GATE_RETRIES, GATE_TIMEOUT_MAX_MS, GATE_TIMEOUT_MIN_MS, GATE_TIMEOUT_MS_PER_KB, ROOT } from './config'
 import { runGit, stageAll } from './git'
 import { patchCard } from './card-store'
-import { modelFor, providerFor } from '../ai/registry'
+import { modelFor, providerFor, effortFor } from '../ai/registry'
 import { runProvider } from './cost-trust'
 import { sumTokens } from '../ai/usage'
 import { classifyFailure } from '../ai/failure'
@@ -144,6 +144,7 @@ async function gateReview(wt: string, base: string, desc: string, working: boole
     mode: 'readonly',
     useAgents: false,
     model: modelFor('gate'),
+    effort: effortFor('gate'),
     timeoutMs: timeoutForDiff(diff),
   })
   const tokens = sumTokens(res.usage)

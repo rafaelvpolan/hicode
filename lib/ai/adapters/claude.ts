@@ -21,16 +21,23 @@ const EDIT_TOOLS_AGENTS = 'Task,Read,Edit,Write,Glob,Grep,Bash'
 const EDIT_TOOLS = 'Read,Edit,Write,Glob,Grep,Bash'
 const READONLY_TOOLS = 'Read,Glob,Grep'
 
-function toolsFor(req: AgentRequest): string {
+function baseToolsFor(req: AgentRequest): string {
   if (req.mode !== 'edit') return READONLY_TOOLS
   return req.useAgents ? EDIT_TOOLS_AGENTS : EDIT_TOOLS
+}
+
+function toolsFor(req: AgentRequest): string {
+  const base = baseToolsFor(req).split(',')
+  const extra = req.extraTools ?? []
+  return Array.from(new Set([...base, ...extra])).join(',')
 }
 
 function argv(req: AgentRequest): string[] {
   const a = ['-p', req.prompt, '--output-format', 'json']
   if (req.model) a.push('--model', req.model)
+  if (req.effort) a.push('--effort', req.effort)
   if (req.mode === 'edit') a.push('--permission-mode', 'acceptEdits', '--allowedTools', toolsFor(req))
-  else a.push('--allowedTools', READONLY_TOOLS)
+  else a.push('--allowedTools', toolsFor(req))
   for (const d of req.dirs) a.push('--add-dir', d)
   return a
 }
