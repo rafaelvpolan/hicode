@@ -7,18 +7,10 @@ const INVERSO = '\x1b[7m'
 
 export const AJUDA_DO_COMANDO: Record<string, string> = {
   '/help': 'todos os comandos e teclas',
-  '/board': 'quadro do projeto',
+  '/board': 'quadro do projeto, navegavel',
   '/config': 'ias conectadas, uso de 5h e da semana, tokens e loop',
-  '/cards': 'lista crua, por estado',
-  '/plan': 'mostra o plano da tarefa',
-  '/watch': 'entra na tarefa e segue a execucao',
-  '/agents': 'agentes e ferramentas usados',
   '/ask': 'responde a pergunta que travou a tarefa',
-  '/ok': 'aprova o preview que voce viu',
-  '/no': 'rejeita o preview e manda corrigir',
-  '/preview': 'sobe o dev server, ou lista os que rodam',
   '/stop': 'para a tarefa em execucao',
-  '/halt': 'para a tarefa (mesmo que /stop)',
   '/rm': 'apaga tarefas e limpa o que fica atras',
   '/new-task': 'cria a tarefa direto, sem leitura de intencao',
   '/new-ask': 'pergunta sobre o projeto, sem criar card',
@@ -27,9 +19,7 @@ export const AJUDA_DO_COMANDO: Record<string, string> = {
   '/model': 'escolhe o modelo da ia atual',
   '/effort': 'escolhe o esforco da ia atual',
   '/repo': 'troca de projeto',
-  '/project': 'troca de projeto (mesmo que /repo)',
-  '/exit': 'sai do hii e volta para o shell',
-  '/quit': 'sai — as tarefas seguem rodando',
+  '/exit': 'sai do hii — as tarefas seguem rodando',
 }
 
 export interface SugestoesOptions {

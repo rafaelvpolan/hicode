@@ -36,10 +36,36 @@ export function painelDeIas(e: EstadoDaConfig, largura: number, o: OpcoesConfig)
   return e.provedores.map((p) => {
     const marca = p.nome === e.selecionado ? paint(CURSOR, CYAN, o) : ' '
     const estado = padVisible(rotuloDaSituacao(p, o), 14)
-    const nome = p.nome === e.selecionado ? paint(padVisible(p.nome, 9), CYAN, o) : padVisible(p.nome, 9)
-    const papeis = p.papeis.length ? p.papeis.join(',') : '—'
-    return truncVisible(` ${marca} ${nome} ${estado}  ${paint(papeis, DIM, o)}`, largura)
+    const nome = p.nome === e.selecionado ? paint(padVisible(p.nome, 8), CYAN, o) : padVisible(p.nome, 8)
+    const ligada = padVisible(p.habilitado ? paint('on', VERDE, o) : paint('off', DIM, o), 3)
+    const plano = p.plano || '—'
+    return truncVisible(` ${marca} ${nome} ${estado} ${ligada}  ${paint(plano, DIM, o)}`, largura)
   })
+}
+
+export function painelDoPlano(p: LinhaDeProvedor | undefined, largura: number, o: OpcoesConfig): string[] {
+  if (!p) return [' escolha uma ia com ↑↓']
+  if (!p.plano) return [' plano nao descoberto nesta maquina']
+  const linhas = [campo('plano', p.plano, largura, o)]
+  if (p.detalheDoPlano) linhas.push(campo('conta', p.detalheDoPlano, largura, o))
+  if (!p.janelas.length) linhas.push(campo('uso', 'sem janela reportada', largura, o))
+  const medidor = Math.max(8, largura - 22)
+  for (const j of p.janelas) {
+    linhas.push(' ' + barraRotulada(j.rotulo, j.percentual, 100, {
+      color: o.color, largura: medidor, mostrarPercentual: true, rotuloEm: 8,
+    }))
+  }
+  if (p.janelas.length && p.idadeDoUsoHoras >= 0) {
+    const idade = p.idadeDoUsoHoras < 1
+      ? `medido ha ${Math.round(p.idadeDoUsoHoras * 60)} min`
+      : `medido ha ${p.idadeDoUsoHoras.toFixed(0)}h`
+    const velho = p.idadeDoUsoHoras > 6
+    linhas.push(' ' + paint(velho ? `${idade} — VELHO, abra o claude` : idade, velho ? AMARELO : DIM, o))
+  }
+  if (p.modelosDisponiveis.length) {
+    linhas.push(campo('modelos', p.modelosDisponiveis.slice(0, 3).join(', '), largura, o))
+  }
+  return linhas.map(l => truncVisible(l, largura))
 }
 
 export function painelDoProvedor(p: LinhaDeProvedor | undefined, largura: number, o: OpcoesConfig): string[] {

@@ -15,10 +15,15 @@ test('todos os comandos do catalogo tem descricao', async () => {
   for (const c of COMMANDS) expect(AJUDA_DO_COMANDO[c], c).toBeTruthy()
 })
 
+test('nenhuma descricao sobra para comando que nao existe mais', async () => {
+  const { COMMANDS } = await import('../lib/core/session')
+  expect(Object.keys(AJUDA_DO_COMANDO).sort()).toEqual([...COMMANDS].sort())
+})
+
 test('descricoes alinham numa coluna so', () => {
-  const linhas = renderSugestoes(['/ok', '/preview'], { width: 78 })
-  const col = linhas.map(l => l.indexOf(AJUDA_DO_COMANDO['/ok'] ?? 'x'))
-  const outra = linhas.map(l => l.indexOf(AJUDA_DO_COMANDO['/preview'] ?? 'y'))
+  const linhas = renderSugestoes(['/rm', '/new-session'], { width: 78 })
+  const col = linhas.map(l => l.indexOf(AJUDA_DO_COMANDO['/rm'] ?? 'x'))
+  const outra = linhas.map(l => l.indexOf(AJUDA_DO_COMANDO['/new-session'] ?? 'y'))
   expect(Math.max(...col, ...outra)).toBeGreaterThan(0)
   expect(visibleLen(linhas[0] ?? '')).toBeLessThanOrEqual(78)
 })
@@ -47,7 +52,7 @@ test('lista vazia nao ocupa espaco', () => {
 
 test('cabe na largura, mesmo em terminal estreito', () => {
   for (const width of [30, 50, 78]) {
-    for (const l of renderSugestoes(['/preview', '/rm'], { width })) {
+    for (const l of renderSugestoes(['/new-session', '/rm'], { width })) {
       expect(visibleLen(l)).toBeLessThanOrEqual(width)
     }
   }

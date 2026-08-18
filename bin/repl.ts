@@ -1,9 +1,8 @@
 import { createInterface } from 'node:readline'
 import { readCard, repoPath } from '../lib/runner/card-store'
-import { httpOk, previewPort } from '../lib/runner/preview'
 import { dispatch } from '../lib/core/dispatch'
 import type { DispatchIO } from '../lib/core/dispatch'
-import { handle, newSession, planShown, seguir, perguntando, aprovando, retomando } from '../lib/core/session'
+import { handle, newSession, planShown, seguir, perguntando, retomando, sincronizarAprovacao } from '../lib/core/session'
 import type { SessionState } from '../lib/core/session'
 import { daemonPid, daemonStatus } from '../lib/core/daemon'
 import { pendencia } from '../lib/core/responder'
@@ -11,25 +10,24 @@ import { ciclarAjuste } from '../lib/core/ajustes'
 import { quebrarEmLargura } from '../lib/core/tui/layout'
 import { responderPergunta, classificarComIaLocal } from '../lib/runner/responder-pergunta'
 import { renderParada } from '../lib/core/render/tarefa'
-import { formatar, resumo } from '../lib/core/activity'
 import { emExecucao } from '../lib/core/render/rodape'
 import { floorProviders, formatProviders } from '../lib/runner/cost-gap'
 import { createApp } from '../lib/core/tui/app'
 import { nodeTerminal } from '../lib/core/tui/screen'
 import { ACC, RESET, color, dim, say, escolherProjeto } from './lib/saida'
-import { atividadeDe, larguraUtil, reposRegistrados, todosOsCards } from './lib/dados'
+import { larguraUtil, reposRegistrados, todosOsCards } from './lib/dados'
 import { definirModo, modoAtual, selecionado, selecionar } from './lib/estado'
-import { cabecalhoDaTarefa, planoDe, previewVivo, seguimento } from './lib/tela-tarefa'
+import { cabecalhoDaTarefa, planoDe, seguimento } from './lib/tela-tarefa'
 import { dicaDa, pintarComando, rodapeDa } from './lib/rodape-tui'
 import { avisoRepos, board, boardNavegavel, completer, navegar, navegarConfig } from './lib/board-tui'
-import { boardAoVivo, ensureDaemon, fleet, showPlan, listCards, watch } from './lib/comandos'
-import { contextoPreview, listarPreviews, subirPreview } from './lib/preview-tui'
+import { boardAoVivo, ensureDaemon, fleet } from './lib/comandos'
 import { etiquetaDoProjeto } from '../lib/core/render/projeto'
 import { renderSugestoes, prefixoComum } from '../lib/core/render/sugestoes'
 import { renderConfig } from '../lib/core/render/config'
 import { lerConfig } from '../lib/core/config-snapshot'
 import { aplicar as aplicarIa } from '../lib/core/escolher-ia'
 import { renderAprovacao } from '../lib/core/render/aprovacao'
+import { renderOpcoesRodape } from '../lib/core/render/clarify'
 import * as core from '../lib/core/actions'
 
 function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void, repo = ''): DispatchIO {
@@ -38,8 +36,6 @@ function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void, repo
     dim,
     color,
     largura: larguraUtil,
-    subirPreview,
-    listarPreviews,
     classificar: classificarComIaLocal,
     responder: async (pergunta, conversa) => {
       const alvo = repoPath(repo)
@@ -51,18 +47,7 @@ function ioDo(app: { log: (s: string) => void }, diga: (s: string) => void, repo
         : dim(`  (${r.provedor})`)
       return [...corpo, '', gasto]
     },
-    plano: async (id) => {
-      const ctx = await contextoPreview(id)
-      if (ctx.plano.acao === 'subir') {
-        void subirPreview(id).then(msg => app.log(`  ${msg}`))
-      }
-      return planoDe(id, ctx.vivo, ctx.plano.acao === 'subir').split('\n')
-    },
-    atividade: (id) => {
-      const at = atividadeDe(id)
-      if (!at.length) return []
-      return [`#${id} — ${resumo(at) || 'sem ferramenta usada'}`, ...at.filter(x => x.tipo !== 'texto').slice(-14).map(formatar)]
-    },
+    plano: async (id) => planoDe(id).split('\n'),
   }
 }
 
@@ -77,6 +62,7 @@ async function tui(state0: SessionState): Promise<void> {
     if (effect.kind === 'quit') { sairPedido = true; return }
     const r = await dispatch(effect, state, ioDo(app, diga, state.repo))
     state = r.state
+    if (effect.kind === 'nova-sessao') { selecionar(''); app.limparLog() }
     if (!r.tratado && effect.kind === 'board') {
       state = { ...state, seguindo: '' }
       app.abrirBoard()
@@ -99,13 +85,17 @@ async function tui(state0: SessionState): Promise<void> {
     logPrimeiro: () => !!state.seguindo,
     acima: () => {
       if (state.comentando) return renderAprovacao(state.comentando, { color, comentando: true, width: larguraUtil() })
+      if (state.perguntando) {
+        const p = pendencia(state.perguntando)
+        if (p) return renderOpcoesRodape(p, { color, width: larguraUtil(), selecionado: selecionado() })
+      }
+      if (state.seguindo) state = sincronizarAprovacao(state, String(readCard(state.seguindo)?.fm.status ?? ''))
       if (!state.aprovando) return []
-      const card = readCard(state.aprovando)
       return renderAprovacao(state.aprovando, {
         color,
         width: larguraUtil(),
         selecionado: selecionado(),
-        url: String(card?.fm.preview_url ?? ''),
+        url: String(readCard(state.aprovando)?.fm.preview_url ?? ''),
       })
     },
     dica: (ctx) => (ctx.navegando ? '↑↓ move · enter abre · → volta · ← board' : dicaDa(state, ctx.sugerindo)),
@@ -177,9 +167,8 @@ async function tui(state0: SessionState): Promise<void> {
       selecionar('')
       state = seguir(state, alvo)
       if (pendencia(alvo)) state = perguntando(state, alvo)
-      if (readCard(alvo)?.fm.status === 'PREVIEW') state = aprovando(state, alvo)
+      state = sincronizarAprovacao(state, String(readCard(alvo)?.fm.status ?? ''))
       app.limparLog()
-      void httpOk(`http://localhost:${previewPort(alvo)}`).then(v => previewVivo.set(alvo, v))
     },
     onLine: processar,
   })

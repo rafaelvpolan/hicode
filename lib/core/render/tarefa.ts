@@ -1,5 +1,4 @@
 import { truncVisible, padVisible } from '../tui/layout'
-import { estadoDoPreview } from '../preview-estado'
 import { floorProviders, formatProviders } from '../../runner/cost-gap'
 import type { Card } from '../../card'
 
@@ -12,18 +11,11 @@ const YELLOW = '\x1b[33m'
 export interface TarefaOptions {
   color: boolean
   width: number
-  vivo: boolean
-  subindo: boolean
-  temDevServer: boolean
-  previewUrl: string
   subs: string[]
   objetivo: string
 }
 
-const PADRAO: TarefaOptions = {
-  color: false, width: 78, vivo: false, subindo: false,
-  temDevServer: false, previewUrl: '', subs: [], objetivo: '',
-}
+const PADRAO: TarefaOptions = { color: false, width: 78, subs: [], objetivo: '' }
 
 function paint(s: string, cor: string, o: TarefaOptions): string {
   return o.color ? `${cor}${s}${RESET}` : s
@@ -48,12 +40,8 @@ export function renderCabecalhoTarefa(card: Card, opts: Partial<TarefaOptions> =
   if (base > 0) out.push(campo('depois', paint(`(${base} instrucao(oes) anterior(es))`, DIM, o), o))
   mostrar.forEach((s, i) => out.push(campo(base === 0 && i === 0 ? 'depois' : '', `${base + i + 1}. ${s}`, o)))
 
-  const preview = estadoDoPreview({
-    status, worktree: String(fm.worktree ?? ''), url: o.previewUrl,
-    vivo: o.vivo, temDevServer: o.temDevServer, subindo: o.subindo,
-  })
-  if (preview.url) out.push(campo('preview', `${preview.url}  ${paint(preview.rotulo, DIM, o)}`, o))
-  else if (preview.situacao !== 'sem-superficie') out.push(campo('preview', paint(preview.rotulo, DIM, o), o))
+  const url = String(fm.preview_url ?? '')
+  if (url) out.push(campo('preview', url, o))
 
   const custo = parseFloat(String(fm.cost_usd ?? '0')) || 0
   const tokens = Number(fm.tokens_total ?? 0)

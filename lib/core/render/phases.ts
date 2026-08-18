@@ -38,12 +38,12 @@ export interface EsperaHumano {
 
 const ESPERAS: Record<string, EsperaHumano> = {
   CLARIFY: { motivo: 'precisa da sua resposta', comando: '/ask' },
-  PREVIEW: { motivo: 'preview pronto para ver', comando: '/ok' },
-  READY: { motivo: 'plano nao aprovado', comando: '/plan' },
-  INBOX: { motivo: 'plano nao aprovado', comando: '/plan' },
-  SPECCED: { motivo: 'plano nao aprovado', comando: '/plan' },
-  HALTED: { motivo: 'parou no meio', comando: '/plan' },
-  PR_OPEN: { motivo: 'PR aberto para voce revisar', comando: '/plan' },
+  PREVIEW: { motivo: 'resultado pronto para voce ver', comando: '' },
+  READY: { motivo: 'plano nao aprovado', comando: '' },
+  INBOX: { motivo: 'plano nao aprovado', comando: '' },
+  SPECCED: { motivo: 'plano nao aprovado', comando: '' },
+  HALTED: { motivo: 'parou no meio', comando: '' },
+  PR_OPEN: { motivo: 'PR aberto para voce revisar', comando: '' },
 }
 
 export function esperaHumano(status: string): EsperaHumano | null {

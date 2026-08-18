@@ -1,6 +1,6 @@
 import { caixa, grade } from '../widget/caixa'
 import { serie } from '../widget/serie'
-import { painelDeIas, painelDeTokens, painelDeUso, painelDoLoop, painelDoProvedor } from './paineis'
+import { painelDeIas, painelDeTokens, painelDeUso, painelDoLoop, painelDoPlano, painelDoProvedor } from './paineis'
 import type { EstadoDaConfig, OpcoesConfig } from './tipos'
 
 export type { EstadoDaConfig, LinhaDeProvedor, ItemDoLoop, OpcoesConfig } from './tipos'
@@ -30,7 +30,8 @@ export function renderConfig(e: EstadoDaConfig, o: OpcoesConfig): string[] {
   const cx = { color: o.color, largura: w }
 
   const blocos = [
-    caixa('IAS CONECTADAS', painelDeIas(e, w - 2, opcoes), cx),
+    caixa('IAS · instalada / ligada / plano', painelDeIas(e, w - 2, opcoes), cx),
+    caixa(`${(e.selecionado || 'ia').toUpperCase()} · PLANO E USO`, painelDoPlano(escolhido, w - 2, opcoes), cx),
     caixa(`${(e.selecionado || 'ia').toUpperCase()} · CONFIGURADO`, painelDoProvedor(escolhido, w - 2, opcoes), cx),
     caixa('USO 5H', painelDeUso(e.uso5h, w - 2, opcoes), cx),
     caixa('USO SEMANA', painelDeUso(e.usoSemana, w - 2, opcoes), cx),

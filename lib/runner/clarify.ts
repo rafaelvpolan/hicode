@@ -13,6 +13,7 @@ export interface ClarifyResult {
   questions: ClarifyQuestion[]
   cost: number
   tokens: number
+  falhou?: string
 }
 
 function clarifyFile(id: string): string {
@@ -102,6 +103,13 @@ export async function clarify(card: Card): Promise<ClarifyResult> {
     `TAREFA: ${desc}`,
   ].join('\n')
   const res = await runProvider(card.fm.id ?? '', provider, { prompt, cwd: ROOT, dirs: [], mode: 'readonly', useAgents: false, model: modelFor('verify'), timeoutMs: 120000 })
-  if (!res.ok) return { questions: [], cost: res.cost, tokens: sumTokens(res.usage) }
+  if (!res.ok) {
+    return {
+      questions: [],
+      cost: res.cost,
+      tokens: sumTokens(res.usage),
+      falhou: `provedor nao respondeu: ${String(res.detail || res.text || 'sem detalhe').slice(0, 120)}`,
+    }
+  }
   return { questions: parseQuestions(res.text), cost: res.cost, tokens: sumTokens(res.usage) }
 }

@@ -3,9 +3,8 @@ import { dailySpend } from '../../lib/runner/cost-gap'
 import type { DailySpend } from '../../lib/runner/cost-gap'
 import { effortFor, modelFor, providerNameFor } from '../../lib/ai/registry'
 import { emExecucao, esperandoEmOutrosProjetos, esperandoVoce, linhaDeOutrosProjetos, linhaPropriedades, linhasAjustes, linhasEspera, linhasExecucao } from '../../lib/core/render/rodape'
-import { renderOpcoesRodape } from '../../lib/core/render/clarify'
 import { itensDeAjuste } from '../../lib/core/ajustes'
-import { cardsPerguntando, pendencia } from '../../lib/core/responder'
+import { cardsPerguntando } from '../../lib/core/responder'
 import { ultimoAgente } from '../../lib/core/activity'
 import type { SessionState } from '../../lib/core/session'
 import { ACC, DIM, RESET, color } from './saida'
@@ -51,10 +50,6 @@ export function rodapeDa(state: SessionState, noRodape = false): string[] {
   }
   if (modoAtual() === 'ajustes') {
     return [props, ...linhasAjustes(itensDeAjuste(), { color, width: largura, selecionado: selecionado() })]
-  }
-  if (state.perguntando) {
-    const p = pendencia(state.perguntando)
-    if (p) return [props, ...renderOpcoesRodape(p, { color, width: largura, selecionado: noRodape ? selecionado() : '' })]
   }
   const espera = linhasEspera(esperandoVoce(cards, state.repo), marcado)
   const fora = linhaDeOutrosProjetos(esperandoEmOutrosProjetos(cards, state.repo), marcado)

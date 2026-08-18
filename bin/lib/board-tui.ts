@@ -8,7 +8,6 @@ import { pendencia } from '../../lib/core/responder'
 import { ordemDosAjustes } from '../../lib/core/ajustes'
 import { complete } from '../../lib/core/complete'
 import { ordemDaConfig } from '../../lib/core/config-snapshot'
-import { STATUSES } from '../../lib/card'
 import { agentRoles, providerNameFor, providerNames } from '../../lib/ai/registry'
 import { modelosDe } from '../../lib/ai/catalogo'
 import { ESFORCOS } from '../../lib/ai/preferencias'
@@ -90,7 +89,6 @@ export function completer(line: string): [string[], string] {
   return complete(line, {
     repos: reposRegistrados().map(r => r.name),
     cards: todosOsCards().map(c => String(c.id ?? '')).filter(Boolean),
-    statuses: [...STATUSES],
     provedores: providerNames(),
     modelos: modelosDe(providerNameFor('implement')),
     esforcos: [...ESFORCOS],

@@ -8,6 +8,7 @@ const BINARIO: Partial<Record<AiProviderName, string>> = {
   claude: 'claude',
   codex: 'codex',
   kimi: 'kimi',
+  ollama: 'ollama',
 }
 
 export type Situacao = 'disponivel' | 'ausente' | 'precisa-servidor'

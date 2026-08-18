@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { readCard, repoPath } from '../../lib/runner/card-store'
-import { hasDevServer, previewPort } from '../../lib/runner/preview'
+import { hasDevServer } from '../../lib/runner/preview'
 import { buildPlan } from '../../lib/core/plan'
 import { renderPlan } from '../../lib/core/render/plan'
 import { renderCabecalhoTarefa } from '../../lib/core/render/tarefa'
@@ -15,37 +15,22 @@ import type { SessionState } from '../../lib/core/session'
 import { color } from './saida'
 import { atividadeDe, passosDe } from './dados'
 
-export function planoDe(id: string, ativo = false, subindo = false): string {
+export function planoDe(id: string): string {
   const card = readCard(id)
   if (!card) return ''
   const alvo = repoPath(card.fm.repo ?? '')
-  const temDev = existsSync(alvo) && hasDevServer(alvo)
-  const plano = buildPlan({
-    card,
-    hasDevServer: temDev,
-    previewUrl: card.fm.preview_url || (temDev ? `http://localhost:${previewPort(id)}` : ''),
-    previewAtivo: ativo,
-    previewSubindo: subindo,
-  })
+  const plano = buildPlan({ card, hasDevServer: existsSync(alvo) && hasDevServer(alvo) })
   return renderPlan(plano, { color })
 }
-
-export const previewVivo = new Map<string, boolean>()
 
 export function cabecalhoDaTarefa(state: SessionState): string[] {
   const card = readCard(state.seguindo)
   if (!card) return [`card #${state.seguindo} nao encontrado`]
-  const alvo = repoPath(card.fm.repo ?? '')
-  const temDev = existsSync(alvo) && hasDevServer(alvo)
-  const url = card.fm.preview_url || (temDev ? `http://localhost:${previewPort(state.seguindo)}` : '')
   const cab = renderCabecalhoTarefa(card, {
     color,
     width: Math.max(40, (Number(process.stdout.columns) || 78) - 6),
     objetivo: extractObjetivo(card.body) || String(card.fm.title ?? ''),
     subs: subPrompts(card.body),
-    previewUrl: url,
-    temDevServer: temDev,
-    vivo: previewVivo.get(state.seguindo) ?? false,
   })
   const status = String(card.fm.status ?? '')
   const pend = renderPendencia(status, state.seguindo, {

@@ -1,11 +1,11 @@
-const RESET = '\x1b[0m'
-const CSI = /\x1b\[[0-9;?]*[A-Za-z]/g
-const OSC = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g
-const OSC_SPLIT = /(\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)[^\x1b]*\x1b\][^\x07\x1b]*(?:\x07|\x1b\\))/
+import { grafemasDe, larguraDeGrafema, larguraDeTexto } from './largura'
 
-export function stripAnsi(s: string): string {
-  return s.replace(OSC, '').replace(CSI, '')
-}
+export { stripAnsi } from './largura'
+
+const RESET = '\x1b[0m'
+const ELIPSE = '…'
+const OSC_SPLIT = /(\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)[^\x1b]*\x1b\][^\x07\x1b]*(?:\x07|\x1b\\))/
+const ESCAPE_SPLIT = /(\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\))/
 
 const RE_URL = /https?:\/\/[^\s<>"')\]]+/g
 
@@ -34,35 +34,38 @@ export function linkificar(texto: string): string {
 }
 
 export function visibleLen(s: string): number {
-  return stripAnsi(s).length
+  return larguraDeTexto(s)
 }
 
 export function truncVisible(s: string, max: number): string {
+  if (max <= 0) return ''
   if (visibleLen(s) <= max) return s
-  let visiveis = 0
+  const teto = max - larguraDeGrafema(ELIPSE)
+  const partes = s.split(ESCAPE_SPLIT)
+  let colunas = 0
   let out = ''
-  let i = 0
   let temAnsi = false
-  while (i < s.length && visiveis < max) {
-    if (s[i] === '\x1b') {
-      const m = /^\x1b\[[0-9;?]*[A-Za-z]/.exec(s.slice(i)) ?? /^\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/.exec(s.slice(i))
-      if (m?.[0]) {
-        out += m[0]
-        i += m[0].length
-        temAnsi = true
-        continue
-      }
+  for (let i = 0; i < partes.length; i++) {
+    const parte = partes[i] ?? ''
+    if (i % 2 === 1) {
+      out += parte
+      temAnsi = true
+      continue
     }
-    out += s[i]
-    visiveis++
-    i++
+    for (const grafema of grafemasDe(parte)) {
+      const largura = larguraDeGrafema(grafema)
+      if (colunas + largura > teto) return out + ELIPSE + (temAnsi ? RESET : '')
+      out += grafema
+      colunas += largura
+    }
   }
-  return (visiveis >= max ? out.slice(0, out.length - 1) + '…' : out) + (temAnsi ? RESET : '')
+  return out + ELIPSE + (temAnsi ? RESET : '')
 }
 
 export function padVisible(s: string, largura: number): string {
-  const falta = largura - visibleLen(s)
-  return falta > 0 ? s + ' '.repeat(falta) : truncVisible(s, largura)
+  const cortado = truncVisible(s, largura)
+  const falta = largura - visibleLen(cortado)
+  return falta > 0 ? cortado + ' '.repeat(falta) : cortado
 }
 
 export interface FrameInput {
@@ -96,6 +99,10 @@ export function posicaoNoTexto(texto: string, cursor: number): { linha: number; 
   const antes = texto.slice(0, Math.max(0, Math.min(cursor, texto.length)))
   const partes = antes.split('\n')
   return { linha: partes.length - 1, coluna: (partes[partes.length - 1] ?? '').length }
+}
+
+function colunaVisualDoCursor(linha: string, codeUnitsAntes: number): number {
+  return visibleLen(linha.slice(0, codeUnitsAntes))
 }
 
 export function renderFrame(f: FrameInput): Frame {
@@ -157,7 +164,8 @@ export function renderFrame(f: FrameInput): Frame {
   return {
     lines,
     cursorRow: primeira + (pos.linha - inicioEntrada),
-    cursorCol: (comMoldura ? 5 : 3) + visibleLen(f.prompt) + pos.coluna,
+    cursorCol: (comMoldura ? 5 : 3) + visibleLen(f.prompt)
+      + colunaVisualDoCursor(todasEntradas[pos.linha] ?? '', pos.coluna),
   }
 }
 

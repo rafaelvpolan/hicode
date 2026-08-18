@@ -2,10 +2,13 @@ import { isoAt, isoNow } from '../card'
 import type { Fields, FailureClass } from '../card'
 import { maxWaitingAttempts } from './config'
 import { patchCard, readCard } from './card-store'
+import { appendFailureAttempt } from './attempts'
+import type { FailureOutcome } from './attempts'
+import { stampRunFailure } from './runs'
 
 export type ResumeStatus = 'EXECUTING' | 'PREVIEW_OK' | 'CORRECTING' | 'SPECCED'
 
-export type PolicyOutcome = 'waiting' | 'halt'
+export type PolicyOutcome = FailureOutcome
 
 export interface FailurePolicyInput {
   id: string
@@ -42,10 +45,31 @@ function haltFields(input: FailurePolicyInput): Fields {
   }
 }
 
-export function applyFailurePolicy(input: FailurePolicyInput): PolicyOutcome {
-  const card = readCard(input.id)
-  const previousAttempts = Number(card?.fm.wait_attempts || '0') || 0
+function recordFailure(input: FailurePolicyInput, attempt: number, outcome: PolicyOutcome): void {
+  stampRunFailure(input.id, { failureClass: input.failureClass, failureReason: input.failureReason }, input.provider)
+  appendFailureAttempt(input.id, {
+    attempt,
+    fromStatus: input.fromStatus,
+    provider: input.provider,
+    failureClass: input.failureClass,
+    failureReason: input.failureReason,
+    outcome,
+  })
+}
 
+export function applyFailurePolicy(input: FailurePolicyInput): PolicyOutcome {
+  const attempt = attemptNumber(input.id)
+  const outcome = decideOutcome(input, attempt)
+  recordFailure(input, attempt, outcome)
+  return outcome
+}
+
+function attemptNumber(id: string): number {
+  const card = readCard(id)
+  return (Number(card?.fm.wait_attempts || '0') || 0) + 1
+}
+
+function decideOutcome(input: FailurePolicyInput, attempts: number): PolicyOutcome {
   if (input.failureClass === 'quota') {
     patchCard(input.id, haltFields(input), `${isoNow()} ${input.fromStatus}->HALTED cota do provedor ${input.provider || 'desconhecido'} esgotada: ${input.failureReason} — motor PARADO (sem troca automatica de provedor); configure HICODE_QUOTA_FALLBACK para permitir troca explicita`)
     return 'halt'
@@ -56,7 +80,6 @@ export function applyFailurePolicy(input: FailurePolicyInput): PolicyOutcome {
     return 'halt'
   }
 
-  const attempts = previousAttempts + 1
   if (attempts > maxWaitingAttempts()) {
     patchCard(input.id, haltFields(input), `${isoNow()} ${input.fromStatus}->HALTED esgotou ${maxWaitingAttempts()} tentativas de espera (${input.failureReason}) — ultimo erro: ${input.technicalDetail}`)
     return 'halt'

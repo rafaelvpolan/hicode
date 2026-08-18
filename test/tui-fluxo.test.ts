@@ -161,7 +161,7 @@ test('REGRESSAO corrida: linhas coladas de uma vez nao perdem o estado', async (
 test('REGRESSAO corrida: varios comandos em sequencia rapida mantem o estado', async () => {
   card('027')
   card('028')
-  const { saida } = await sessao(['/cards', '/rm 27', 's', '/rm 28', 's'])
+  const { saida } = await sessao(['/board', '/rm 27', 's', '/rm 28', 's'])
   expect(saida).not.toContain('SUBMIT')
   expect(existsSync(join(dir, '027-x.md'))).toBe(false)
   expect(existsSync(join(dir, '028-x.md'))).toBe(false)

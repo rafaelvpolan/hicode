@@ -156,13 +156,18 @@ test('/new-ask sem pergunta nao chama a ia', async () => {
   expect(r.effect.kind).toBe('error')
 })
 
-test('/new-session e tratado por quem chamou, nao pelo despachante', async () => {
-  const { handle, newSession } = await import('../lib/core/session')
+test('/new-session recomeca a sessao de fato — antes era efeito que ninguem tratava', async () => {
+  const { handle, newSession, seguir } = await import('../lib/core/session')
   const { dispatch } = await import('../lib/core/dispatch')
   const { dispatchIOFalso } = await import('./fixtures/dispatch-io-falso')
-  const r = handle('/new-session', newSession('org/app'))
+  const dito: string[] = []
+  const r = handle('/new-session', seguir(newSession('org/app'), '022'))
   expect(r.effect.kind).toBe('nova-sessao')
-  expect((await dispatch(r.effect, r.state, dispatchIOFalso())).tratado).toBe(false)
+  const d = await dispatch(r.effect, r.state, dispatchIOFalso({ log: (l: string) => { dito.push(l) } }))
+  expect(d.tratado).toBe(true)
+  expect(d.state.seguindo).toBe('')
+  expect(d.state.repo).toBe('org/app')
+  expect(dito.join(' ')).toContain('sessao nova')
 })
 
 test('os tres comandos novos estao no catalogo e no autocompletar', async () => {

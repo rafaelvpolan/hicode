@@ -12,7 +12,7 @@ import { renderPergunta, renderRespondidas } from './render/clarify'
 import { instruir } from './instruir'
 import { renderHelp } from './render/help'
 import { esperandoVoce } from './render/rodape'
-import { seguir, planShown, perguntando, removendo, respondido, escolhendoRepo, comentando, semAprovacao, comConversa } from './session'
+import { newSession, seguir, foraDaTarefa, planShown, perguntando, removendo, respondido, escolhendoRepo, aprovando, comentando, semAprovacao, comConversa } from './session'
 import { classificarPrompt } from './classificar'
 import { renderPergunta as renderPerguntaLida } from './render/pergunta-lida'
 import type { Effect, SessionState } from './session'
@@ -22,12 +22,9 @@ export interface DispatchIO {
   dim: (texto: string) => string
   color: boolean
   largura: () => number
-  subirPreview: (id: string) => Promise<string>
-  listarPreviews: (limpar: boolean) => Promise<string[]>
   responder: (pergunta: string, conversa: { pergunta: string; resposta: string }[]) => Promise<string[]>
   classificar?: (prompt: string) => Promise<string>
   plano: (id: string) => Promise<string[]>
-  atividade: (id: string) => string[]
 }
 
 export interface DispatchResult {
@@ -35,7 +32,7 @@ export interface DispatchResult {
   tratado: boolean
 }
 
-const FORA = ['quit', 'board', 'nova-sessao', 'none']
+const FORA = ['quit', 'board', 'none']
 
 async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Promise<SessionState> {
   const id = effect.id ?? ''
@@ -56,30 +53,16 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
     case 'error':
       io.log(texto)
       return state
-    case 'cards': {
-      const alvo = texto.trim().toUpperCase()
-      const lista = allCards().filter(c => (!state.repo || c.repo === state.repo) && (!alvo || c.status === alvo))
-      if (!lista.length) { io.log(alvo ? `nenhum card em ${alvo}` : 'nenhum card'); return state }
-      for (const c of lista) io.log(`#${String(c.id).padStart(3, '0')} ${String(c.status).padEnd(12)} ${String(c.title ?? '').slice(0, 46)}`)
-      return state
-    }
-    case 'watch': {
-      const card = readCard(id)
-      if (!card) { io.log(`card #${id} nao encontrado`); return { ...state, seguindo: '' } }
-      if (card.fm.preview_url) io.log(`preview → ${card.fm.preview_url}`)
-      return pendencia(id) ? perguntando(state, id) : state
-    }
-    case 'activity': {
-      const linhas = io.atividade(id)
-      if (!linhas.length) { io.log(`sem atividade registrada para #${id}`); return state }
-      for (const l of linhas) io.log(l)
-      return state
-    }
     case 'plan': {
       const card = readCard(id)
       if (!card) { io.log(`card #${id} nao encontrado`); return state }
-      for (const l of await io.plano(id)) io.log(l)
       const st = card.fm.status ?? 'INBOX'
+      if (st === 'PREVIEW') {
+        const alvo = card.fm.id ?? id
+        io.log(`#${alvo} — resultado pronto: 1 aprova · 2 refaz do zero · 3 diz o que ajustar`)
+        return aprovando(seguir(state, alvo), alvo)
+      }
+      for (const l of await io.plano(id)) io.log(l)
       if (!core.canApprovePlan(st)) { io.log(`#${id} esta em ${st} — plano so para leitura`); return state }
       io.log('enter aprova e enfileira')
       return planShown(state, id)
@@ -174,7 +157,7 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
         return state
       }
       io.log(`projeto agora e ${alvo}`)
-      return { ...state, repo: alvo, seguindo: '', perguntando: '', removendo: '', retomando: '' }
+      return { ...foraDaTarefa(state), repo: alvo, perguntando: '', removendo: '', retomando: '' }
     }
     case 'aprovacao': {
       if (texto === '1') return aplicar({ kind: 'approve-preview', id }, semAprovacao(state), io)
@@ -228,6 +211,10 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       io.log(definirEsforco(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
       return state
     }
+    case 'nova-sessao': {
+      io.log('sessao nova — a area fica limpa e as tarefas seguem rodando')
+      return newSession(state.repo)
+    }
     case 'config': {
       io.log(io.dim('  /config — ↑↓ escolhe a ia · enter aplica no papel implement · /board volta'))
       return state
@@ -258,11 +245,6 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
         return state
       }
       io.log(aplicarIa(ajuste).mensagem)
-      return state
-    }
-    case 'preview': {
-      if (id) { io.log(await io.subirPreview(id)); return state }
-      for (const l of await io.listarPreviews(texto === 'limpar')) io.log(l)
       return state
     }
     case 'ask': {

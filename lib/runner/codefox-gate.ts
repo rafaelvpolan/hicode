@@ -32,6 +32,7 @@ interface RawVerdict {
 interface DiffParts {
   names: string
   patch: string
+  falhou?: string
 }
 
 interface ParsedGate {
@@ -93,13 +94,24 @@ export function timeoutForDiff(diff: DiffParts): number {
 }
 
 async function accumulatedDiff(wt: string, base: string, working: boolean): Promise<DiffParts> {
-  if (working) await stageAll(wt)
+  if (working) {
+    const st = await stageAll(wt)
+    if (st.err) return { names: '', patch: '', falhou: `git add falhou: ${primeiraLinha(st.stderr)}` }
+  }
   const range = working ? ['--cached', '--merge-base', `origin/${base}`] : [`origin/${base}...HEAD`]
-  const namesRaw = (await runGit(wt, ['diff', '--name-status', ...range])).stdout.trim()
+  const nomes = await runGit(wt, ['diff', '--name-status', ...range])
+  if (nomes.err) return { names: '', patch: '', falhou: `git diff --name-status falhou: ${primeiraLinha(nomes.stderr)}` }
+  const namesRaw = nomes.stdout.trim()
   const names = namesRaw.length > 4000 ? namesRaw.slice(0, 4000) + '\n[...lista truncada...]' : namesRaw
-  const raw = (await runGit(wt, ['diff', ...range])).stdout
+  const corpo = await runGit(wt, ['diff', ...range])
+  if (corpo.err) return { names: '', patch: '', falhou: `git diff falhou: ${primeiraLinha(corpo.stderr)}` }
+  const raw = corpo.stdout
   const patch = raw.length > GATE_DIFF_LIMIT ? raw.slice(0, GATE_DIFF_LIMIT) + '\n[...diff truncado...]' : raw
   return { names, patch }
+}
+
+function primeiraLinha(texto: string): string {
+  return String(texto || '').split('\n').filter(Boolean)[0]?.slice(0, 160) ?? 'sem detalhe'
 }
 
 function buildPrompt(desc: string, diff: DiffParts): string {
@@ -133,6 +145,9 @@ function buildParsed(text: string, cost: number, tokens: number): ParsedGate {
 
 async function gateReview(wt: string, base: string, desc: string, working: boolean, id: string): Promise<GateResult> {
   const diff = await accumulatedDiff(wt, base, working)
+  if (diff.falhou) {
+    return { ok: false, verdict: 'BLOCKED', reason: `nao consegui LER o diff para revisar — ${diff.falhou}`, questions: [], cost: 0, costMeasured: true, tokens: 0 }
+  }
   if (!diff.names.trim()) {
     return { ok: true, verdict: 'APPROVED', reason: 'sem mudancas vs a base', questions: [], cost: 0, costMeasured: true, tokens: 0 }
   }

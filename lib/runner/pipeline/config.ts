@@ -4,6 +4,10 @@ import { STATUSES } from '../../card'
 import { ROOT } from '../config'
 import type { PipelineConfig, PipelineStep } from './types'
 
+interface ErroLido {
+  message?: string
+}
+
 export const DEFAULT_STEPS: PipelineStep[] = [
   { id: 'arquitetura', label: 'Arquitetura', kind: 'quality', agent: 'rufus', state: 'REFINED', gate: 'none', enabled: true, gated: true, needs: [], instruction: 'Melhore a arquitetura/refatore o codigo relacionado a: "%s" sem mudar o comportamento observavel. Se nao houver ganho claro, nao mude nada.' },
   { id: 'testes', label: 'Testes', kind: 'quality', agent: 'testudo', state: 'TESTS_GREEN', gate: 'test', enabled: true, gated: true, needs: ['arquitetura'], instruction: 'Garanta cobertura de testes para: "%s". Escreva/ajuste testes se aplicavel ao projeto.' },
@@ -24,9 +28,14 @@ export function loadPipeline(worktree?: string): PipelineConfig {
     if (!existsSync(f)) continue
     try {
       const raw = JSON.parse(readFileSync(f, 'utf8')) as Partial<PipelineConfig>
-      const steps = Array.isArray(raw.steps) ? raw.steps.filter(isValidStep) : []
-      if (steps.length) return { version: Number(raw.version) || 1, steps }
-    } catch {
+      if (!Array.isArray(raw.steps)) continue
+      const invalidos = raw.steps.filter(p => !isValidStep(p))
+      if (invalidos.length) {
+        process.stderr.write(`[hicode] ${f}: ${invalidos.length} step(s) invalido(s) ignorado(s) — o pipeline vai rodar SEM eles\n`)
+      }
+      return { version: Number(raw.version) || 1, steps: raw.steps.filter(isValidStep) }
+    } catch (e) {
+      process.stderr.write(`[hicode] ${f} ilegivel (${(e as ErroLido).message ?? 'json invalido'}) — usando o pipeline padrao\n`)
       continue
     }
   }

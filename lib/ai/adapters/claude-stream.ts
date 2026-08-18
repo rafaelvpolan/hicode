@@ -1,3 +1,4 @@
+import { FORMATO_STREAM, claudeArgv } from './claude-argv'
 import { spawn } from 'node:child_process'
 import { appendFileSync, writeFileSync, readFileSync, statSync, mkdirSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
@@ -71,13 +72,8 @@ function renderEvent(ev: StreamEvent): string {
   return ''
 }
 
-function argvStream(req: AgentRequest, tools: string): string[] {
-  const a = ['-p', req.prompt, '--output-format', 'stream-json', '--verbose']
-  if (req.model) a.push('--model', req.model)
-  if (req.mode === 'edit') a.push('--permission-mode', 'acceptEdits', '--allowedTools', tools)
-  else a.push('--allowedTools', tools)
-  for (const d of req.dirs) a.push('--add-dir', d)
-  return a
+function argvStream(req: AgentRequest): string[] {
+  return claudeArgv(req, FORMATO_STREAM)
 }
 
 const LOG_MAX = Number(process.env.HICODE_LIVELOG_MAX_BYTES || 1_000_000)
@@ -93,7 +89,7 @@ function podarLog(caminho: string): void {
   }
 }
 
-export function runClaudeStream(req: AgentRequest, tools: string, liveLog: string): Promise<AgentResult> {
+export function runClaudeStream(req: AgentRequest, liveLog: string): Promise<AgentResult> {
   const dir = dirname(liveLog)
   if (!existsSync(dir)) { try { mkdirSync(dir, { recursive: true }) } catch { void 0 } }
   podarLog(liveLog)
@@ -112,7 +108,7 @@ export function runClaudeStream(req: AgentRequest, tools: string, liveLog: strin
     let timedOut = false
     let hard: ReturnType<typeof setTimeout> | null = null
 
-    const child = spawn('claude', argvStream(req, tools), { cwd: req.cwd, env: { ...process.env, ...NONINTERACTIVE_ENV }, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn('claude', argvStream(req), { cwd: req.cwd, env: { ...process.env, ...NONINTERACTIVE_ENV }, stdio: ['ignore', 'pipe', 'pipe'] })
 
     const soft = setTimeout(() => {
       timedOut = true

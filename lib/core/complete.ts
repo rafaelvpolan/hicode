@@ -3,7 +3,6 @@ import { COMMANDS, canonico } from './session'
 export interface CompleteContext {
   repos: string[]
   cards: string[]
-  statuses: string[]
   provedores?: string[]
   modelos?: string[]
   esforcos?: string[]
@@ -32,9 +31,6 @@ export function complete(line: string, ctx: CompleteContext): Completion {
   if (principal === '/model') return [byPrefix([...(ctx.papeis ?? []), ...(ctx.modelos ?? []), 'padrao'], arg), arg]
   if (principal === '/effort') return [byPrefix([...(ctx.papeis ?? []), ...(ctx.esforcos ?? []), 'padrao'], arg), arg]
   if (principal === '/repo') return [byPrefix(ctx.repos, arg), arg]
-  if (principal === '/cards') return [byPrefix(ctx.statuses, arg.toUpperCase()), arg]
-  if (['/plan', '/watch', '/stop', '/rm', '/ask', '/preview', '/ok', '/no', '/agents'].includes(principal)) {
-    return [byPrefix(ctx.cards, arg), arg]
-  }
+  if (['/stop', '/rm', '/ask'].includes(principal)) return [byPrefix(ctx.cards, arg), arg]
   return [[], arg]
 }

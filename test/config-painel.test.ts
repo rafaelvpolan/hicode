@@ -5,7 +5,8 @@ import { visibleLen, stripAnsi } from '../lib/core/tui/layout'
 import { provedoresDisponiveis } from '../lib/ai/disponibilidade'
 
 const ia = (nome: string, over: Partial<LinhaDeProvedor> = {}): LinhaDeProvedor => ({
-  nome, situacao: 'disponivel', motivo: '', papeis: [], modelo: '', esforco: '',
+  nome, situacao: 'disponivel', habilitado: true, motivo: '', papeis: [], modelo: '', esforco: '',
+  plano: '', detalheDoPlano: '', janelas: [], idadeDoUsoHoras: -1, modelosDisponiveis: [],
   restringeFerramenta: true, isolaLeitura: true, reportaCusto: true, ...over,
 })
 
@@ -88,4 +89,60 @@ test('REGRESSAO kimi e um CLI: nao pode ser reportado como servidor local', () =
   const kimi = provedoresDisponiveis().find(p => p.nome === 'kimi')
   expect(kimi).toBeDefined()
   expect(kimi?.situacao).not.toBe('precisa-servidor')
+})
+
+test('a coluna de ias mostra instalada, ligada e plano de cada uma', () => {
+  const e: EstadoDaConfig = {
+    ...base,
+    provedores: [
+      ia('claude', { plano: 'Max 5x', habilitado: true }),
+      ia('ollama', { plano: 'local, sem plano', habilitado: false }),
+      ia('codex', { situacao: 'ausente', habilitado: false, plano: '' }),
+    ],
+  }
+  const t = renderConfig(e, { color: false, largura: 104, altura: 34 }).join('\n')
+  expect(t).toContain('Max 5x')
+  expect(t).toContain('local, sem plano')
+  expect(t).toContain(' on ')
+  expect(t).toContain('off')
+  expect(t).toContain('ausente')
+})
+
+test('uso do plano vira medidor, e dado velho e marcado como velho', () => {
+  const comJanela = ia('claude', {
+    plano: 'Max 5x',
+    janelas: [{ rotulo: '5h', percentual: 1, resetaEm: '' }, { rotulo: '7d', percentual: 29, resetaEm: '' }],
+    idadeDoUsoHoras: 64,
+  })
+  const t = renderConfig({ ...base, provedores: [comJanela], selecionado: 'claude' },
+    { color: false, largura: 104, altura: 34 }).join('\n')
+  expect(t).toContain('PLANO E USO')
+  expect(t).toContain('29%')
+  expect(t).toContain('VELHO')
+})
+
+test('dado recente NAO e marcado como velho', () => {
+  const recente = ia('claude', {
+    plano: 'Max 5x',
+    janelas: [{ rotulo: '5h', percentual: 3, resetaEm: '' }],
+    idadeDoUsoHoras: 0.5,
+  })
+  const t = renderConfig({ ...base, provedores: [recente], selecionado: 'claude' },
+    { color: false, largura: 104, altura: 34 }).join('\n')
+  expect(t).toContain('medido ha 30 min')
+  expect(t).not.toContain('VELHO')
+})
+
+test('provedor que nao reporta janela diz isso, em vez de mostrar zero', () => {
+  const semJanela = ia('kimi', { plano: 'gerenciado (oauth)', janelas: [] })
+  const t = renderConfig({ ...base, provedores: [semJanela], selecionado: 'kimi' },
+    { color: false, largura: 104, altura: 34 }).join('\n')
+  expect(t).toContain('sem janela reportada')
+})
+
+test('plano nao descoberto e dito, nao chutado', () => {
+  const sem = ia('codex', { plano: '', situacao: 'ausente' })
+  const t = renderConfig({ ...base, provedores: [sem], selecionado: 'codex' },
+    { color: false, largura: 104, altura: 34 }).join('\n')
+  expect(t).toContain('plano nao descoberto')
 })

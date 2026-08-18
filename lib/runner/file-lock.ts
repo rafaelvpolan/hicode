@@ -24,15 +24,32 @@ function release(lock: string): void {
   }
 }
 
+interface ErroDeSistema {
+  code?: string
+}
+
+function codigoDoErro(e: ErroDeSistema): string {
+  return typeof e?.code === 'string' ? e.code : ''
+}
+
 function acquire(lock: string): void {
   const start = Date.now()
+  let liberou = false
   for (;;) {
     try {
       closeSync(openSync(lock, 'wx'))
       return
-    } catch {
-      if (isStale(lock) || Date.now() - start > ACQUIRE_TIMEOUT_MS) {
+    } catch (e) {
+      const erro = e as ErroDeSistema
+      if (codigoDoErro(erro) !== 'EEXIST') throw e
+      const estourou = Date.now() - start > ACQUIRE_TIMEOUT_MS
+      if (isStale(lock) || estourou) {
+        if (liberou && estourou) {
+          throw new Error(`nao consegui tomar o lock ${lock} apos ${ACQUIRE_TIMEOUT_MS}ms — outro processo o recria mais rapido que a liberacao`)
+        }
+        liberou = true
         release(lock)
+        sleepSync(2)
         continue
       }
       sleepSync(2)

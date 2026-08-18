@@ -10,11 +10,8 @@ export function dispatchIOFalso(parcial: Partial<DispatchIO> = {}): DispatchIO {
     dim: (texto) => texto,
     color: false,
     largura: () => 78,
-    subirPreview: () => naoProvido('subirPreview'),
-    listarPreviews: () => naoProvido('listarPreviews'),
     responder: () => naoProvido('responder'),
     plano: async () => [],
-    atividade: () => [],
     ...parcial,
   }
 }
