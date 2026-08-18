@@ -158,3 +158,22 @@ test('IO: o snapshot nao inventa — quem nao esta no PATH sai como NAO instalad
   expect(instalado('binario-que-nao-existe-12345')).toBe(false)
   expect(snapshotDoAmbiente('tem binario-que-nao-existe-12345?')).toContain('binario-que-nao-existe-12345: NAO instalado')
 })
+
+test('REGRESSAO: pergunta com radical de acao como substantivo nao vira card', () => {
+  for (const p of [
+    'o projeto tem teste de e2e?',
+    'esse repo tem documentacao?',
+    'o card 22 ja passou pela revisao?',
+    'a migracao do schema ja rodou?',
+    'onde fica o teste de layout?',
+  ]) {
+    const r = lerEntrada(p)
+    expect(r.tipo).toBe('ask')
+    expect(r.confianca).toBe('alta')
+  }
+})
+
+test('pedido no imperativo com ? no fim continua sendo tarefa', () => {
+  expect(lerEntrada('pode criar a pagina de login?').tipo).toBe('task')
+  expect(lerEntrada('cria a pagina de login?').tipo).toBe('task')
+})

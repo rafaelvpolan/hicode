@@ -12,6 +12,8 @@ const SUFIXOS = 'ar|er|ir|a|e|i|o|ue|ei|ou|am|em|ando|endo|indo|ir|a-lo|e-lo'
 
 const ACAO = new RegExp('\\b(?:' + RADICAIS.join('|') + ')(?:' + SUFIXOS + ')\\b|\\b(?:faz|fazer|faca|fa[cç]a|p[oô]r|poe|ponha|sobe|subir|suba)\\b', 'i')
 
+const ABRE_ACAO = new RegExp('^\\s*(?:por favor,?\\s*)?(?:(?:' + RADICAIS.join('|') + ')(?:' + SUFIXOS + ')|faz|fazer|faca|fa[cç]a|p[oô]r|poe|ponha|sobe|subir|suba)\\b', 'i')
+
 const CONSULTA = new RegExp('^\\s*(' + [
   'tem', 'temos', 'tinha', 'ha', 'havia', 'existe', 'existem',
   'qual', 'quais', 'quanto', 'quantos', 'quantas', 'quem', 'onde', 'quando',
@@ -69,8 +71,12 @@ export function lerEntrada(bruto: string): LeituraDaEntrada {
       : { tipo: 'ask', motivo: 'pedido sem verbo de mudanca — pergunta de viabilidade', confianca: 'alta' }
   }
 
+  if (texto.endsWith('?')) {
+    return ABRE_ACAO.test(texto)
+      ? { tipo: 'task', motivo: 'pedido no imperativo, so com ? no fim', confianca: 'baixa' }
+      : { tipo: 'ask', motivo: 'termina em interrogacao — o radical de acao aparece como substantivo', confianca: 'alta' }
+  }
   if (temAcao) return { tipo: 'task', motivo: 'tem verbo de mudanca', confianca: 'alta' }
-  if (texto.endsWith('?')) return { tipo: 'ask', motivo: 'termina em interrogacao', confianca: 'baixa' }
   return { tipo: 'task', motivo: 'sem sinal claro — nem pergunta nem verbo de mudanca', confianca: 'baixa' }
 }
 
