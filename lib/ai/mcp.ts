@@ -49,3 +49,26 @@ export async function conectorExterno(ferramenta: string): Promise<Disponibilida
     prefixo: prefixoDe,
   })
 }
+
+export const SERVIDOR_NAVEGACAO = 'omc'
+
+export const TOOLS_NAVEGACAO: readonly string[] = [
+  'lsp_servers',
+  'lsp_hover',
+  'lsp_goto_definition',
+  'lsp_find_references',
+  'lsp_document_symbols',
+  'lsp_workspace_symbols',
+  'lsp_diagnostics',
+  'lsp_diagnostics_directory',
+  'ast_grep_search',
+]
+
+export function ferramentasDeNavegacao(disponibilidade: DisponibilidadeExterna): string[] {
+  if (!disponibilidade.usavel) return []
+  return disponibilidade.tools.flatMap(prefixo => TOOLS_NAVEGACAO.map(tool => `${prefixo}__${tool}`))
+}
+
+export async function navegacaoSemantica(): Promise<string[]> {
+  return ferramentasDeNavegacao(await conectorExterno(SERVIDOR_NAVEGACAO))
+}

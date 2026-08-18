@@ -114,11 +114,30 @@ test('esforco invalido e ignorado em vez de virar argumento de CLI', async () =>
   expect(effortFor('implement', 'altissimo')).toBeUndefined()
 })
 
-test('REGRESSAO esforco vira argumento real do CLI, nao so enfeite no rodape', async () => {
-  const claude = await Bun.file('lib/ai/adapters/claude.ts').text()
-  expect(claude).toContain("a.push('--effort', req.effort)")
+test('REGRESSAO esforco vira argumento real do CLI nos DOIS caminhos, nao so enfeite no rodape', async () => {
+  const { claudeArgv, FORMATO_JSON, FORMATO_STREAM } = await import('../lib/ai/adapters/claude-argv')
+  const req = {
+    prompt: 'x', cwd: '/tmp', dirs: [], mode: 'edit' as const, useAgents: false,
+    timeoutMs: 1, effort: 'high', agentsJson: '{"rufus":{"description":"d","prompt":"p"}}',
+  }
+  for (const formato of [FORMATO_JSON, FORMATO_STREAM]) {
+    const argv = claudeArgv(req, formato)
+    expect(argv).toContain('--effort')
+    expect(argv[argv.indexOf('--effort') + 1]).toBe('high')
+    expect(argv).toContain('--agents')
+  }
   const codex = await Bun.file('lib/ai/adapters/codex.ts').text()
   expect(codex).toContain('model_reasoning_effort')
+})
+
+test('REGRESSAO um construtor de argv so — o caminho de live-log e o de json nao podem divergir', async () => {
+  const { claudeArgv, FORMATO_JSON, FORMATO_STREAM } = await import('../lib/ai/adapters/claude-argv')
+  const req = {
+    prompt: 'x', cwd: '/tmp', dirs: ['/wt'], mode: 'edit' as const, useAgents: true,
+    timeoutMs: 1, model: 'opus', effort: 'high', agentsJson: '{"rufus":{}}', extraTools: ['mcp__omc'],
+  }
+  const semFormato = (a: string[]): string[] => a.filter(x => x !== 'json' && x !== 'stream-json' && x !== '--verbose' && x !== '--output-format')
+  expect(semFormato(claudeArgv(req, FORMATO_JSON))).toEqual(semFormato(claudeArgv(req, FORMATO_STREAM)))
 })
 
 test('o pedido do provedor carrega o campo de esforco', async () => {

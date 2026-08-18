@@ -7,7 +7,8 @@ import { isProviderName, modelFor, providerFor, effortFor } from '../ai/registry
 import { sumTokens } from '../ai/usage'
 import { classifyFailure } from '../ai/failure'
 import type { AiProvider } from '../ai/types'
-import { conectorExterno } from '../ai/mcp'
+import { conectorExterno, navegacaoSemantica } from '../ai/mcp'
+import { agentesNexusJsonPor } from '../ai/agentes-nexus'
 import { readProjectRules } from './hicode-home'
 import { repoPath } from './card-store'
 import { runProvider } from './cost-trust'
@@ -36,6 +37,20 @@ function firstLine(s: string, max: number): string {
   return String(s || '').split('\n')[0]?.slice(0, max) ?? ''
 }
 
+const ROTEAMENTO_IMPLEMENT: ReadonlyArray<readonly [string, string]> = [
+  ['frontend/Vue/UI', 'vitro'],
+  ['estrutura/design-system de frontend', 'frontiteto'],
+  ['logica/feature', 'limpio'],
+  ['banco', 'radix'],
+  ['refactor', 'rufus'],
+]
+
+export const AGENTES_IMPLEMENT: readonly string[] = ROTEAMENTO_IMPLEMENT.map(([, agente]) => agente)
+
+function roteamentoImplement(): string {
+  return ROTEAMENTO_IMPLEMENT.map(([dominio, agente]) => `${dominio} -> ${agente}`).join('; ')
+}
+
 function stackOf(repo: string): string {
   const c = repo ? readContract(repo) : null
   return c?.stack ?? 'stack nao detectado — inspecione o projeto antes de editar'
@@ -49,7 +64,7 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
     ? [
         'Use os AGENTES NEXUS deste projeto para implementar a tarefa abaixo (auto-construcao do hicode).',
         `O codigo a alterar fica em: ${workdir} — ${stack}. Edite os arquivos DESSE diretorio.`,
-        'Roteie via Task: frontend/Vue/UI -> vitro (estrutura/design-system -> frontiteto); logica/feature -> limpio; banco -> radix; refactor -> rufus. NAO rode crivo/review nesta etapa (nao chame o crivo): a revisao adversarial e os gates rodam DEPOIS, na fase de polimento do motor. Apenas implemente.',
+        `Roteie via Task: ${roteamentoImplement()}. NAO rode crivo/review nesta etapa (nao chame o crivo): a revisao adversarial e os gates rodam DEPOIS, na fase de polimento do motor. Apenas implemente.`,
       ]
     : [
         'Implemente a tarefa abaixo (auto-construcao do hicode).',
@@ -120,9 +135,12 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
   const prompt = acaoExterna.externo
     ? acaoExternaPrompt(acaoExterna.ferramenta, desc, feedback)
     : implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages, memory, stackOf(target))
+  const navegacao = acaoExterna.externo ? [] : await navegacaoSemantica()
+  extraTools = extraTools.concat(navegacao)
+  const injetaAgentes = provider.supportsAgents && !acaoExterna.externo
   const res = await runProvider(id, provider, {
     prompt,
-    cwd: ROOT,
+    cwd: workdir,
     dirs,
     mode: 'edit',
     useAgents: provider.supportsAgents,
@@ -131,6 +149,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
     timeoutMs: RUN_TIMEOUT_MS,
     liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
     extraTools,
+    agentsJson: injetaAgentes ? agentesNexusJsonPor(AGENTES_IMPLEMENT, navegacao) : '',
   })
   const cost = res.cost ? res.cost.toFixed(4) : ''
   if (!res.ok) {
@@ -192,9 +211,10 @@ export async function runStep(wt: string, agent: string, instruction: string, id
   const t = Date.now()
   const provider = providerFor('step')
   if (!provider.agentic) return { time: 0, cost: 0, costMeasured: true, tokens: 0, ok: false, text: `provider ${provider.name} nao-agentico — step "${agent}" NAO executou (use claude/codex para steps que editam)`, failureClass: 'terminal', failureReason: 'provider configurado nao edita arquivos', provider: provider.name }
+  const navegacao = await navegacaoSemantica()
   const res = await runProvider(id, provider, {
     prompt: stepPrompt(provider, wt, agent, instruction, readProjectRules(wt), stackOf(repo || wt)),
-    cwd: ROOT,
+    cwd: wt,
     dirs: [wt],
     mode: 'edit',
     useAgents: provider.supportsAgents,
@@ -202,6 +222,8 @@ export async function runStep(wt: string, agent: string, instruction: string, id
     effort: effortFor('step'),
     timeoutMs: RUN_TIMEOUT_MS,
     liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
+    extraTools: navegacao,
+    agentsJson: provider.supportsAgents ? agentesNexusJsonPor([agent], navegacao) : '',
   })
   const time = Math.round((Date.now() - t) / 1000)
   const tokens = sumTokens(res.usage)
