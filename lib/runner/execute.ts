@@ -80,7 +80,10 @@ function resolveSurface(card: Card, target: string): SurfaceVerdict {
 async function commitAndRecord(id: string, wt: string, card: Card, steps: ExecuteSteps, res: ImplementResult, t0: number): Promise<{ costSum: number; tokensTotal: number }> {
   const tf = Date.now()
   await stageAll(wt)
-  await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', `feat: ${card.fm.title ?? ''} (#${id})`])
+  const cm = await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '-m', `feat: ${card.fm.title ?? ''} (#${id})`])
+  if (cm.err && !/nothing to commit|nada a submeter/i.test(String(cm.stdout || cm.stderr || ''))) {
+    throw new Error(`commit da implementacao falhou: ${String(cm.stderr || cm.stdout || '').split('\n')[0] ?? ''}`)
+  }
   steps.Feito.time = toSeconds(Date.now() - tf)
   const costSum = steps.Executando.cost + steps.Preview.cost
   const rec = writeRun(id, { ...res, cost: costSum.toFixed(4) }, toSeconds(Date.now() - t0), asStepMap(steps))
@@ -134,7 +137,11 @@ export async function handleExecute(id: string, deps: ExecuteDeps = { implement,
       process.stdout.write(`[runner] #${id}: CLARIFY (${c.questions.length} pergunta(s))\n`)
       return
     }
-    patchCard(id, { clarified: 'true' }, `${isoNow()} clarify: tarefa clara — seguindo sem perguntas`)
+    if (c.falhou) {
+      patchCard(id, {}, `${isoNow()} clarify: pulado — ${c.falhou} (nao marquei a tarefa como clara; a pergunta continua pendente)`)
+    } else {
+      patchCard(id, { clarified: 'true' }, `${isoNow()} clarify: tarefa clara — seguindo sem perguntas`)
+    }
   }
   if (card.fm.spec === 'required' && card.fm.spec_done !== 'true') {
     patchCard(id, { status: 'SPECCED' }, `${isoNow()} EXECUTING->SPECCED roteado para a fase de spec (spec: required)`)
@@ -268,7 +275,11 @@ export async function handleExecute(id: string, deps: ExecuteDeps = { implement,
     const e = await evaluate(card, wt, base)
     auxCost += e.cost || 0
     auxTokens += e.tokens || 0
-    patchCard(id, { eval_score: String(e.score), eval_notes: e.notes }, `${isoNow()} eval (qualidade vs objetivo): ${e.score}/5 ${e.meets ? '(cumpre)' : '(revisar)'} — ${e.notes}`)
+    if (e.score < 0) {
+      patchCard(id, { eval_notes: e.notes }, `${isoNow()} eval NAO rodou — sem nota de qualidade (${e.notes})`)
+    } else {
+      patchCard(id, { eval_score: String(e.score), eval_notes: e.notes }, `${isoNow()} eval (qualidade vs objetivo): ${e.score}/5 ${e.meets ? '(cumpre)' : '(revisar)'} — ${e.notes}`)
+    }
     process.stdout.write(`[runner] #${id}: eval ${e.score}/5\n`)
   }
   if (auxCost !== auxAtPreview) {

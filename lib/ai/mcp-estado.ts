@@ -24,7 +24,7 @@ export function lerListaDeServidores(saida: string): ServidorMcp[] {
   return saida.split('\n').map(lerLinhaDeServidor).filter((s): s is ServidorMcp => s !== null)
 }
 
-export type EscopoServidor = 'dinamico' | 'persistente'
+export type EscopoServidor = 'dinamico' | 'persistente' | 'nao-verificavel'
 
 export function lerEscopo(saidaDoGet: string): EscopoServidor {
   return /scope:\s*dynamic config/i.test(saidaDoGet) ? 'dinamico' : 'persistente'
@@ -69,13 +69,18 @@ export async function disponibilidadeExterna(
     }
   }
   const persistentes: string[] = []
+  let naoVerificavel = false
   for (const s of conectados) {
-    if ((await consulta.escopo(s.nome)) === 'persistente') persistentes.push(s.nome)
+    const escopo = await consulta.escopo(s.nome)
+    if (escopo === 'persistente') persistentes.push(s.nome)
+    if (escopo === 'nao-verificavel') naoVerificavel = true
   }
   if (!persistentes.length) {
     return {
       usavel: false,
-      motivo: `o conector ${ferramenta} so existe na sessao interativa (escopo dinamico) — o subprocesso do motor nao o recebe`,
+      motivo: naoVerificavel
+        ? `nao consegui verificar o escopo do conector ${ferramenta} — trato como indisponivel para nao gastar numa capacidade nao confirmada`
+        : `o conector ${ferramenta} so existe na sessao interativa (escopo dinamico) — o subprocesso do motor nao o recebe`,
       tools: [],
     }
   }

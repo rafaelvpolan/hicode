@@ -26,8 +26,8 @@ export async function checkMerged(now: number): Promise<void> {
       if (pr.state === 'MERGED') {
         patchCard(c.id ?? '', { status: 'MERGED', merged_at: pr.mergedAt || isoNow() }, `${isoNow()} PR_OPEN->MERGED PR mergeada no GitHub (merge humano) ${url}`)
         process.stdout.write(`[runner] #${c.id}: MERGED ${url}\n`)
-      } else if (pr.state === 'CLOSED') {
-        patchCard(c.id ?? '', {}, `${isoNow()} PR ${url} fechada sem merge (rejeitada no GitHub) — card mantido em PR_OPEN`)
+      } else if (pr.state === 'CLOSED' && c.pr_closed !== 'true') {
+        patchCard(c.id ?? '', { pr_closed: 'true' }, `${isoNow()} PR ${url} fechada sem merge (rejeitada no GitHub) — card mantido em PR_OPEN`)
       }
     }
   } finally {

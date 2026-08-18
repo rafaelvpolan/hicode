@@ -32,17 +32,23 @@ async function servidoresComEstado(): Promise<ServidorMcp[]> {
 async function escopoDe(nome: string): Promise<EscopoServidor> {
   try {
     const { err, stdout } = await run('claude', ['mcp', 'get', nome], { timeout: MCP_LIST_TIMEOUT_MS })
-    if (err) return 'persistente'
+    if (err) return 'nao-verificavel'
     return lerEscopo(stdout)
   } catch {
-    return 'persistente'
+    return 'nao-verificavel'
   }
 }
 
 let estadoCache: Promise<ServidorMcp[]> | undefined
+let estadoEm = 0
+const TTL_ESTADO_MS = 60_000
 
 export async function conectorExterno(ferramenta: string): Promise<DisponibilidadeExterna> {
-  if (!estadoCache) estadoCache = servidoresComEstado()
+  const agora = Date.now()
+  if (!estadoCache || agora - estadoEm > TTL_ESTADO_MS) {
+    estadoCache = servidoresComEstado()
+    estadoEm = agora
+  }
   return disponibilidadeExterna(ferramenta, {
     servidores: () => estadoCache as Promise<ServidorMcp[]>,
     escopo: escopoDe,

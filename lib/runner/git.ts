@@ -95,7 +95,14 @@ export interface RefreshResult {
 export async function refreshFromBase(wt: string, base: string): Promise<RefreshResult> {
   const f = await withGitLock(() => runGit(wt, ['fetch', 'origin', base]))
   if (f.err) return { ok: false, changed: false, detail: `fetch origin/${base} falhou: ${String(f.stderr || '').slice(0, 120)}` }
-  const atras = Number((await runGit(wt, ['rev-list', '--count', `HEAD..origin/${base}`])).stdout.trim()) || 0
+  const contagem = await runGit(wt, ['rev-list', '--count', `HEAD..origin/${base}`])
+  if (contagem.err) {
+    return { ok: false, changed: false, detail: `nao consegui comparar com origin/${base}: ${String(contagem.stderr || '').split('\n')[0] ?? ''}` }
+  }
+  const atras = Number(contagem.stdout.trim())
+  if (!Number.isFinite(atras)) {
+    return { ok: false, changed: false, detail: `contagem de commits atras de origin/${base} veio ilegivel: ${JSON.stringify(contagem.stdout.slice(0, 60))}` }
+  }
   if (!atras) return { ok: true, changed: false, detail: `ja atualizado com origin/${base}` }
   const m = await runGit(wt, ['merge', '--no-edit', `origin/${base}`])
   if (m.err) {

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { isoNow } from '../card'
 import type { Card, StepMap } from '../card'
 import { MAX_CONFLICT } from './config'
@@ -11,6 +13,21 @@ import { addMetric } from './finish-metrics'
 export interface SyncResult {
   ok: boolean
   changed: boolean
+  detail?: string
+}
+
+const MARCADORES = /^(<{7}|={7}|>{7})/m
+
+async function arquivosComMarcador(wt: string, files: string[]): Promise<string[]> {
+  const comMarcador: string[] = []
+  for (const f of files) {
+    try {
+      if (MARCADORES.test(readFileSync(join(wt, f), 'utf8'))) comMarcador.push(f)
+    } catch {
+      comMarcador.push(f)
+    }
+  }
+  return comMarcador
 }
 
 export async function syncWithBase(id: string, wt: string, base: string, desc: string, fsteps: StepMap, executar: typeof runStep = runStep): Promise<SyncResult> {
@@ -30,12 +47,17 @@ export async function syncWithBase(id: string, wt: string, base: string, desc: s
     const tr = Date.now()
     const rr = await executar(wt, 'limpio', `Conflito de merge ao integrar origin/${base} na branch. Resolva os conflitos nestes arquivos: ${files.join(', ')}. Preserve o objetivo "${desc}" E as mudancas de ${base}. Remova TODOS os marcadores de conflito (<<<<<<<, =======, >>>>>>>). Nao rode git.`, id)
     addMetric(fsteps, 'Conflito', { time: Math.round((Date.now() - tr) / 1000), cost: rr.cost, tokens: rr.tokens, costMeasured: rr.costMeasured })
-    if (files.length) await runGit(wt, ['add', ...files])
-    const unmerged = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.trim()
-    patchCard(id, {}, `${isoNow()} CONFLITO (${attempt}/${MAX_CONFLICT}, limpio): ${rr.text || 'resolveu'} — ${unmerged ? 'ainda ha conflito' : 'resolvido'}`)
+    const marcadores = await arquivosComMarcador(wt, files)
+    const naoExecutou = rr.ok ? '' : `o agente nao concluiu: ${(rr.text || 'sem detalhe').slice(0, 120)}`
+    const pendente = naoExecutou || (marcadores.length ? `marcador de conflito ainda em ${marcadores.join(', ')}` : '')
+    patchCard(id, {}, `${isoNow()} CONFLITO (${attempt}/${MAX_CONFLICT}, limpio): ${rr.text || 'resolveu'} — ${pendente || 'resolvido'}`)
     process.stdout.write(`[runner] #${id}: CONFLITO ${attempt} (limpio)\n`)
-    if (!unmerged) {
-      await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '--no-edit'])
+    if (!pendente) {
+      if (files.length) await runGit(wt, ['add', ...files])
+      const restou = (await runGit(wt, ['diff', '--name-only', '--diff-filter=U'])).stdout.trim()
+      if (restou) continue
+      const cm = await runGit(wt, ['-c', 'commit.gpgsign=false', 'commit', '--no-edit'])
+      if (cm.err) return { ok: false, changed: false, detail: `commit da resolucao falhou: ${String(cm.stderr || '').split('\n')[0] ?? ''}` }
       return { ok: true, changed: true }
     }
   }
