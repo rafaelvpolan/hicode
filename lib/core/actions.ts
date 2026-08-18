@@ -1,6 +1,6 @@
 import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { appendLog, isoNow, setObjetivo, slugify } from '../card'
+import { appendLog, isoNow, setObjetivo, slugify, tituloDe } from '../card'
 import type { Fields } from '../card'
 import { cardsDir } from '../runner/config'
 import { createCard, findCardFile, readCard, updateCard } from '../runner/card-store'
@@ -34,8 +34,8 @@ export function submit(input: NewCardInput): string {
   const objetivo = (input.desc ?? '').trim() || input.title
   const body = `## Objetivo\n${objetivo}\n\n## Log de Estado\n${isoNow()} CREATED status=READY`
   return createCard({
-    slug: slugify(input.title),
-    title: input.title,
+    slug: slugify(tituloDe(input.title)),
+    title: tituloDe(input.title),
     status: 'READY',
     risk: input.risk === 'high' ? 'high' : 'low',
     repo: input.repo ?? '',

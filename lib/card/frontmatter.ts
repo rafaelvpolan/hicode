@@ -16,7 +16,11 @@ export function splitFrontMatter(text: string): Parsed {
   return { fm, order, body: m[2] ?? '' }
 }
 
+export function umaLinha(valor: string | undefined): string {
+  return (valor ?? '').replace(/\r?\n+/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
 export function serializeCard(fm: Fields, order: string[], body: string): string {
   const keys = order.length ? order : Object.keys(fm)
-  return `---\n${keys.map(k => `${k}: ${fm[k]}`).join('\n')}\n---\n\n${body.replace(/^\n+/, '')}`
+  return `---\n${keys.map(k => `${k}: ${umaLinha(fm[k])}`).join('\n')}\n---\n\n${body.replace(/^\n+/, '')}`
 }

@@ -1,3 +1,11 @@
+const LIMITE_TITULO = 120
+
+export function tituloDe(texto: string): string {
+  const linhas = (texto ?? '').split('\n').map(l => l.replace(/\s+/g, ' ').trim())
+  const base = linhas.find(Boolean) ?? ''
+  return base.length > LIMITE_TITULO ? `${base.slice(0, LIMITE_TITULO - 1).trimEnd()}…` : base
+}
+
 export function extractObjetivo(body: string): string {
   const m = body.match(/##\s*Objetivo\s*\n([\s\S]*?)(?:\n##\s|$)/)
   return m ? (m[1] ?? '').trim() : ''
