@@ -16,6 +16,7 @@ export interface AgentRequest {
   effort?: string
   timeoutMs: number
   liveLog?: string
+  extraTools?: string[]
 }
 
 export interface AgentResult {

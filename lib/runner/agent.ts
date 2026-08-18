@@ -7,6 +7,7 @@ import { isProviderName, modelFor, providerFor, effortFor } from '../ai/registry
 import { sumTokens } from '../ai/usage'
 import { classifyFailure } from '../ai/failure'
 import type { AiProvider } from '../ai/types'
+import { conectorExterno } from '../ai/mcp'
 import { readProjectRules } from './hicode-home'
 import { repoPath } from './card-store'
 import { runProvider } from './cost-trust'
@@ -17,6 +18,7 @@ import { DESIGN_SYSTEM_BRIEF } from './design'
 import { clarifyAnswersPrompt } from './clarify'
 import { refPaths, resolveRefs } from './refs'
 import { markRefsRefused } from './ref-trust'
+import { lerAcaoExterna } from './externo'
 
 export interface StepResult {
   time: number
@@ -70,6 +72,19 @@ function implementPrompt(provider: AiProvider, workdir: string, desc: string, fe
   ].join('\n')
 }
 
+function acaoExternaPrompt(ferramenta: string, desc: string, feedback: string): string {
+  return [
+    `Esta tarefa e uma ACAO EXTERNA em ${ferramenta}, executada pelo conector MCP (tools mcp__*). NAO ha codigo a alterar: NAO edite nenhum arquivo deste repositorio e NAO chame agentes Nexus (Task).`,
+    'Antes de escrever, localize o destino correto (pagina ou database pai) usando as tools MCP disponiveis. So entao execute a acao pedida.',
+    feedback ? `ATENCAO (reexecucao): ${feedback}` : '',
+    '',
+    'TAREFA:',
+    desc ?? '',
+    '',
+    'Ao terminar, responda em 1 linha o que foi criado e o link ou ID do resultado.',
+  ].filter(Boolean).join('\n')
+}
+
 export async function implement(card: Card, workdir: string, feedback = '', visual = false): Promise<ImplementResult> {
   const desc = extractObjetivo(card.body) || card.fm.title || ''
   const id = card.fm.id ?? ''
@@ -78,14 +93,35 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
   const model = modelFor('implement', override)
   if (override && !isProviderName(override)) markProviderSubstituted(id, override, provider.name)
   if (!provider.agentic) return { ok: false, reason: `provider ${provider.name} nao edita arquivos (nao-agentico) — use claude/codex para implementar`, cost: '', costMeasured: true, provider: provider.name, model, failureClass: 'terminal', failureReason: 'provider configurado nao edita arquivos' }
+  const acaoExterna = lerAcaoExterna(card.fm.title ?? '', desc)
+  let extraTools: string[] = []
+  if (acaoExterna.externo) {
+    const conector = await conectorExterno(acaoExterna.ferramenta)
+    extraTools = conector.tools
+    if (!conector.usavel) {
+      return {
+        ok: false,
+        reason: `acao externa em ${acaoExterna.ferramenta} nao pode rodar: ${conector.motivo}`,
+        cost: '',
+        costMeasured: true,
+        provider: provider.name,
+        model,
+        failureClass: 'terminal',
+        failureReason: `conector ${acaoExterna.ferramenta} indisponivel`,
+      }
+    }
+  }
   const refOutcomes = provider.supportsVision ? await resolveRefs(id) : []
   markRefsRefused(id, refOutcomes)
   const refImages = refPaths(refOutcomes)
   const dirs = refImages.length ? [workdir, join(cardsDir(), 'refs', id)] : [workdir]
   const target = repoPath(card.fm.repo ?? '')
   const memory = PROJECT_MEMORY ? readProjectMemory(target) : ''
+  const prompt = acaoExterna.externo
+    ? acaoExternaPrompt(acaoExterna.ferramenta, desc, feedback)
+    : implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages, memory, stackOf(target))
   const res = await runProvider(id, provider, {
-    prompt: implementPrompt(provider, workdir, desc, feedback, readProjectRules(workdir), visual, clarifyAnswersPrompt(id), refImages, memory, stackOf(target)),
+    prompt,
     cwd: ROOT,
     dirs,
     mode: 'edit',
@@ -94,6 +130,7 @@ export async function implement(card: Card, workdir: string, feedback = '', visu
     effort: effortFor('implement', card.fm.effort),
     timeoutMs: RUN_TIMEOUT_MS,
     liveLog: id ? join(cardsDir(), 'runs', `${id}.live.log`) : undefined,
+    extraTools,
   })
   const cost = res.cost ? res.cost.toFixed(4) : ''
   if (!res.ok) {
