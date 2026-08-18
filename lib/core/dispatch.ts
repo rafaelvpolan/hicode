@@ -125,13 +125,8 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
     }
     case 'instruct': {
       if (!readCard(id)) {
-        if (!state.repo) { io.log('sem projeto — /repo <owner/nome>'); return state }
-        io.log(`#${id} nao existe mais — virou tarefa nova`)
-        const novoId = core.submit({ title: texto, repo: state.repo })
-        io.log(`card #${novoId} criado`)
-        for (const l of await io.plano(novoId)) io.log(l)
-        io.log('enter aprova e enfileira')
-        return seguir(planShown({ ...state, seguindo: '' }, novoId), novoId)
+        io.log(`#${id} nao existe mais — lendo a intencao do texto do zero`)
+        return aplicar({ kind: 'confirmar-tarefa', text: texto }, { ...state, seguindo: '' }, io)
       }
       const r = instruir(id, texto)
       if (!r.ok) { io.log(r.reason); return state }
@@ -223,7 +218,7 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       const leitura = await classificarPrompt(texto, io.classificar, state.conversa)
       if (leitura.tipo === 'task') return aplicar({ kind: 'submit', text: texto }, state, io)
       for (const l of renderPerguntaLida(leitura.motivo, { color: io.color, width: io.largura() })) io.log(l)
-      return aplicar({ kind: 'ask', text: texto }, state, io)
+      return aplicar({ kind: 'consultar', text: texto }, state, io)
     }
     case 'modelo': {
       io.log(definirModelo(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
@@ -233,7 +228,7 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
       io.log(definirEsforco(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
       return state
     }
-    case 'ask': {
+    case 'consultar': {
       if (!texto.trim()) { io.log('uso: /new-ask <pergunta>'); return state }
       io.log(io.dim('  consultando o ambiente e o projeto (leitura, sem alterar arquivo)…'))
       const linhas = await io.responder(texto, state.conversa)
@@ -264,14 +259,6 @@ async function aplicar(effect: Effect, state: SessionState, io: DispatchIO): Pro
     case 'preview': {
       if (id) { io.log(await io.subirPreview(id)); return state }
       for (const l of await io.listarPreviews(texto === 'limpar')) io.log(l)
-      return state
-    }
-    case 'modelo': {
-      io.log(definirModelo(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
-      return state
-    }
-    case 'esforco': {
-      io.log(definirEsforco(texto.trim().split(/\s+/).filter(Boolean)).mensagem)
       return state
     }
     case 'ask': {

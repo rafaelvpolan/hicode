@@ -141,7 +141,7 @@ test('/new-ask pergunta sem criar card', async () => {
   const saida: string[] = []
   const antes = allCards().length
   const r = handle('/new-ask qual modelo o gate usa?', newSession('org/app'))
-  expect(r.effect.kind).toBe('ask')
+  expect(r.effect.kind).toBe('consultar')
   await dispatch(r.effect, r.state, dispatchIOFalso({
     log: (l) => { saida.push(l) },
     responder: async (p) => [`resposta sobre: ${p}`],

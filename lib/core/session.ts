@@ -2,7 +2,7 @@ export type EffectKind =
   | 'none' | 'submit' | 'approve-plan' | 'board' | 'cards'
   | 'watch' | 'halt' | 'plan' | 'help' | 'quit' | 'error'
   | 'approve-preview' | 'reject-preview' | 'reopen-repo' | 'activity'
-  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa' | 'ask' | 'nova-sessao' | 'modelo' | 'esforco'
+  | 'ask' | 'answer' | 'rm' | 'confirm-rm' | 'preview' | 'instruct' | 'resume' | 'pick-repo' | 'acao-tarefa' | 'aprovacao' | 'ia' | 'confirmar-tarefa' | 'consultar' | 'nova-sessao' | 'modelo' | 'esforco'
 
 export interface SessionState {
   repo: string
@@ -147,7 +147,7 @@ function command(line: string, state: SessionState): Reply {
     case 'new-ask':
     case 'nova-pergunta':
       return arg
-        ? reply({ kind: 'ask', text: arg }, cleared)
+        ? reply({ kind: 'consultar', text: arg }, cleared)
         : reply({ kind: 'error', text: 'uso: /new-ask <pergunta> — responde sem criar card' }, state)
     case 'new-session':
     case 'nova-sessao':

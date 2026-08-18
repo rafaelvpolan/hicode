@@ -12,6 +12,7 @@ let saida: string[] = []
 const io = dispatchIOFalso({
   log: (l: string) => { saida.push(l) },
   plano: async (id: string) => [`plano do #${id}`],
+  responder: async (pergunta: string) => [`resposta para: ${pergunta}`],
 })
 
 beforeEach(() => {
@@ -187,7 +188,7 @@ test('apagar OUTRA tarefa nao tira voce da que esta aberta', async () => {
   expect(state.seguindo).toBe('022')
 })
 
-test('instrucao em tarefa que sumiu vira tarefa nova, sem perder o texto', async () => {
+test('PEDIDO em tarefa que sumiu vira tarefa nova, sem perder o texto', async () => {
   const { seguir } = await import('../lib/core/session')
   const { allCards } = await import('../lib/runner/card-store')
   const state = await digitar(['tira tambem o do hero'], seguir(newSession('org/app'), '099'))
@@ -196,14 +197,23 @@ test('instrucao em tarefa que sumiu vira tarefa nova, sem perder o texto', async
   const idNovo = novos[0]?.id
   if (idNovo === undefined) throw new Error('a instrucao perdida nao virou tarefa nova com id')
   expect(novos[0]?.title).toBe('tira tambem o do hero')
-  expect(state.seguindo).toBe(idNovo)
-  expect(saida.join(' ')).toContain('virou tarefa nova')
+  expect(state.seguindo).toBe('')
+  expect(saida.join(' ')).toContain('nao existe mais')
+})
+
+test('REGRESSAO: PERGUNTA em tarefa que sumiu e respondida, NAO vira card', async () => {
+  const { seguir } = await import('../lib/core/session')
+  const { allCards } = await import('../lib/runner/card-store')
+  const state = await digitar(['tem acesso ao notion pelo claude?'], seguir(newSession('org/app'), '099'))
+  expect(allCards().length).toBe(0)
+  expect(state.seguindo).toBe('')
+  expect(saida.join(' ')).toContain('lido como pergunta')
 })
 
 test('a tarefa nova nasce parada, esperando aprovacao', async () => {
   const { seguir } = await import('../lib/core/session')
   const { allCards } = await import('../lib/runner/card-store')
-  await digitar(['qualquer coisa'], seguir(newSession('org/app'), '099'))
+  await digitar(['remove o header de beta'], seguir(newSession('org/app'), '099'))
   expect(allCards()[0]?.status).toBe('READY')
   expect(saida.join(' ')).toContain('enter aprova')
 })
@@ -211,7 +221,7 @@ test('a tarefa nova nasce parada, esperando aprovacao', async () => {
 test('sem projeto, instrucao orfa nao cria nada', async () => {
   const { seguir } = await import('../lib/core/session')
   const { allCards } = await import('../lib/runner/card-store')
-  await digitar(['texto solto'], seguir(newSession(''), '099'))
+  await digitar(['remove o texto solto'], seguir(newSession(''), '099'))
   expect(allCards().length).toBe(0)
   expect(saida.join(' ')).toContain('sem projeto')
 })
