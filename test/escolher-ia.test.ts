@@ -245,9 +245,16 @@ test('a env continua valendo como configuracao inicial no rodape', async () => {
 })
 
 test('REGRESSAO rodape e motor leem a MESMA fonte de esforco', async () => {
-  const repl = await Bun.file('bin/repl.ts').text()
-  expect(repl).toContain("effortFor('implement', doCard)")
-  expect(repl).not.toContain("|| 'medium'")
+  const { esforcoAtual } = await import('../bin/lib/rodape-tui')
+  const { effortFor } = await import('../lib/ai/registry')
+  const { newSession } = await import('../lib/core/session')
+  expect(esforcoAtual(newSession('org/app'))).toBe(effortFor('implement') ?? '(padrao do CLI)')
+})
+
+test('REGRESSAO o rodape nao pode chutar um esforco fixo', async () => {
+  const fonte = await Bun.file('bin/lib/rodape-tui.ts').text()
+  expect(fonte).toContain("effortFor('implement', doCard)")
+  expect(fonte).not.toContain("|| 'medium'")
 })
 
 test('/model sem argumento lista os modelos da ia atual', async () => {
