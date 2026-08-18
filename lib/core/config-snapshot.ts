@@ -1,5 +1,7 @@
 import { agentRoles, effortFor, modelFor, providerLimits, providerNameFor, providerNames } from '../ai/registry'
 import { provedoresDisponiveis } from '../ai/disponibilidade'
+import { planoDoProvedor } from '../ai/planos'
+import { estadoDoOllama } from '../ai/ollama-estado'
 import type { ProvedorDisponivel } from '../ai/disponibilidade'
 import { JANELA_5H, JANELA_SEMANA, consumoPorProvedor, serieDeCusto } from '../ai/consumo'
 import { allCards } from '../runner/card-store'
@@ -23,10 +25,17 @@ function linhaDeProvedor(nome: AiProviderName, estados: Map<string, ProvedorDisp
   const limites = providerLimits(nome)
   const papel = papelPrincipal(nome)
   const estado = estados.get(nome)
+  const plano = planoDoProvedor(nome)
   return {
     nome,
     situacao: estado ? estado.situacao : 'ausente',
+    habilitado: habilitadoDe(nome, estado),
     motivo: estado && estado.situacao !== 'disponivel' ? estado.comoObter : '',
+    plano: plano.plano,
+    detalheDoPlano: plano.detalhe,
+    janelas: plano.janelas,
+    idadeDoUsoHoras: plano.idadeHoras,
+    modelosDisponiveis: nome === 'ollama' ? estadoDoOllama().modelos : plano.modelos,
     papeis: papeisDe(nome),
     modelo: papel ? modelFor(papel) ?? '' : '',
     esforco: papel ? effortFor(papel) ?? '' : '',
@@ -34,6 +43,12 @@ function linhaDeProvedor(nome: AiProviderName, estados: Map<string, ProvedorDisp
     isolaLeitura: limites ? limites.isolatesReadonly : true,
     reportaCusto: limites ? limites.reportsCostUsd : true,
   }
+}
+
+export function habilitadoDe(nome: AiProviderName, estado: ProvedorDisponivel | undefined): boolean {
+  if (!estado || estado.situacao === 'ausente') return false
+  if (nome === 'ollama') return estadoDoOllama().habilitado
+  return true
 }
 
 export function estadosPorNome(): Map<string, ProvedorDisponivel> {

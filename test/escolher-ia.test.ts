@@ -199,8 +199,22 @@ test('provedor de CLI ausente nao e apresentado como disponivel', async () => {
 })
 
 test('provedor que depende de servidor nao mente que esta pronto', async () => {
-  const { provedoresDisponiveis } = await import('../lib/ai/disponibilidade')
-  expect(provedoresDisponiveis().find(p => p.nome === 'ollama')?.situacao).toBe('precisa-servidor')
+  const { habilitadoDe } = await import('../lib/core/config-snapshot')
+  const { definirEstadoDoOllama } = await import('../lib/ai/ollama-estado')
+  const instalado = { nome: 'ollama' as const, situacao: 'disponivel' as const, instalado: true, comoObter: '', modelo: '', papeis: [] }
+  definirEstadoDoOllama({ habilitado: false, modelos: [], verificadoEm: Date.now() })
+  expect(habilitadoDe('ollama', instalado)).toBe(false)
+  definirEstadoDoOllama({ habilitado: true, modelos: ['qwen3:1.7b'], verificadoEm: Date.now() })
+  expect(habilitadoDe('ollama', instalado)).toBe(true)
+})
+
+test('binario ausente nunca conta como habilitado, mesmo com servidor no ar', async () => {
+  const { habilitadoDe } = await import('../lib/core/config-snapshot')
+  const { definirEstadoDoOllama } = await import('../lib/ai/ollama-estado')
+  definirEstadoDoOllama({ habilitado: true, modelos: ['x'], verificadoEm: Date.now() })
+  const ausente = { nome: 'ollama' as const, situacao: 'ausente' as const, instalado: false, comoObter: '', modelo: '', papeis: [] }
+  expect(habilitadoDe('ollama', ausente)).toBe(false)
+  expect(habilitadoDe('ollama', undefined)).toBe(false)
 })
 
 test('/ia mostra quais papeis usam cada provedor', async () => {
