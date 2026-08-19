@@ -68,3 +68,10 @@ test('HICODE_ROOT nao entra no rol das que precisam do mesmo caminho absoluto no
   const raiz = CONTRATO_MOTOR_PAINEL.find(v => v.nome === ENV_ROOT)
   expect(raiz?.precisaSerCompartilhadaEntreClones).toBe(false)
 })
+
+test('variavel de um lado so NAO pode ser marcada como compartilhada entre clones', () => {
+  for (const v of CONTRATO_MOTOR_PAINEL) {
+    if (v.lado === 'ambos') continue
+    expect(v.precisaSerCompartilhadaEntreClones, `${v.nome} e do lado "${v.lado}" e nao precisa ser compartilhada`).toBe(false)
+  }
+})
