@@ -1,13 +1,14 @@
 import { join, dirname, resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { ENV_CARDS_DIR, ENV_REPOS_FILE, ENV_ROOT } from './environment-contract'
 
 function hasRepoMarkers(dir: string): boolean {
   return existsSync(join(dir, 'cards')) || existsSync(join(dir, 'config', 'repos.json'))
 }
 
 function resolveRoot(): string {
-  if (process.env.HICODE_ROOT) return process.env.HICODE_ROOT
+  if (process.env[ENV_ROOT]) return process.env[ENV_ROOT]
   const fromModule = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
   if (hasRepoMarkers(fromModule)) return fromModule
   for (const c of [process.cwd(), resolve(process.cwd(), '..')]) {
@@ -18,11 +19,11 @@ function resolveRoot(): string {
 
 export const ROOT = resolveRoot()
 export function cardsDir(): string {
-  return process.env.HICODE_CARDS_DIR || join(ROOT, 'cards')
+  return process.env[ENV_CARDS_DIR] || join(ROOT, 'cards')
 }
 
 export function reposFile(): string {
-  return process.env.HICODE_REPOS_FILE || join(ROOT, 'config', 'repos.json')
+  return process.env[ENV_REPOS_FILE] || join(ROOT, 'config', 'repos.json')
 }
 export function numeroDeEnv(nome: string, padrao: number): number {
   const bruto = process.env[nome]

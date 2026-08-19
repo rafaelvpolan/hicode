@@ -255,3 +255,70 @@ test('REGRESSAO: start com pidfile de pid reciclado sobe o motor de verdade em v
   expect(vivo(pid)).toBe(false)
   expect(vivo(PID_ESTRANHO)).toBe(true)
 }, 60000)
+
+test('REGRESSAO: dois ROOTS diferentes — status consultado por um script de OUTRA raiz ainda reconhece o motor, pois a raiz que vale e a gravada por quem iniciou, nao a de quem pergunta', () => {
+  const nome = 'dois-roots'
+  const pidfile = join(BASE, `${nome}.pid`)
+
+  const r = daemon('start', nome)
+
+  expect(r.status).toBe(0)
+  const pid = Number(readFileSync(pidfile, 'utf8').trim())
+  iniciados.push(pid)
+  expect(vivo(pid)).toBe(true)
+  expect(existsSync(`${pidfile}.root`)).toBe(true)
+
+  const outraRaiz = join(BASE, 'outra-raiz-perguntando')
+  mkdirSync(join(outraRaiz, 'scripts'), { recursive: true })
+  const scriptDeFora = join(outraRaiz, 'scripts', 'runner-daemon.sh')
+  symlinkSync(SCRIPT, scriptDeFora)
+
+  const consulta = spawnSync('bash', [scriptDeFora, 'status'], {
+    env: { ...process.env, HICODE_RUNNER_PIDFILE: pidfile },
+    encoding: 'utf8',
+    timeout: 40000,
+  })
+
+  expect(String(consulta.stdout)).toContain(`online (PID ${pid})`)
+
+  expect(daemon('stop', nome).status).toBe(0)
+  expect(vivo(pid)).toBe(false)
+  expect(existsSync(`${pidfile}.root`)).toBe(false)
+}, 60000)
+
+test('REGRESSAO: "start" disparado por um script de OUTRA raiz com pidfile compartilhado adota o motor pelo dono_do_pidfile e NAO regrava a raiz provada — as duas raizes continuam vendo o motor online depois', () => {
+  const nome = 'start-outra-raiz'
+  const pidfile = join(BASE, `${nome}.pid`)
+
+  const r = daemon('start', nome)
+  expect(r.status).toBe(0)
+  const pid = Number(readFileSync(pidfile, 'utf8').trim())
+  iniciados.push(pid)
+  expect(vivo(pid)).toBe(true)
+  const raizAntes = readFileSync(`${pidfile}.root`, 'utf8')
+
+  const outraRaiz = join(BASE, 'outra-raiz-que-da-start')
+  mkdirSync(join(outraRaiz, 'scripts'), { recursive: true })
+  const scriptDeFora = join(outraRaiz, 'scripts', 'runner-daemon.sh')
+  symlinkSync(SCRIPT, scriptDeFora)
+
+  const startDeFora = spawnSync('bash', [scriptDeFora, 'start'], {
+    env: { ...process.env, HICODE_RUNNER_PIDFILE: pidfile },
+    encoding: 'utf8',
+    timeout: 40000,
+  })
+
+  expect(String(startDeFora.stdout)).toContain(`runner ja online (PID ${pid})`)
+  expect(readFileSync(`${pidfile}.root`, 'utf8')).toBe(raizAntes)
+  expect(daemon('status', nome).stdout).toContain(`online (PID ${pid})`)
+
+  const statusDeFora = spawnSync('bash', [scriptDeFora, 'status'], {
+    env: { ...process.env, HICODE_RUNNER_PIDFILE: pidfile },
+    encoding: 'utf8',
+    timeout: 40000,
+  })
+  expect(String(statusDeFora.stdout)).toContain(`online (PID ${pid})`)
+
+  expect(daemon('stop', nome).status).toBe(0)
+  expect(vivo(pid)).toBe(false)
+}, 60000)

@@ -1,11 +1,10 @@
 import { linkSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
-import { alive } from '../core/daemon'
+import { join } from 'node:path'
+import { alive, argvDoProcesso, eOMotor } from '../core/daemon'
 import { ROOT } from './config'
+import { ENV_RUNNER_LOCK } from './environment-contract'
 
 const STEAL_ATTEMPTS = 3
-const ENGINE_MARK = 'runner.ts'
-const ENGINE_RUNTIME = 'bun'
 
 export interface InstanceLock {
   readonly acquired: boolean
@@ -13,7 +12,7 @@ export interface InstanceLock {
 }
 
 export function lockFile(): string {
-  return process.env.HICODE_RUNNER_LOCK || join(ROOT, '.runner.lock')
+  return process.env[ENV_RUNNER_LOCK] || join(ROOT, '.runner.lock')
 }
 
 function readHolder(file: string): string {
@@ -41,25 +40,11 @@ function createExclusive(file: string, pid: number): boolean {
   }
 }
 
-function cmdlineOf(pid: number): string | null {
-  try {
-    return readFileSync(`/proc/${pid}/cmdline`, 'utf8')
-  } catch {
-    return null
-  }
-}
-
-function runsEngine(cmdline: string): boolean {
-  const argv = cmdline.split('\0').filter(part => part.length > 0)
-  if (basename(argv[0] ?? '') !== ENGINE_RUNTIME) return false
-  return argv.slice(1).some(arg => arg === ENGINE_MARK || arg.endsWith(`/${ENGINE_MARK}`))
-}
-
 function heldByEngine(pid: number): boolean {
   if (!alive(pid)) return false
-  const cmdline = cmdlineOf(pid)
-  if (cmdline === null) return cmdlineOf(process.pid) === null
-  return runsEngine(cmdline)
+  const argv = argvDoProcesso(pid)
+  if (argv === null) return argvDoProcesso(process.pid) === null
+  return eOMotor(argv)
 }
 
 function dropOrphan(file: string, holder: string): void {

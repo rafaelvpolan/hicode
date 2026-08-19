@@ -1,8 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { ROOT, cardsDir } from '../runner/config'
+import { ENV_RUNNER_PIDFILE } from '../runner/environment-contract'
 
 const ENGINE_MARK = 'runner.ts'
+const ENGINE_RUNTIME = 'bun'
 
 export type Autostart = 'yes' | 'no' | 'ask'
 
@@ -35,7 +37,19 @@ export function writePrefs(prefs: ReplPrefs): void {
 }
 
 export function pidFile(): string {
-  return process.env.HICODE_RUNNER_PIDFILE || join(ROOT, '.runner.pid')
+  return process.env[ENV_RUNNER_PIDFILE] || join(ROOT, '.runner.pid')
+}
+
+export function rootFile(): string {
+  return `${pidFile()}.root`
+}
+
+function raizDoMotorRegistrada(): string {
+  try {
+    return readFileSync(rootFile(), 'utf8').trim() || ROOT
+  } catch {
+    return ROOT
+  }
 }
 
 export function alive(pid: number): boolean {
@@ -48,33 +62,39 @@ export function alive(pid: number): boolean {
   }
 }
 
-function procLido(pid: number, campo: string): string | null {
+export function argvDoProcesso(pid: number): readonly string[] | null {
   try {
-    return readFileSync(`/proc/${pid}/${campo}`, 'utf8')
+    const cmdline = readFileSync(`/proc/${pid}/cmdline`, 'utf8')
+    return cmdline.split('\0').filter(parte => parte.length > 0)
   } catch {
     return null
   }
 }
 
-function rodaNaRaiz(pid: number): boolean {
+function rodaNaRaiz(pid: number, raiz: string): boolean {
   try {
-    return realpathSync(`/proc/${pid}/cwd`) === realpathSync(ROOT)
+    return realpathSync(`/proc/${pid}/cwd`) === realpathSync(raiz)
   } catch {
     return false
   }
 }
 
-function eOMotorDaRaiz(pid: number): boolean {
-  const cmdline = procLido(pid, 'cmdline')
-  if (cmdline === null) return procLido(process.pid, 'cmdline') === null
-  return cmdline.includes(ENGINE_MARK) && rodaNaRaiz(pid)
+export function eOMotor(argv: readonly string[]): boolean {
+  if (basename(argv[0] ?? '') !== ENGINE_RUNTIME) return false
+  return argv.slice(1).some(arg => arg === ENGINE_MARK || arg.endsWith(`/${ENGINE_MARK}`))
+}
+
+function eOMotorDaRaiz(pid: number, raiz: string): boolean {
+  const argv = argvDoProcesso(pid)
+  if (argv === null) return argvDoProcesso(process.pid) === null
+  return eOMotor(argv) && rodaNaRaiz(pid, raiz)
 }
 
 export function daemonPid(): number {
   const f = pidFile()
   if (!existsSync(f)) return 0
   const pid = Number(String(readFileSync(f, 'utf8')).trim())
-  return alive(pid) && eOMotorDaRaiz(pid) ? pid : 0
+  return alive(pid) && eOMotorDaRaiz(pid, raizDoMotorRegistrada()) ? pid : 0
 }
 
 export function daemonStatus(): string {

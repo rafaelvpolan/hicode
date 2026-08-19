@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { ROOT } from '../runner/config'
+import { ENV_AGENTS_DIR } from '../runner/environment-contract'
 import { memoTempo } from '../core/cache'
 
 export interface AgenteInjetado {
@@ -13,7 +14,7 @@ export interface AgenteInjetado {
 const TTL_MS = 30_000
 
 export function diretorioDosAgentes(): string {
-  return process.env.HICODE_AGENTS_DIR || join(ROOT, '.claude', 'agents')
+  return process.env[ENV_AGENTS_DIR] || join(ROOT, '.claude', 'agents')
 }
 
 function semAspas(valor: string): string {
