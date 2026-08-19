@@ -938,7 +938,7 @@ não do protocolo.
 | `HICODE_CARD_BUDGET_USD` | `0` | teto de custo por card (`0` = sem teto) |
 | `HICODE_CARDS_DIR` | `<root>/cards` | onde os cards vivem — usado pelos testes para isolar |
 | `HICODE_REPOS_FILE` | `<root>/config/repos.json` | registro de repos-alvo |
-| `HICODE_RUNNER_PIDFILE` | `<root>/.runner.pid` | pidfile do daemon (identidade: quem o `hii start`/`stop` controla) |
+| `HICODE_RUNNER_PIDFILE` | `<root>/.runner.pid` | pidfile do daemon (identidade: quem o `hii start`/`stop` controla). Sidecar `<pidfile>.root` grava a raiz do clone que iniciou o motor — a prova de identidade compara o pid contra **essa raiz gravada**, nao contra o `ROOT` de quem pergunta, para sobreviver a dois clones (motor/painel) compartilhando o mesmo pidfile |
 | `HICODE_RUNNER_LOCK` | `<root>/.runner.lock` | trava de instância única — tomada pelo daemon **e** pelo `--once` |
 | `HICODE_LOCK_STALE_MS` | `15000` | idade a partir da qual um lock de card é considerado morto |
 | `HICODE_LOCK_TIMEOUT_MS` | `10000` | espera máxima por um lock antes de quebrá-lo |
