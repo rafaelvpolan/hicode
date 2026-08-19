@@ -3,8 +3,10 @@ import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { ENV_CARDS_DIR, ENV_REPOS_FILE, ENV_ROOT } from './environment-contract'
 
+const MARCADORES = ['runner.ts', 'cards', join('config', 'repos.json'), join('bin', 'repl.ts')]
+
 function hasRepoMarkers(dir: string): boolean {
-  return existsSync(join(dir, 'cards')) || existsSync(join(dir, 'config', 'repos.json'))
+  return MARCADORES.some(m => existsSync(join(dir, m)))
 }
 
 function resolveRoot(): string {

@@ -9,8 +9,10 @@ function configReavaliada(): Promise<typeof import('../lib/runner/config')> {
   return import(`../lib/runner/config?${SUFIXO_SEM_CACHE}`)
 }
 
-test('ROOT aponta para uma raiz de repo hicode de verdade', () => {
-  expect(existsSync(join(ROOT, 'cards')) || existsSync(join(ROOT, 'config', 'repos.json'))).toBe(true)
+test('ROOT aponta para a raiz DESTE repo — serve ao motor e ao painel', () => {
+  const marcadores = ['runner.ts', 'cards', join('config', 'repos.json'), join('bin', 'repl.ts')]
+  expect(marcadores.some(m => existsSync(join(ROOT, m))), `nenhum marcador de raiz em ${ROOT}`).toBe(true)
+  expect(existsSync(join(ROOT, 'package.json'))).toBe(true)
 })
 
 test('REGRESSAO sem override, cardsDir e reposFile ficam dentro do ROOT resolvido', () => {

@@ -28,11 +28,24 @@ test('nenhuma variavel do contrato se repete', () => {
   expect(new Set(nomes).size).toBe(nomes.length)
 })
 
-test('todo arquivo listado como resolvedor de uma variavel existe de verdade no repo', () => {
+function moraNesteRepo(variavel: { lado: string }): boolean {
+  const temPainel = existsSync(join(ROOT, 'bin', 'repl.ts'))
+  if (variavel.lado === 'ambos') return true
+  return variavel.lado === 'painel' ? temPainel : !temPainel || existsSync(join(ROOT, 'runner.ts'))
+}
+
+test('todo resolvedor do lado DESTE repo existe de verdade — o do outro lado nao e cobrado aqui', () => {
   for (const variavel of CONTRATO_MOTOR_PAINEL) {
+    if (!moraNesteRepo(variavel)) continue
     for (const caminho of variavel.resolvidoPor) {
-      expect(existsSync(join(ROOT, caminho))).toBe(true)
+      expect(existsSync(join(ROOT, caminho)), `${variavel.nome} → ${caminho}`).toBe(true)
     }
+  }
+})
+
+test('toda variavel do contrato declara de que lado ela vive', () => {
+  for (const v of CONTRATO_MOTOR_PAINEL) {
+    expect(['motor', 'painel', 'ambos'], v.nome).toContain(v.lado)
   }
 })
 
