@@ -55,10 +55,11 @@ function constanteEsperada(nomeDaVariavel: string): string {
 
 test('todo arquivo resolvedor referencia de fato a variavel — pelo nome literal ou pela constante do contrato, nao so declara e some', () => {
   for (const variavel of CONTRATO_MOTOR_PAINEL) {
+    if (!moraNesteRepo(variavel)) continue
     const constante = constanteEsperada(variavel.nome)
     for (const caminho of variavel.resolvidoPor) {
       const conteudo = readFileSync(join(ROOT, caminho), 'utf8')
-      expect(conteudo.includes(variavel.nome) || conteudo.includes(constante)).toBe(true)
+      expect(conteudo.includes(variavel.nome) || conteudo.includes(constante), `${variavel.nome} → ${caminho}`).toBe(true)
     }
   }
 })
