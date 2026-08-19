@@ -1,3 +1,4 @@
+import { CANTO } from '../../tui/paleta'
 import { visibleLen, truncVisible, padVisible, stripAnsi } from '../../tui/layout'
 
 const RESET = '\x1b[0m'
@@ -67,12 +68,12 @@ export function caixa(titulo: string, corpo: string[], o: OpcoesCaixa): string[]
   const texto = mensuravel(titulo, o).trim()
   const rotulo = texto && espacoDoTitulo > 0 ? ` ${truncVisible(texto, espacoDoTitulo)} ` : ''
   const sobra = Math.max(0, interno - 1 - visibleLen(rotulo))
-  const saida = [paint('┌─', DIM, o) + paint(rotulo, CYAN, o) + paint('─'.repeat(sobra) + '┐', DIM, o)]
+  const saida = [paint(`${CANTO.supEsq}─`, DIM, o) + paint(rotulo, CYAN, o) + paint('─'.repeat(sobra) + CANTO.supDir, DIM, o)]
   for (const linha of corpo) {
     const conteudo = padVisible(truncVisible(mensuravel(linha, o), interno), interno)
     saida.push(paint('│', DIM, o) + conteudo + (o.color ? RESET : '') + paint('│', DIM, o))
   }
-  saida.push(paint('└' + '─'.repeat(interno) + '┘', DIM, o))
+  saida.push(paint(CANTO.infEsq + '─'.repeat(interno) + CANTO.infDir, DIM, o))
   return saida
 }
 

@@ -1,6 +1,7 @@
 import { test, expect } from 'bun:test'
 import { caixa, lado, grade, larguraDoBloco } from '../lib/core/render/widget/caixa'
 import { visibleLen } from '../lib/core/tui/layout'
+import { CANTO } from '../lib/core/tui/paleta'
 
 const semCor = { color: false }
 const comCor = { color: true }
@@ -15,16 +16,16 @@ function temAnsi(bloco: string[]): boolean {
 
 test('caixa: titulo embutido na borda de cima e toda linha com a largura exata', () => {
   const b = caixa('CPU', ['carga 12%', 'temp 44C'], { ...semCor, largura: 20 })
-  expect(b[0]).toBe(`┌─ CPU ${'─'.repeat(12)}┐`)
+  expect(b[0]).toBe(`${CANTO.supEsq}─ CPU ${'─'.repeat(12)}${CANTO.supDir}`)
   expect(b[1]).toBe(`│carga 12%${' '.repeat(9)}│`)
-  expect(b[3]).toBe(`└${'─'.repeat(18)}┘`)
+  expect(b[3]).toBe(`${CANTO.infEsq}${'─'.repeat(18)}${CANTO.infDir}`)
   expect(larguras(b)).toEqual([20])
 })
 
 test('caixa: sem cor a saida nao tem NENHUM escape ANSI, nem vindo do corpo ou do titulo', () => {
   const b = caixa('\x1b[1mCPU\x1b[0m', ['\x1b[31mcritico\x1b[0m'], { ...semCor, largura: 24 })
   expect(temAnsi(b)).toBe(false)
-  expect(b[0]).toBe(`┌─ CPU ${'─'.repeat(16)}┐`)
+  expect(b[0]).toBe(`${CANTO.supEsq}─ CPU ${'─'.repeat(16)}${CANTO.supDir}`)
   expect(b[1]).toBe(`│critico${' '.repeat(15)}│`)
   expect(larguras(b)).toEqual([24])
 })
@@ -40,8 +41,8 @@ test('caixa: corpo com ANSI mede pela largura visivel, nao por String.length', (
 test('caixa: titulo maior que a caixa e truncado sem estourar a moldura', () => {
   const b = caixa('TITULO ABSURDAMENTE LONGO DEMAIS', ['x'], { ...semCor, largura: 14 })
   expect(larguras(b)).toEqual([14])
-  expect(b[0]).toStartWith('┌─ ')
-  expect(b[0]).toEndWith('┐')
+  expect(b[0]).toStartWith(`${CANTO.supEsq}─ `)
+  expect(b[0]).toEndWith(`${CANTO.supDir}`)
   expect(b[0]).toContain('…')
 })
 
@@ -56,12 +57,12 @@ test('caixa: largura absurda (5) nao gera moldura negativa e derruba o titulo', 
   for (const largura of [5, 4, 1, 0, -30]) {
     const b = caixa('CPU', ['carga'], { ...semCor, largura })
     expect(larguras(b)).toEqual([Math.max(4, largura)])
-    expect(b[0]).toStartWith('┌')
-    expect(b[0]).toEndWith('┐')
-    expect(b[2]).toStartWith('└')
+    expect(b[0]).toStartWith(`${CANTO.supEsq}`)
+    expect(b[0]).toEndWith(`${CANTO.supDir}`)
+    expect(b[2]).toStartWith(`${CANTO.infEsq}`)
   }
-  expect(caixa('CPU', [], { ...semCor, largura: 5 })[0]).toBe('┌───┐')
-  expect(caixa('CPU', [], { ...semCor, largura: 6 })[0]).toBe('┌─ … ┐')
+  expect(caixa('CPU', [], { ...semCor, largura: 5 })[0]).toBe(`${CANTO.supEsq}───${CANTO.supDir}`)
+  expect(caixa('CPU', [], { ...semCor, largura: 6 })[0]).toBe(`${CANTO.supEsq}─ … ${CANTO.supDir}`)
 })
 
 test('caixa: corpo exatamente do tamanho interno nao ganha reticencia, um a mais ganha', () => {
@@ -76,7 +77,7 @@ test('caixa: corpo exatamente do tamanho interno nao ganha reticencia, um a mais
 test('caixa: titulo vazio ou so espacos vira moldura continua sem rotulo', () => {
   for (const titulo of ['', '   ']) {
     const b = caixa(titulo, ['x'], { ...semCor, largura: 10 })
-    expect(b[0]).toBe(`┌${'─'.repeat(8)}┐`)
+    expect(b[0]).toBe(`${CANTO.supEsq}${'─'.repeat(8)}${CANTO.supDir}`)
     expect(larguras(b)).toEqual([10])
   }
   expect(temAnsi(caixa('', ['x'], { ...comCor, largura: 10 }))).toBe(true)
@@ -98,7 +99,7 @@ test('caixa: retorno de carro do corpo nao volta o cursor por cima da borda', ()
 
 test('caixa: titulo com quebra de linha nao parte a borda de cima em duas', () => {
   const b = caixa('A\nB', ['x'], { ...semCor, largura: 20 })
-  expect(b[0]).toBe(`┌─ A B ${'─'.repeat(12)}┐`)
+  expect(b[0]).toBe(`${CANTO.supEsq}─ A B ${'─'.repeat(12)}${CANTO.supDir}`)
   expect(larguras(b)).toEqual([20])
 })
 
@@ -126,8 +127,8 @@ test('lado: alturas diferentes terminam na mesma altura, o mais curto vira vazio
   const j = lado(esquerda, direita)
   expect(j).toHaveLength(esquerda.length)
   expect(larguras(j)).toEqual([18])
-  expect(j[0]).toBe('┌─ A ────┐┌─ B ──┐')
-  expect(j[4]).toBe('└────────┘        ')
+  expect(j[0]).toBe(`${CANTO.supEsq}─ A ────${CANTO.supDir}${CANTO.supEsq}─ B ──${CANTO.supDir}`)
+  expect(j[4]).toBe(`${CANTO.infEsq}────────${CANTO.infDir}        `)
 })
 
 test('lado: bloco maior a direita tambem preenche a esquerda', () => {
@@ -153,9 +154,9 @@ test('grade: N blocos em linhas de `colunas`, dividindo a largura e devolvendo u
   const g = grade([bloco('A'), bloco('B'), bloco('C'), bloco('D')], { largura: 40, colunas: 2 })
   expect(larguras(g)).toEqual([40])
   expect(g).toHaveLength(6)
-  expect(g[0]).toBe(`┌─ A ${'─'.repeat(14)}┐┌─ B ${'─'.repeat(14)}┐`)
+  expect(g[0]).toBe(`${CANTO.supEsq}─ A ${'─'.repeat(14)}${CANTO.supDir}${CANTO.supEsq}─ B ${'─'.repeat(14)}${CANTO.supDir}`)
   expect(g[1]).toBe(`│a${' '.repeat(17)}││b${' '.repeat(17)}│`)
-  expect(g[3]).toStartWith('┌─ C ')
+  expect(g[3]).toStartWith(`${CANTO.supEsq}─ C `)
   expect(temAnsi(g)).toBe(false)
 })
 
@@ -163,7 +164,7 @@ test('grade: bloco pre-renderizado mais largo que a coluna e truncado, nunca est
   const largo = caixa('A', ['a'], { ...semCor, largura: 60 })
   const g = grade([largo, largo], { largura: 40, colunas: 2 })
   expect(larguras(g)).toEqual([40])
-  expect(g[0]).toBe('┌─ A ──────────────…┌─ A ──────────────…')
+  expect(g[0]).toBe(`${CANTO.supEsq}─ A ──────────────…${CANTO.supEsq}─ A ──────────────…`)
 })
 
 test('grade: largura indivisivel distribui o resto nas primeiras colunas sem sobra', () => {

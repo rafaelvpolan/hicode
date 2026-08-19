@@ -1,6 +1,7 @@
 import { test, expect } from 'bun:test'
 import { etiquetaDoProjeto, corDoProjeto, nomeCurto, CORES_DE_PROJETO } from '../lib/core/render/projeto'
 import { renderFrame, stripAnsi, visibleLen } from '../lib/core/tui/layout'
+import { CANTO } from '../lib/core/tui/paleta'
 
 test('mostra o nome curto em destaque e o dono discreto', () => {
   const t = etiquetaDoProjeto('rafaelvpolan/hicode-site')
@@ -51,7 +52,7 @@ test('area do prompt vira um quadro com legenda', () => {
   expect(topo).toBeGreaterThan(0)
   expect(topo).toBeLessThan(entrada)
   expect(texto[entrada]?.trimStart().startsWith('│')).toBe(true)
-  expect(texto[entrada + 1]).toContain('└')
+  expect(texto[entrada + 1]).toContain(`${CANTO.infEsq}`)
 })
 
 test('o cursor continua certo dentro do quadro do prompt', () => {

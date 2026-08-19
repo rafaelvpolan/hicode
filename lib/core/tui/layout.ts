@@ -1,3 +1,4 @@
+import { CANTO } from './paleta'
 import { grafemasDe, larguraDeGrafema, larguraDeTexto } from './largura'
 
 export { stripAnsi } from './largura'
@@ -134,18 +135,18 @@ export function renderFrame(f: FrameInput): Frame {
   const visiveis = [...pinadoVisivel, ...rolantes]
   const lines: string[] = []
   lines.push(padVisible('  ' + truncVisible(f.header, largura - 2), largura))
-  lines.push('  ┌' + '─'.repeat(interno) + '┐')
+  lines.push('  ' + CANTO.supEsq + '─'.repeat(interno) + CANTO.supDir)
   for (let i = 0; i < alturaCorpo; i++) {
     const conteudo = visiveis[i] ?? ''
     lines.push('  │' + padVisible(truncVisible(conteudo, interno), interno) + '│')
   }
-  lines.push('  └' + '─'.repeat(interno) + '┘')
+  lines.push('  ' + CANTO.infEsq + '─'.repeat(interno) + CANTO.infDir)
   for (const sg of sugVisiveis) lines.push(padVisible('  ' + truncVisible(sg, largura - 2), largura))
   const comMoldura = moldura === 2
   if (comMoldura) {
     const rotulo = f.legenda ? ` ${truncVisible(f.legenda, Math.max(4, interno - 4))} ` : ''
     const sobra = Math.max(0, interno - 1 - visibleLen(rotulo))
-    lines.push('  ┌─' + rotulo + '─'.repeat(sobra) + '┐')
+    lines.push('  ' + CANTO.supEsq + '─' + rotulo + '─'.repeat(sobra) + CANTO.supDir)
   }
   const recuo = ' '.repeat(visibleLen(f.prompt))
   const primeira = lines.length + 1
@@ -158,7 +159,7 @@ export function renderFrame(f: FrameInput): Frame {
       ? '  │ ' + padVisible(truncVisible(conteudo, interno - 2), interno - 2) + ' │'
       : padVisible('  ' + conteudo, largura))
   })
-  if (comMoldura) lines.push('  └' + '─'.repeat(interno) + '┘')
+  if (comMoldura) lines.push('  ' + CANTO.infEsq + '─'.repeat(interno) + CANTO.infDir)
   if (linhaDica) lines.push(padVisible('    ' + truncVisible(f.dica ?? '', largura - 4), largura))
   for (const r of rodapeVisivel) lines.push(padVisible('  ' + truncVisible(r, largura - 2), largura))
   return {

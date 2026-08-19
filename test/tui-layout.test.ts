@@ -33,8 +33,8 @@ test('todas as linhas do quadro tem a mesma largura visivel', () => {
 test('quadro tem cabecalho, moldura e input', () => {
   const f = quadro({ header: 'hii · org/app', input: 'tarefa' })
   expect(f.lines[0]).toContain('hii · org/app')
-  expect(f.lines[1]).toContain('┌')
-  expect(f.lines[f.lines.length - 2]).toContain('└')
+  expect(f.lines[1]).toContain(`${CANTO.supEsq}`)
+  expect(f.lines[f.lines.length - 2]).toContain(`${CANTO.infEsq}`)
   expect(f.lines[f.lines.length - 1]).toContain('tarefa')
 })
 
@@ -259,7 +259,7 @@ test('a dica fica fora do quadro do prompt', () => {
     dica: 'a dica', prompt: '› ', rodape: [], legenda: 'proj',
   })
   const texto = f.lines.map(l => stripAnsi(l))
-  const iFecha = texto.findIndex(l => l.includes('└'))
+  const iFecha = texto.findIndex(l => l.includes(`${CANTO.infEsq}`))
   const iDica = texto.findIndex(l => l.includes('a dica'))
   expect(iDica).toBeGreaterThan(iFecha)
 })
@@ -302,6 +302,7 @@ test('REGRESSAO nenhum teste pode depender do terminal de quem roda', () => {
 })
 
 import { quebrarEmLargura } from '../lib/core/tui/layout'
+import { CANTO } from '../lib/core/tui/paleta'
 
 test('REGRESSAO resposta longa e QUEBRADA, nao truncada — nao come palavras', () => {
   const t = 'Nao, NTN nao e uma integracao real do hicode — e uma string de exemplo usada so em README.md:90-112 e test/tipo-de-prompt.test.ts para ilustrar a distincao.'
