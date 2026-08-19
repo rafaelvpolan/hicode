@@ -8,6 +8,7 @@ Thumbs.db
 # Runtime do harness (gerados em execução; não versionar)
 *.log
 .runner.pid
+.runner.pid.root
 .runner.lock
 .claude/worktrees/
 cards/runs/
@@ -30,3 +31,6 @@ config/repos.json
 
 # preferencia de IA em tempo de execucao (por maquina)
 config/ia.json
+
+# contrato de ambiente local (caminhos desta maquina)
+.hii-env.sh
