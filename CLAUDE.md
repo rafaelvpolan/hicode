@@ -1,15 +1,30 @@
 # CLAUDE.md — hicode
 
-> **hicode** é um gerenciador de projetos autônomo que funde **Loop Engineering**
-> (`METODOLOGIA.md`) com o framework **Nexus** (15 agentes + gate Crivo, adaptado de
-> `prompter-main`, agora em `.claude/`). O plano de projeto completo está em `plano/00..05`.
-> Esta é a **autoridade de instrução** deste repositório.
+> **hicode** é o **painel de controle** e **repositório de estado** de um sistema autônomo de engenharia de IA.
+> Funde **Loop Engineering** (`METODOLOGIA.md`) com o framework **Nexus** (15 agentes + gate Crivo, em `.claude/`).
+> 
+> O **motor** (execução, pipeline, gates, worktrees) vive num repo irmão: `/home/rpolan/projects/podium/hii`.
+> O hicode comunica com o motor via **CLI** através de uma interface única (`MotorClient`), que futuramente evoluirá para **REST + SSE**.
+> 
+> O plano completo está em `plano/00..05`; a decisão de separação em `docs/adr/0001-motor-separado.md`.
 
-## O que o hicode gerencia
+## O que o hicode é
 
-O hicode é o **plano de controle**; ele gerencia **outro repositório** (o produto-alvo). O
-repo-alvo de produção ainda **não foi confirmado** — até lá, valida-se o loop localmente. Os
-worktrees, PRs, testes/lint e deploy operam contra o repo-alvo, não contra este.
+**Painel** (Vue 3 + Nuxt 4 + Bun): interface visual para cadastrar tarefas, aprovar previews, ler histórico e custos.
+
+**Estado** (disco): `cards/` (fonte de verdade de tarefa) e `config/` (repositórios-alvo, preferências de IA, política de pipeline) — compartilhado com o motor.
+
+**Contrato de ambiente:**
+```bash
+HICODE_CARDS_DIR=</caminho/ao/hicode>/cards
+HICODE_REPOS_FILE=</caminho/ao/hicode>/config/repos.json
+HICODE_IA_FILE=</caminho/ao/hicode>/config/ia.json
+HICODE_RUNNER_PIDFILE=</caminho/ao/hicode>/.runner.pid
+HICODE_RUNNER_LOCK=</caminho/ao/hicode>/.runner.lock
+HII_HOME=</caminho/ao/hii>
+```
+
+O motor (em `hii/`) **lê** esses caminhos para coordenar execução; o painel **escreve** aqui para persistir intenção.
 
 ## Princípio nº 1 — Executar primeiro, polir depois
 
@@ -26,35 +41,25 @@ Ordem **fixa** de toda unidade de trabalho (card):
 
 Nunca rodar testes/refactor/segurança antes do preview aprovado: valida-se a **intenção** cedo.
 
-## Modelo autônomo (como o hicode roda)
+## Como o motor roda
 
 - A **espinha** é o **card** (`cards/<NNN-slug>.md`): única fonte de verdade editável. Dashboard
   e índice são **derivados** dos cards, nunca co-autorados. Quem carimba estado/custo é o
-  harness/hook lendo `cards/runs/*.json` — **não** a fala do modelo.
+  motor (hii) lendo `cards/runs/*.json` — **não** a fala do modelo.
 - O **heartbeat** (cron local; GitHub Actions depois) roda `/hicode-triage` stateless: descobre
   trabalho, escreve cards, regenera o dashboard.
-- Por card, o **motor** (`runner.ts` + `lib/runner/`: fila de jobs em `tick()`/`queue`) executa o
-  pipeline fase a fase chamando a IA por subprocesso (camada de provedor em `lib/ai/`: claude/codex/
-  ollama, escolhida por papel via env), com **reajuste/retry + HALT** e o **gate codefox
-  (crivo) vinculante**, e fecha o **loop verde lendo exit code real em disco** (build/test/gate). Os
-  steps de polimento são **configuráveis** em `config/pipeline.json` (ativar/desativar/reordenar;
-  override por projeto em `<alvo>/.hii/pipeline.json`). Por card, um **analisador de tarefa**
-  (`lib/runner/analyze.ts`, determinístico) seleciona **quais** desses steps rodam pela natureza da
-  tarefa: mudança cosmética/texto/visual pula Arquitetura/Testes/Segurança (perfil `enxuto`);
-  backend/dados/deps/`risk: high`/ambíguo mantêm tudo; **Segurança só é pulada em mudança sem risco**
-  (build + gate codefox no fim continuam sempre valendo). Override manual no card: `steps: all` força
-  tudo, `steps: <ids>` roda só esses, `steps: auto` (default) usa o analisador.
-- **CONFIRM substituído:** no modo autônomo, a fase `CONFIRM` interativa do `/nexus` é trocada pelo
-  **gate Crivo sobre o plano** (`PLAN_APPROVED`) + a **aprovação do preview** + a **porta do PR**.
-  O `/nexus` interativo continua disponível para trabalho manual.
-- **Merge é SEMPRE humano.** O fluxo automatizado (motor) termina em `PR_OPEN`: abre o PR e PARA.
+- Por card, o **motor do hii** executa o pipeline fase a fase chamando a IA por subprocesso,
+  com **reajuste/retry + HALT** e o **gate crivo vinculante**, e fecha o **loop verde lendo exit code real em disco**.
+  Detalhes: ver `hii/README.md`.
+- A **configuração de pipeline** (quais steps rodam, ordem, ativado/desativado, gates) vive no motor (`hii/config/pipeline.json`
+  e `<repo-alvo>/.hii/pipeline.json`). O painel **consulta e altera** essa config pelo `MotorClient`, nunca editando direto.
+- **Merge é SEMPRE humano.** O motor termina em `PR_OPEN`: abre o PR e PARA.
   O motor e o Claude **NUNCA** dão merge — nada de `gh pr merge`. Quem revisa o diff e mergeia é o
   humano, no GitHub. Mesmo se o usuário disser "fazer o merge", o agente deixa o PR pronto e aponta
   o link; o clique de merge é do humano. É a porta anti-rendição-cognitiva.
 - **Toda task parte do `main` ATUALIZADO.** Antes de criar a branch de trabalho: `git fetch origin
   main` + `pull --ff-only` (ou, em worktree, criar de `origin/main` recém-buscado). Nunca ramificar
-  de estado velho nem de outra branch de feature. Detalhe na skill **`branch-from-main`**; o motor
-  já cumpre isso em `prepareBranch`/`ensureWorktree`.
+  de estado velho nem de outra branch de feature.
 - **Spec só para mudança grande/cross-cutting/breaking** (`/spec`); fix/typo nasce direto (Direct
   mode). Formato: spec delta estilo OpenSpec (`## ADDED/MODIFIED/REMOVED Requirements`, `### Requisito`,
   `#### Cenário` GIVEN/WHEN/THEN), cada Cenário com tag `verify: sql|test|manual`.
@@ -112,9 +117,17 @@ Regras:
   lang="ts">` + composables) — **nunca React/JSX**. `typecheck` (`tsc --noEmit` na raiz,
   `nuxi typecheck` no painel) faz parte da suíte de testes.
 
-## Segurança (modo autônomo)
+## Segurança (painel + motor)
 
-`acceptEdits` (nunca `bypassPermissions`); `cwd-guard` confina cada agente ao worktree do card;
-denylist de ops destrutivas (conveniência, não fronteira); banco read-only via role SELECT-only;
-Continuum nunca aplica deploy; **proibido rodar 24/7 desacompanhado antes do sandbox** (container
-+ egress restrito). Detalhe em `plano/02-arquitetura.md` §7.
+**Painel:**
+- `acceptEdits` (nunca `bypassPermissions`)
+- Endpoints mutantes só aceitam requisição de loopback (127.0.0.1)
+- Origin-guard: POST/PUT/PATCH/DELETE rejeitam origem estrangeira (previne CSRF)
+
+**Motor (hii):**
+- `cwd-guard` confina execução ao worktree do card
+- denylist de ops destrutivas (conveniência, não fronteira)
+- banco read-only via role SELECT-only
+- **proibido rodar 24/7 desacompanhado antes do sandbox** (container + egress restrito)
+
+Detalhe completo: `plano/02-arquitetura.md` §7 (ainda menciona detalhes do motor; ver `hii/README.md` para implementação atual).
