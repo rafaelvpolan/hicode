@@ -7,14 +7,21 @@ on:
     branches: [main]
 
 jobs:
-  motor:
+  painel:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: rafaelvpolan/hii
+          path: .hii-ref
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile || bun install
       - run: bun run typecheck
       - run: bun run lint:types
       - run: bun run test:unit
+        env:
+          HICODE_CONTRATO_HII: '1'
+          HII_HOME: ${{ github.workspace }}/.hii-ref
       - run: cd panel && bun install --frozen-lockfile || bun install
       - run: bun run typecheck:panel

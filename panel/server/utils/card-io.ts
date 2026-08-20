@@ -2,14 +2,14 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
 import type { CardStatus } from '#shared/types'
 import {
-  STATUSES as CORE_STATUSES, appendLog, extractObjetivo, isoNow,
+  STATUSES as CARD_STATUSES, appendLog, extractObjetivo, isoNow,
   serializeCard, setObjetivo, slugify, splitFrontMatter,
-} from '../../../lib/card'
-import { cardsDir, reposFile, ROOT as CORE_ROOT } from '../../../lib/runner/config'
-import { cardFiles, findCardFile } from '../../../lib/runner/card-store'
+  cardFiles, findCardFile,
+} from '../card'
+import { cardsDir, reposFile, ROOT as MOTOR_ROOT } from '../motor/ambiente'
 
-export const STATUSES: CardStatus[] = [...CORE_STATUSES]
-export const ROOT = CORE_ROOT
+export const STATUSES: CardStatus[] = [...CARD_STATUSES]
+export const ROOT = MOTOR_ROOT
 export const CARDS_DIR = cardsDir()
 export const CONFIG_DIR = join(ROOT, 'config')
 export const REPOS_FILE = reposFile()
@@ -67,6 +67,16 @@ export function nextId(): string {
   return String(max + 1).padStart(3, '0')
 }
 
+export function parseCardId(raw: string | null | undefined): string | null {
+  const trimmed = String(raw ?? '').trim()
+  if (!/^\d+$/.test(trimmed)) return null
+  return trimmed.padStart(3, '0')
+}
+
+const REPO_INVALIDO = '.hicode-repo-nome-invalido'
+
 export function repoLocalPath(name: string): string {
-  return join(dirname(ROOT), basename(name || ''))
+  const seguro = basename(name || '')
+  if (!seguro || seguro === '.' || seguro === '..') return join(dirname(ROOT), REPO_INVALIDO)
+  return join(dirname(ROOT), seguro)
 }

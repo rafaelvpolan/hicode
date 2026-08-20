@@ -1,5 +1,7 @@
 import { computed, onScopeDispose, ref, watch, type ComputedRef, type Ref } from 'vue'
+import type { EstadoDeEtapa } from '#shared/design'
 import type { CardStatus, CardView, RunView } from '#shared/types'
+import { podeReexecutarEtapa, statusDoMotor } from '#shared/status'
 import { ACTIVE_STATUSES, PHASES, RESUME_STEP_BY_STATUS, phaseIdx, stClass, stepKeyForLabel } from './usePhases'
 import { fmtTime } from './useFormat'
 
@@ -8,10 +10,16 @@ const TICK_MS = 1000
 export interface StepTimingItem {
   status: CardStatus
   label: string
-  cls: 'done' | 'now' | 'todo'
+  estado: EstadoDeEtapa
   resumeStep: string | null
   elapsedLabel: string
   estimateLabel: string
+}
+
+const ESTADO_POR_CLASSE: Record<'done' | 'now' | 'todo', EstadoDeEtapa> = {
+  done: 'feito',
+  now: 'agora',
+  todo: 'pendente',
 }
 
 function ownCardEstimate(runs: RunView[], key: string): number | undefined {
@@ -22,11 +30,22 @@ function ownCardEstimate(runs: RunView[], key: string): number | undefined {
   return Math.round(samples.reduce((a, b) => a + b, 0) / samples.length)
 }
 
+function ultimaFaseCronometrada(run: RunView | null): number {
+  let ultima = -1
+  PHASES.forEach(([, label], i) => {
+    const key = stepKeyForLabel(label)
+    const secs = key ? run?.steps?.[key]?.time : undefined
+    if (typeof secs === 'number' && secs > 0) ultima = i
+  })
+  return ultima
+}
+
 export function useStepTiming(
   card: Ref<CardView>,
   latestRun: ComputedRef<RunView | null>,
   cardRuns: ComputedRef<RunView[]>,
   estimates: ComputedRef<Record<string, number>>,
+  faseDaFalha: ComputedRef<CardStatus | null>,
 ): ComputedRef<StepTimingItem[]> {
   const tick = ref(0)
   let timer: ReturnType<typeof setInterval> | null = null
@@ -45,10 +64,17 @@ export function useStepTiming(
 
   return computed<StepTimingItem[]>(() => {
     void tick.value
-    const idx = phaseIdx(card.value.status)
+    const parado = statusDoMotor(card.value.status) === 'HALTED'
+    const declarado = phaseIdx(card.value.status)
+    const registrada = faseDaFalha.value ? phaseIdx(faseDaFalha.value) : -1
+    const cronometrada = ultimaFaseCronometrada(latestRun.value)
+    const idx = parado ? registrada : declarado >= 0 ? declarado : cronometrada + 1
+    const posicaoConhecida = parado ? registrada >= 0 : declarado >= 0 || cronometrada >= 0
     const isActive = ACTIVE_STATUSES.includes(card.value.status)
+    const reexecutavel = podeReexecutarEtapa(card.value.status)
     return PHASES.map(([status, label], i) => {
-      const cls = stClass(i, idx)
+      const cls = posicaoConhecida ? stClass(i, idx) : 'todo'
+      const estado: EstadoDeEtapa = parado && cls === 'now' ? 'falhou' : ESTADO_POR_CLASSE[cls]
       const key = stepKeyForLabel(label)
       let elapsedLabel = ''
       if (key && cls === 'now' && isActive) {
@@ -60,7 +86,8 @@ export function useStepTiming(
       }
       const estimateSecs = key ? (ownCardEstimate(cardRuns.value, key) ?? estimates.value[key]) : undefined
       const estimateLabel = estimateSecs ? `~${fmtTime(estimateSecs)}` : ''
-      return { status, label, cls, resumeStep: RESUME_STEP_BY_STATUS[status] ?? null, elapsedLabel, estimateLabel }
+      const resumeStep = reexecutavel ? RESUME_STEP_BY_STATUS[status] ?? null : null
+      return { status, label, estado, resumeStep, elapsedLabel, estimateLabel }
     })
   })
 }

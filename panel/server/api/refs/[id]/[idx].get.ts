@@ -1,9 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs'
 
 export default defineEventHandler((event): string | Buffer => {
-  const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
+  const id = parseCardId(getRouterParam(event, 'id'))
   const idx = Number(getRouterParam(event, 'idx') || '-1')
 
+  if (!id) { setResponseStatus(event, 400); return 'id invalido' }
   if (!Number.isInteger(idx) || idx < 0) { setResponseStatus(event, 400); return 'idx invalido' }
 
   const source = refAt(id, idx)

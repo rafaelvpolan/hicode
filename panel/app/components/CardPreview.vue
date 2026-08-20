@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import type { ApiError, PreviewShotResponse } from '#shared/types'
 
 interface CardPreviewProps {
   cardId: string
@@ -17,10 +18,11 @@ const emit = defineEmits<CardPreviewEmits>()
 
 const showShot = ref(false)
 const shotFailed = ref(false)
+const shotLoading = ref(false)
 const refreshCounter = ref(0)
 
 const canCaptureShot = computed(() => props.shot || !!props.previewUrl)
-const shotSrc = computed(() => `/api/preview/${props.cardId}?fresh=1&t=${refreshCounter.value}`)
+const shotSrc = computed(() => `/api/preview/${props.cardId}?t=${refreshCounter.value}`)
 
 function handleClose(): void {
   emit('close')
@@ -30,14 +32,22 @@ function handleReset(hard: boolean): void {
   emit('reset', hard)
 }
 
+async function requestShot(): Promise<void> {
+  shotLoading.value = true
+  const r = await $fetch<PreviewShotResponse | ApiError>(`/api/cards/${props.cardId}/preview-shot`, { method: 'POST' })
+    .catch((e: { data?: ApiError }): ApiError => e?.data || { error: 'falhou' })
+  shotFailed.value = 'error' in r || !r.captured
+  shotLoading.value = false
+  refreshCounter.value += 1
+}
+
 function toggleShot(): void {
   showShot.value = !showShot.value
-  if (showShot.value) shotFailed.value = false
+  if (showShot.value) void requestShot()
 }
 
 function recaptureShot(): void {
-  refreshCounter.value += 1
-  shotFailed.value = false
+  void requestShot()
 }
 
 function handleShotError(): void {
@@ -70,12 +80,14 @@ function handleShotError(): void {
         <button type="button" class="toggle-shot" @click="toggleShot">
           {{ showShot ? 'ocultar screenshot' : 'ver screenshot (fallback)' }}
         </button>
-        <button v-if="showShot" type="button" class="recapture" @click="recaptureShot">↻ recapturar</button>
+        <button v-if="showShot" type="button" class="recapture" :disabled="shotLoading" @click="recaptureShot">
+          {{ shotLoading ? 'capturando…' : '↻ recapturar' }}
+        </button>
       </div>
 
       <div v-if="showShot" class="preview-shot">
         <img
-          v-if="canCaptureShot && !shotFailed"
+          v-if="canCaptureShot && !shotFailed && !shotLoading"
           :src="shotSrc"
           alt="preview do card"
           @error="handleShotError"
@@ -88,37 +100,37 @@ function handleShotError(): void {
 
 <style scoped>
 .preview-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 200;
+  position: fixed; inset: 0; background: var(--veu-modal); z-index: 200;
   display: flex; align-items: center; justify-content: center; padding: 24px;
 }
 .preview-panel {
-  background: var(--panel); border: 1px solid var(--bd); border-radius: 10px;
+  background: var(--superficie); border: 1px solid var(--hairline); border-radius: 10px;
   width: min(1100px, 100%); max-height: 92vh; overflow: auto; padding: 20px 22px 28px;
 }
-.preview-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--bd); padding-bottom: 12px; margin-bottom: 16px; }
+.preview-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid var(--hairline); padding-bottom: 12px; margin-bottom: 16px; }
 .preview-header h3 { margin: 0; font-size: 17px; }
 .preview-header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .open-preview-link {
-  font-weight: 700; font-size: 13px; background: var(--acc); color: #fff;
-  padding: 6px 14px; border-radius: 8px; border: 1px solid var(--acc);
+  font-weight: 700; font-size: 13px; background: var(--acento); color: var(--acento-contraste);
+  padding: 6px 14px; border-radius: 8px; border: 1px solid var(--acento);
 }
 .open-preview-link:hover { text-decoration: none; filter: brightness(1.08); }
 .reset-btn {
-  font: inherit; background: var(--panel2); color: var(--tx); border: 1px solid var(--bd);
+  font: inherit; background: var(--superficie-2); color: var(--texto); border: 1px solid var(--hairline);
   border-radius: 7px; padding: 4px 10px; cursor: pointer; font-size: 12.5px; font-weight: 600;
 }
-.reset-btn:hover { border-color: var(--acc); }
-.reset-btn.hard:hover { border-color: var(--warn); color: var(--warn); }
+.reset-btn:hover { border-color: var(--acento); }
+.reset-btn.hard:hover { border-color: var(--atencao); color: var(--atencao); }
 .close-btn {
-  font: inherit; background: var(--panel2); color: var(--tx); border: 1px solid var(--bd);
+  font: inherit; background: var(--superficie-2); color: var(--texto); border: 1px solid var(--hairline);
   border-radius: 7px; padding: 4px 10px; cursor: pointer;
 }
 .preview-fallback { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
 .toggle-shot, .recapture {
-  font: inherit; background: transparent; color: var(--mut); border: 1px solid var(--bd);
+  font: inherit; background: transparent; color: var(--texto-mudo); border: 1px solid var(--hairline);
   border-radius: 7px; padding: 4px 10px; cursor: pointer; font-size: 12px;
 }
-.toggle-shot:hover, .recapture:hover { color: var(--tx); border-color: var(--acc); }
-.preview-shot img { max-width: 100%; border-radius: 8px; border: 1px solid var(--bd); display: block; margin: 0 auto; }
-.preview-empty { color: var(--mut); font-size: 13px; padding: 12px 0; }
+.toggle-shot:hover, .recapture:hover { color: var(--texto); border-color: var(--acento); }
+.preview-shot img { max-width: 100%; border-radius: 8px; border: 1px solid var(--hairline); display: block; margin: 0 auto; }
+.preview-empty { color: var(--texto-mudo); font-size: 13px; padding: 12px 0; }
 </style>

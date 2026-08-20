@@ -342,50 +342,116 @@ Conveniência **não** é fronteira. As camadas, do mais fraco ao mais forte:
    cards restantes ao estourar um budget diário declarado, mostrando o número no dashboard antes de
    cada novo maker. `--max-budget-usd` só é usado **se confirmado existir** (ver decisão em [`03`](03-decisoes.md)).
 
+### 7.1 Superfície HTTP do painel (Nuxt/Nitro) — fronteira declarada
+
+O painel é uma ferramenta de **operador único, na própria máquina**. Não tem sessão, não tem
+login — não é um produto multiusuário. A fronteira real, dada essa premissa, é de **rede**, não
+de identidade:
+
+1. **Bind em loopback por padrão.** `panel/package.json` roda `nuxt dev --port 4318` **sem
+   `--host`** — o Nitro só escuta `127.0.0.1`. Isso fecha o vetor de "qualquer host na LAN chama
+   a API sem autenticação". Se algum dia for preciso expor na LAN (testar de outro dispositivo),
+   isso é uma decisão explícita e pontual do operador (`--host` na mão), não o padrão do repo.
+2. **Guarda de origem para todo método mutante** (`server/middleware/00.origin-guard.ts`, lógica
+   pura em `server/utils/origin-guard.ts`): POST/PUT/PATCH/DELETE são rejeitados com 403 se o
+   header `Origin`/`Referer` estiver **presente e não bater** com o host da própria requisição —
+   isso inclui origem **opaca** (`Origin: null`, de um iframe `sandbox` sem `allow-same-origin` ou
+   de um documento `data:`) e qualquer valor que não seja uma URL válida: `hostDeOrigem()` lança em
+   `new URL(...)`, e a ausência de host resultante é tratada como **bloqueio**, nunca como
+   passagem. Isso fecha CSRF simples (POST disparado por uma aba de qualquer outro site que o
+   operador tenha aberta, inclusive via iframe sandboxed com origem opaca) mesmo com o painel
+   escutando em loopback. Só passa sem checagem a requisição em que o header está **totalmente
+   ausente** (chamada direta via `curl`/scripts do próprio operador na máquina) — o modelo de
+   ameaça aqui é o navegador de terceiros, não o próprio operador. Coberto por
+   `test/origin-guard.test.ts` (origem própria, origem estrangeira, origem opaca `null`, origem
+   malformada, ausência de header).
+3. **Risco aceito, documentado:** não há autenticação (token/senha) nem CSRF token de
+   double-submit. Para uma ferramenta local de operador único isso é proporcional; se o painel
+   vier a ser acessado por mais de uma pessoa ou exposto fora de `localhost`, a fronteira acima
+   deixa de valer e um mecanismo de auth real (token por sessão, no mínimo) passa a ser
+   obrigatório antes disso — **não é para ser adicionado de forma incremental sem revisão**.
+4. Endpoints que disparam subprocesso (`gh`, `claude`, `hii`, `git`, `npm run dev`) usam lista de
+   argumentos (nunca `shell: true`/string interpolada) e todo `[id]` de rota passa por
+   `parseCardId` antes de tocar o disco — ver `panel/server/utils/card-io.ts`.
+5. **Dev server de preview também escuta só em loopback.** `startDev`/`startDevServer`
+   (`server/api/project-preview.post.ts`, `server/api/cards/[id]/reset-preview.post.ts`) sobem o
+   `npm run dev` do repo-alvo **sem `--host`** — mesma razão do item 1: sem isso, qualquer host na
+   LAN alcançaria o dev server do projeto (Vite/Nuxt, sem auth, com `/@fs/` liberado) mesmo com o
+   painel em si preso a loopback. Se o operador precisar acessar o preview de outro dispositivo, é
+   decisão manual dele, fora do padrão do repo — igual ao item 1.
+6. **`GET /api/preview/[id]` é somente leitura.** Capturar screenshot (`npx playwright
+   screenshot`, até 60s, síncrono via `spawnSync`) é uma ação **mutante e cara** — por isso vive em
+   `POST /api/cards/[id]/preview-shot`, coberto pela guarda de origem do item 2. O `GET` só serve o
+   PNG já em disco (404 se não existir). Isso fecha o vetor de `<img src="/api/preview/1?fresh=1">`
+   embutido numa página de terceiro: antes, um `GET` cross-origin (que navegadores não gateiam por
+   `Origin`, mesmo com a guarda do item 2 cobrindo métodos mutantes) conseguia forçar recaptura
+   repetida e travar o processo do painel por até 60s por chamada.
+
 ---
 
 ## 8. Layout de diretórios
 
 ```
-hicode/
-├── README.md                  # o que é, como ligar o heartbeat, v1 vs futuro
-├── CLAUDE.md                  # roteamento Nexus + regras do repo (autoridade de instrução do repo)
+hicode/                       # painel + estado
+├── README.md                  # como rodar o painel, referência
+├── CLAUDE.md                  # roteamento Nexus + regras do repo (autoridade de instrução)
 ├── .mcp.json                  # db-verificador: Supabase MCP HTTP read_only=true + project_ref; + github MCP
+├── panel/                     # Vue 3 + Nuxt 4 — interface visual
+│   ├── server/
+│   │   ├── motor/             # MotorClient: fala com hii (dispatch, eventos, estado)
+│   │   ├── card/              # leitura de cards e specs (local, sem motor)
+│   │   ├── ia/                # preferências de IA (local, sem motor)
+│   │   ├── api/               # rotas Nuxt: card-io, ia.get/post, motor.get, historico
+│   │   └── utils/
+│   ├── components/            # Vue components
+│   └── pages/                 # páginas Nuxt
 ├── .claude/
 │   ├── settings.json          # permissions.deny + defaultMode acceptEdits + hooks
 │   ├── agents/                # os 15 agentes Nexus (crivo.md ESTENDIDO p/ spec+diff)
 │   ├── skills/
 │   │   ├── nexus/             # orquestrador do kit (modo manual)
-│   │   ├── hicode-triage/     # heartbeat: GC + lê CI/issues/commits/drift -> cards -> dashboard
-│   │   ├── hicode-run-card/   # invoca a Workflow tool (harness) por card, em worktree
+│   │   ├── hicode-triage/     # heartbeat: descobre trabalho, escreve cards, regenera dashboard
 │   │   ├── spec/              # OPCIONAL: gera Requisitos+Cenários(delta) p/ mudança grande
-│   │   └── spec-archive/      # mescla delta em specs/ TRANSACIONAL + arquiva (validate embutido)
+│   │   └── spec-archive/      # mescla delta em specs/ TRANSACIONAL + arquiva
 │   ├── hooks/
 │   │   ├── block-comments.mjs # Clean Code (do kit)
-│   │   ├── cwd-guard.sh       # PreToolUse OBRIGATÓRIO: rejeita cwd fora do worktree
-│   │   ├── stamp-card.sh      # Stop: carimba status/cost lendo runs/*.json
-│   │   └── render-dashboard.sh# Stop + boot: gera index.html (determinístico, sem LLM)
-│   └── worktrees/             # checkouts isolados por card; GC no início de cada heartbeat
-├── workflows/
-│   └── card-pipeline.mjs      # o harness: gated()+retry+HALT + loop verde + soma custo + gh pr create
-├── specs/                     # FONTE DE VERDADE por domínio (estado atual)
-├── cards/                     # A ESPINHA
-│   ├── 001-add-2fa.md
+│   │   └── block-monolithic.mjs # teto de 350 linhas (do kit)
+│   └── worktrees/             # MOTOR - vive no hii, nao aqui
+├── config/                    # ESTADO COMPARTILHADO COM MOTOR
+│   ├── repos.json             # repositórios-alvo (path local, remote, base, politicas)
+│   ├── ia.json                # preferências de IA (provider, modelos, esforço por papel)
+│   └── pipeline.json          # MOTOR - configuração de steps (consulta/altera via MotorClient)
+├── cards/                     # ESTADO COMPARTILHADO COM MOTOR — A ESPINHA
+│   ├── 001-add-2fa.md         # card (fonte de verdade)
 │   ├── archive/               # AAAA-MM-DD-<slug>.md
-│   ├── runs/<id>-<ts>.json    # exit codes/cobertura/custo por execução
-│   ├── previews/<id>/         # screenshot + URL do preview (o que você vê antes de polir)
-│   └── index.html             # dashboard self-contained (gerado)
-├── docs/adr/                  # ADRs (o porquê) ao lado das specs (o quê/como)
-├── orchestration/
-│   └── crontab.example        # a linha de cron do heartbeat
-└── .github/workflows/
-    ├── ci.yml                 # build/lint/tsc/test + migration em staging efêmero
-    ├── heartbeat.yml          # on: schedule cron -> claude-code-action /hicode-triage (24/7)
-    └── deploy.yml             # merge -> dev/staging/prod, health-check, rollback; prod atrás de approval
+│   ├── runs/<id>-<ts>.json    # MOTOR - exit codes/tokens/tempo por execução
+│   └── previews/<id>/         # MOTOR - screenshot + URL do preview
+├── specs/                     # FONTE DE VERDADE por domínio (estado atual)
+├── docs/adr/                  # ADRs (o porquê)
+├── OrquestracaoGovernanca.md  # modelo de governança
+├── METODOLOGIA.md             # Loop Engineering
+└── plano/                     # documento de arquitetura (este arquivo)
+
+hii/                          # motor (repo irmão) — execução, pipeline, gates, worktrees
+├── lib/                       # runner, ai, contract, card, core
+├── bin/hii.ts                 # CLI do motor
+├── runner.ts                  # entrypoint
+└── ... (ver hii/README.md)
 ```
 
-> **Cortes de over-engineering já aplicados** (vs a síntese crua): sem `BOARD.jsonl` separado (o
-> dashboard lê os cards direto), `spec-validate` fundido em `/spec`, relauncher long-run fora da
-> v1, Corvinus→card-de-rollback adiado (rollback fica no nível do Actions). Detalhe em [`05`](05-riscos-e-ajustes.md).
+**Motor vs Painel: divisão de responsabilidades**
+
+| Componente | Responsável | Detalhes |
+|---|---|---|
+| `cards/` | Ambos | painel escreve, motor lê e executa |
+| `cards/runs/` | Motor | painel só lê |
+| `config/repos.json` | Ambos | painel consulta, motor executa |
+| `config/ia.json` | Painel | motor lê |
+| `config/pipeline.json` | Motor | painel consulta/altera via MotorClient |
+| Worktrees, git, PR | Motor | não existe no hicode |
+| MotorClient | Painel | interface para falar com hii |
+
+> **Separação concluída** (agosto/2026): motor removido do hicode, vive em `/home/rpolan/projects/podium/hii`.
+> Todas as 143 linhas de `lib/`, `bin/`, `runner.ts` foram para lá. Hicode agora é **só painel + estado**.
 
 Próximo: [`03-decisoes.md`](03-decisoes.md).

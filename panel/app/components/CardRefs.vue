@@ -76,29 +76,29 @@ function handleFileChange(event: Event): void {
 <style scoped>
 .refs{ display:flex; flex-direction:column; gap:8px; margin:8px 0 }
 .refs-head{ display:flex; align-items:baseline; gap:8px }
-.refs-title{ font-size:12px; color:var(--mut); text-transform:uppercase; letter-spacing:.03em; font-weight:600 }
-.refs-count{ font-size:11px; color:var(--mut) }
-.refs-msg{ margin:0; font-size:13px; color:var(--mut) }
+.refs-title{ font-size:12px; color:var(--texto-mudo); text-transform:uppercase; letter-spacing:.03em; font-weight:600 }
+.refs-count{ font-size:11px; color:var(--texto-mudo) }
+.refs-msg{ margin:0; font-size:13px; color:var(--texto-mudo) }
 .refs-grid{ list-style:none; display:flex; flex-wrap:wrap; gap:8px; margin:0; padding:0 }
-.refs-item{ position:relative; width:72px; height:72px; border-radius:8px; overflow:hidden; border:1px solid var(--bd) }
+.refs-item{ position:relative; width:72px; height:72px; border-radius:8px; overflow:hidden; border:1px solid var(--hairline) }
 .refs-item img{ width:100%; height:100%; object-fit:cover; display:block }
 .refs-remove{
   position:absolute; top:2px; right:2px; width:20px; height:20px; line-height:1;
   display:flex; align-items:center; justify-content:center;
-  font-size:11px; font-weight:700; color:#fff; background:rgba(0,0,0,.55);
+  font-size:11px; font-weight:700; color:var(--texto); background:var(--veu-legenda);
   border:none; border-radius:50%; cursor:pointer;
 }
-.refs-remove:hover{ background:var(--bad) }
-.refs-error{ margin:0; font-size:12px; color:var(--bad) }
+.refs-remove:hover{ background:var(--falha) }
+.refs-error{ margin:0; font-size:12px; color:var(--falha) }
 .refs-add{ display:flex; flex-direction:column; gap:8px }
 .refs-field{ display:flex; flex-direction:column; gap:3px }
-.refs-field label{ font-size:12px; color:var(--mut) }
+.refs-field label{ font-size:12px; color:var(--texto-mudo) }
 .refs-linkrow{ display:flex; gap:6px }
 .refs-linkrow input{ flex:1 }
-input, button{ font:inherit; color:var(--tx); background:var(--panel2); border:1px solid var(--bd); border-radius:7px; padding:7px 10px }
+input, button{ font:inherit; color:var(--texto); background:var(--superficie-2); border:1px solid var(--hairline); border-radius:7px; padding:7px 10px }
 input[type="file"]{ padding:5px 8px }
-button{ background:var(--acc); border-color:var(--acc); color:#fff; cursor:pointer; font-weight:600 }
-button.ghost{ background:var(--panel2); border-color:var(--bd); color:var(--tx); font-weight:500 }
+button{ background:var(--acento); border-color:var(--acento); color:var(--acento-contraste); cursor:pointer; font-weight:600 }
+button.ghost{ background:var(--superficie-2); border-color:var(--hairline); color:var(--texto); font-weight:500 }
 button:disabled{ opacity:.5; cursor:not-allowed }
-.refs-cap{ margin:0; font-size:12px; color:var(--warn) }
+.refs-cap{ margin:0; font-size:12px; color:var(--atencao) }
 </style>

@@ -44,7 +44,9 @@ export function useCardActions(options: CardActionsOptions) {
   }
 
   async function quickAdd(name: string, url: string): Promise<void> {
-    await $fetch('/api/repos', { method: 'POST', body: { name, url, branch: 'main' } }).catch(() => {})
+    const r = await $fetch<AddRepoResponse>('/api/repos', { method: 'POST', body: { name, url, branch: 'main' } })
+      .catch((e: { data?: AddRepoResponse }) => e?.data || { error: 'falhou' })
+    if (r.error) { repoMsg.value = r.error; return }
     repoMsg.value = name + ' adicionado'
     await load()
   }
@@ -114,6 +116,7 @@ export function useCardActions(options: CardActionsOptions) {
   }
 
   async function replay(id: string, step: string): Promise<void> {
+    if (!window.confirm(`Repetir o passo "${step}" do card #${id}?\nO card volta para URL_OK e o motor refaz o polimento a partir daí.`)) return
     await $fetch<CardActionResponse>(`/api/cards/${id}/replay`, { method: 'POST', body: { step } })
     await load()
   }

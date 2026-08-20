@@ -1,0 +1,152 @@
+:root {
+  --fundo: #0a0a0a;
+  --fundo-veu: rgba(10, 10, 10, 0.82);
+  --superficie: #101010;
+  --superficie-2: #161616;
+  --superficie-3: #1c1c1c;
+  --superficie-afundada: #070707;
+
+  --hairline: #242424;
+  --hairline-forte: #333333;
+  --hairline-fraca: #1a1a1a;
+
+  --texto: #f2efec;
+  --texto-mudo: #9c9691;
+  --texto-fraco: #6a6461;
+  --texto-invertido: #120a04;
+
+  --acento: #ff6b1a;
+  --acento-claro: #ff8c3a;
+  --acento-escuro: #c74e0c;
+  --acento-contraste: #120a04;
+  --acento-veu: color-mix(in srgb, var(--acento) 12%, transparent);
+  --acento-borda: color-mix(in srgb, var(--acento) 38%, transparent);
+  --acento-halo: color-mix(in srgb, var(--acento) 26%, transparent);
+
+  --ok: #35c46b;
+  --ok-veu: color-mix(in srgb, var(--ok) 12%, transparent);
+  --ok-borda: color-mix(in srgb, var(--ok) 38%, transparent);
+
+  --atencao: #e0a422;
+  --atencao-veu: color-mix(in srgb, var(--atencao) 12%, transparent);
+  --atencao-borda: color-mix(in srgb, var(--atencao) 38%, transparent);
+
+  --falha: #f2564a;
+  --falha-veu: color-mix(in srgb, var(--falha) 12%, transparent);
+  --falha-borda: color-mix(in srgb, var(--falha) 38%, transparent);
+
+  --parado: #7a7370;
+  --parado-veu: color-mix(in srgb, var(--parado) 12%, transparent);
+  --parado-borda: color-mix(in srgb, var(--parado) 38%, transparent);
+
+  --rodando: var(--acento);
+  --rodando-veu: var(--acento-veu);
+  --rodando-borda: var(--acento-borda);
+
+  --neutro: var(--texto-mudo);
+  --neutro-veu: color-mix(in srgb, var(--texto-mudo) 10%, transparent);
+  --neutro-borda: var(--hairline);
+
+  --raio-1: 4px;
+  --raio-2: 8px;
+  --raio-3: 12px;
+  --raio-4: 18px;
+  --raio-pilula: 999px;
+
+  --esp-1: 4px;
+  --esp-2: 8px;
+  --esp-3: 12px;
+  --esp-4: 16px;
+  --esp-5: 24px;
+  --esp-6: 32px;
+  --esp-7: 48px;
+  --esp-8: 64px;
+
+  --fonte-display: 'Archivo', 'Space Grotesk', 'Segoe UI Variable Display', ui-sans-serif, system-ui, -apple-system, Roboto, sans-serif;
+  --fonte-corpo: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --fonte-mono: ui-monospace, 'JetBrains Mono', SFMono-Regular, Menlo, Consolas, monospace;
+
+  --tf-micro: 10px;
+  --tf-mini: 11px;
+  --tf-peq: 12px;
+  --tf-base: 14px;
+  --tf-md: 16px;
+  --tf-lg: 20px;
+  --tf-xl: 28px;
+  --tf-display: 40px;
+  --tf-display-g: 56px;
+
+  --peso-normal: 400;
+  --peso-medio: 500;
+  --peso-forte: 600;
+  --peso-display: 800;
+
+  --tracking-rotulo: 0.18em;
+  --tracking-titulo: 0.02em;
+  --tracking-display: -0.02em;
+  --altura-linha: 1.55;
+  --altura-display: 1.02;
+
+  --dur-rapida: 120ms;
+  --dur-media: 220ms;
+  --dur-lenta: 420ms;
+  --curva: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --brilho-forma: 0 0 26px -8px;
+  --brilho-acento: var(--brilho-forma) color-mix(in srgb, var(--acento) 70%, transparent);
+  --brilho-foco: 0 0 0 3px var(--acento-halo);
+  --veu-modal: rgba(0, 0, 0, 0.68);
+  --veu-legenda: rgba(0, 0, 0, 0.55);
+  --sombra-elevada: 0 18px 48px -28px rgba(0, 0, 0, 0.9);
+
+  --largura-max: 1320px;
+  --altura-topo: 60px;
+
+  --cor-tom: var(--neutro);
+  --veu-tom: var(--neutro-veu);
+  --borda-tom: var(--neutro-borda);
+  --brilho-tom: var(--brilho-forma) color-mix(in srgb, var(--neutro) 70%, transparent);
+}
+
+[data-tom='neutro'] {
+  --cor-tom: var(--neutro);
+  --veu-tom: var(--neutro-veu);
+  --borda-tom: var(--neutro-borda);
+  --brilho-tom: var(--brilho-forma) color-mix(in srgb, var(--neutro) 70%, transparent);
+}
+[data-tom='acento'] {
+  --cor-tom: var(--acento);
+  --veu-tom: var(--acento-veu);
+  --borda-tom: var(--acento-borda);
+  --brilho-tom: var(--brilho-forma) color-mix(in srgb, var(--acento) 70%, transparent);
+}
+[data-tom='ok'] {
+  --cor-tom: var(--ok);
+  --veu-tom: var(--ok-veu);
+  --borda-tom: var(--ok-borda);
+  --brilho-tom: var(--brilho-forma) color-mix(in srgb, var(--ok) 70%, transparent);
+}
+[data-tom='atencao'] {
+  --cor-tom: var(--atencao);
+  --veu-tom: var(--atencao-veu);
+  --borda-tom: var(--atencao-borda);
+  --brilho-tom: var(--brilho-forma) color-mix(in srgb, var(--atencao) 70%, transparent);
+}
+[data-tom='falha'] {
+  --cor-tom: var(--falha);
+  --veu-tom: var(--falha-veu);
+  --borda-tom: var(--falha-borda);
+  --brilho-tom: var(--brilho-forma) color-mix(in srgb, var(--falha) 70%, transparent);
+}
+[data-tom='parado'] {
+  --cor-tom: var(--parado);
+  --veu-tom: var(--parado-veu);
+  --borda-tom: var(--parado-borda);
+  --brilho-tom: var(--brilho-forma) color-mix(in srgb, var(--parado) 70%, transparent);
+}
+[data-tom='rodando'] {
+  --cor-tom: var(--rodando);
+  --veu-tom: var(--rodando-veu);
+  --borda-tom: var(--rodando-borda);
+  --brilho-tom: var(--brilho-forma) color-mix(in srgb, var(--rodando) 70%, transparent);
+}

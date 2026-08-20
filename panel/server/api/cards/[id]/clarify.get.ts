@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import type { ClarifyQuestion, ClarifyResponse } from '#shared/types'
 
 export default defineEventHandler((event): ClarifyResponse => {
-  const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
+  const id = parseCardId(getRouterParam(event, 'id'))
+  if (!id) { setResponseStatus(event, 400); return { id: '', questions: [] } }
   const file = join(CARDS_DIR, 'runs', `${id}.clarify.json`)
   if (!existsSync(file)) return { id, questions: [] }
   try {

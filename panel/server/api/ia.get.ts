@@ -1,5 +1,4 @@
-import { agentRoles, providerNames, providerNameFor, modelFor, effortFor } from '../../../lib/ai/registry'
-import { ESFORCOS } from '../../../lib/ai/preferencias'
+import { agentRoles, providerNames, providerNameFor, modelFor, effortFor, ESFORCOS } from '../ia'
 
 export default defineEventHandler(() => ({
   provedores: providerNames(),

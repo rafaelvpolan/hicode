@@ -2,19 +2,11 @@
   "name": "hicode",
   "version": "0.1.0",
   "private": true,
+  "description": "Painel do hicode (Nuxt 4 + Vue 3) e o estado em disco (cards/, config/). O motor de execucao vive no repo hii.",
   "type": "module",
-  "bin": {
-    "hii": "bin/hii.ts",
-    "hicode": "bin/hii.ts"
-  },
   "scripts": {
     "panel": "cd panel && bun run dev",
     "panel:build": "cd panel && bun run build",
-    "runner": "bun runner.ts",
-    "init": "bun runner.ts --init",
-    "status": "bun runner.ts --status",
-    "watch": "bun runner.ts --status --watch",
-    "sync": "bun runner.ts --sync",
     "typecheck": "tsc --noEmit",
     "typecheck:panel": "cd panel && bun run typecheck",
     "lint:types": "bun scripts/check-no-any.mjs",

@@ -32,13 +32,13 @@ defineEmits<CardEditModalEmits>()
 </template>
 
 <style scoped>
-label{ display:block; font-size:12px; color:var(--mut); margin:8px 0 3px }
-input,textarea,select,button{ font:inherit; color:var(--tx); background:var(--panel2); border:1px solid var(--bd); border-radius:7px; padding:7px 10px }
+label{ display:block; font-size:12px; color:var(--texto-mudo); margin:8px 0 3px }
+input,textarea,select,button{ font:inherit; color:var(--texto); background:var(--superficie-2); border:1px solid var(--hairline); border-radius:7px; padding:7px 10px }
 input,textarea,select{ width:100% } textarea{ min-height:88px; resize:vertical }
-button{ background:var(--acc); border-color:var(--acc); color:#fff; cursor:pointer; font-weight:600 }
-button.ghost{ background:var(--panel2); border-color:var(--bd); color:var(--tx); font-weight:500 }
+button{ background:var(--acento); border-color:var(--acento); color:var(--acento-contraste); cursor:pointer; font-weight:600 }
+button.ghost{ background:var(--superficie-2); border-color:var(--hairline); color:var(--texto); font-weight:500 }
 .msg.ok{ color:var(--ok); font-size:12px; margin-top:8px }
-.modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px }
-.modal{ background:var(--panel); border:1px solid var(--bd); border-radius:12px; padding:20px; width:100%; max-width:560px; max-height:90vh; overflow:auto }
+.modal-overlay{ position:fixed; inset:0; background:var(--veu-modal); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px }
+.modal{ background:var(--superficie); border:1px solid var(--hairline); border-radius:12px; padding:20px; width:100%; max-width:560px; max-height:90vh; overflow:auto }
 .modal h3{ margin:0 0 12px } .modal-actions{ display:flex; gap:8px; margin-top:14px }
 </style>

@@ -19,6 +19,6 @@
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["runner.ts", "bin/**/*.ts", "lib/**/*.ts", "test/**/*.ts"],
+  "include": ["test/**/*.ts"],
   "exclude": ["node_modules"]
 }

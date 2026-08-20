@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import type { Attempt, AttemptsResponse } from '#shared/types'
 
 export default defineEventHandler((event): AttemptsResponse => {
-  const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
+  const id = parseCardId(getRouterParam(event, 'id'))
+  if (!id) { setResponseStatus(event, 400); return { id: '', attempts: [] } }
   const file = join(CARDS_DIR, 'runs', `${id}.attempts.json`)
   if (!existsSync(file)) return { id, attempts: [] }
   try {

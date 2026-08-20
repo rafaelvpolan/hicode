@@ -1,9 +1,10 @@
 import { computed, type ComputedRef, type Ref } from 'vue'
 import type { CardStatus, CardView, Kpi, RunView } from '#shared/types'
+import { aguardaAprovacaoDeUrl, statusDoMotor } from '#shared/status'
 
 export const PHASES: [CardStatus, string][] = [
-  ['READY', 'Fila'], ['EXECUTING', 'Executando'], ['EXECUTED', 'Feito'], ['PREVIEW', 'Preview'],
-  ['PREVIEW_OK', 'Aprovado'], ['REFINED', 'Arquitetura'], ['TESTS_GREEN', 'Testes'],
+  ['READY', 'Fila'], ['EXECUTING', 'Executando'], ['EXECUTED', 'Feito'], ['URL', 'URL'],
+  ['URL_OK', 'Aprovado'], ['REFINED', 'Arquitetura'], ['TESTS_GREEN', 'Testes'],
   ['SEC_CLEARED', 'Segurança'], ['REVIEWED', 'Review'], ['CLEANED', 'Limpeza'],
   ['PR_OPEN', 'PR'], ['MERGED', 'Merge'], ['DEPLOYED', 'Deploy'],
 ]
@@ -14,7 +15,7 @@ export const IN_PROGRESS: CardStatus[] = [
 ]
 
 export const ACTIVE_STATUSES: CardStatus[] = [
-  'EXECUTING', 'WAITING', 'CORRECTING', 'SPECCED', 'PREVIEW_OK', 'REFINED', 'TESTS_GREEN',
+  'EXECUTING', 'WAITING', 'CORRECTING', 'SPECCED', 'URL_OK', 'REFINED', 'TESTS_GREEN',
   'SEC_CLEARED', 'REVIEWED', 'CLEANED',
 ]
 
@@ -25,7 +26,7 @@ export interface StepListItem {
 
 export const STEP_LIST: StepListItem[] = [
   { k: 'Fila', l: 'Fila' }, { k: 'Executando', l: 'Executando' }, { k: 'Feito', l: 'Feito' },
-  { k: 'Preview', l: 'Preview' }, { k: 'Aprovado', l: 'Aprovado' }, { k: 'Arquitetura', l: 'Arquitetura' },
+  { k: 'Url', l: 'URL' }, { k: 'Aprovado', l: 'Aprovado' }, { k: 'Arquitetura', l: 'Arquitetura' },
   { k: 'Testes', l: 'Testes' }, { k: 'Seguranca', l: 'Segurança' }, { k: 'Review', l: 'Review' }, { k: 'Limpeza', l: 'Limpeza' },
   { k: 'Reajuste', l: 'Reajuste' }, { k: 'Conflito', l: 'Conflito' }, { k: 'Revalidacao', l: 'Revalidação' },
   { k: 'Codefox', l: 'Codefox' },
@@ -40,14 +41,18 @@ export const RESUME_STEP_BY_STATUS: Record<string, string> = {
 }
 
 const PHASE_STATUS_ALIAS: Partial<Record<CardStatus, CardStatus>> = {
+  INBOX: 'READY',
+  CLARIFY: 'READY',
   SPECCED: 'EXECUTING',
   PLAN_APPROVED: 'EXECUTING',
   CORRECTING: 'EXECUTING',
   WAITING: 'EXECUTING',
+  PAUSED: 'EXECUTING',
 }
 
 export function phaseIdx(status: CardStatus): number {
-  const aliased = PHASE_STATUS_ALIAS[status] ?? status
+  const canonico = statusDoMotor(status)
+  const aliased = PHASE_STATUS_ALIAS[canonico] ?? canonico
   return PHASES.findIndex((p) => p[0] === aliased)
 }
 
@@ -70,7 +75,7 @@ export function usePhases(cards: Ref<CardView[]>, runs: Ref<RunView[]>): {
       { l: 'total', v: String(c.length), k: '' },
       { l: 'na sprint', v: String(n('READY')), k: '' },
       { l: 'em andamento', v: String(c.filter((x) => IN_PROGRESS.includes(x.status)).length), k: '' },
-      { l: 'preview', v: String(n('PREVIEW')), k: 'warn' },
+      { l: 'aguardando url', v: String(c.filter((x) => aguardaAprovacaoDeUrl(x.status)).length), k: 'warn' },
       { l: 'PR aberto', v: String(n('PR_OPEN')), k: 'warn' },
       { l: 'HALTED', v: String(n('HALTED')), k: 'bad' },
       { l: 'tokens (total)', v: tokens.toLocaleString('pt-BR'), k: 'ok' },

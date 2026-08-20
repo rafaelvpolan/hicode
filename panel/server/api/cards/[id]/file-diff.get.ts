@@ -34,9 +34,10 @@ async function statusFor(cwd: string, diffRange: string, path: string): Promise<
 }
 
 export default defineEventHandler(async (event): Promise<FileDiffResponse> => {
-  const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
+  const id = parseCardId(getRouterParam(event, 'id'))
   const path = String(getQuery(event).path || '')
 
+  if (!id) return { path, status: '', before: '', after: '', error: 'id inválido' }
   if (isUnsafePath(path)) return { path, status: '', before: '', after: '', error: 'path inválido' }
 
   const card = readCards().find(c => c.id === id)
