@@ -35,11 +35,11 @@ defineEmits<CardRejectModalEmits>()
 </template>
 
 <style scoped>
-label{ display:block; font-size:12px; color:var(--mut); margin:8px 0 3px }
-textarea{ font:inherit; color:var(--tx); background:var(--panel2); border:1px solid var(--bd); border-radius:7px; padding:7px 10px; width:100%; min-height:110px; resize:vertical }
-button{ font:inherit; color:#fff; background:var(--acc); border:1px solid var(--acc); border-radius:7px; padding:7px 10px; cursor:pointer; font-weight:600 }
-button.ghost{ background:var(--panel2); border-color:var(--bd); color:var(--tx); font-weight:500 }
-.modal-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px }
-.modal{ background:var(--panel); border:1px solid var(--bd); border-radius:12px; padding:20px; width:100%; max-width:560px; max-height:90vh; overflow:auto }
+label{ display:block; font-size:12px; color:var(--texto-mudo); margin:8px 0 3px }
+textarea{ font:inherit; color:var(--texto); background:var(--superficie-2); border:1px solid var(--hairline); border-radius:7px; padding:7px 10px; width:100%; min-height:110px; resize:vertical }
+button{ font:inherit; color:var(--acento-contraste); background:var(--acento); border:1px solid var(--acento); border-radius:7px; padding:7px 10px; cursor:pointer; font-weight:600 }
+button.ghost{ background:var(--superficie-2); border-color:var(--hairline); color:var(--texto); font-weight:500 }
+.modal-overlay{ position:fixed; inset:0; background:var(--veu-modal); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px }
+.modal{ background:var(--superficie); border:1px solid var(--hairline); border-radius:12px; padding:20px; width:100%; max-width:560px; max-height:90vh; overflow:auto }
 .modal h3{ margin:0 0 12px } .modal-actions{ display:flex; gap:8px; margin-top:14px }
 </style>

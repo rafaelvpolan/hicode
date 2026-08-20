@@ -115,56 +115,56 @@ function handleClose(): void {
 
 <style scoped>
 .review-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 200;
+  position: fixed; inset: 0; background: var(--veu-modal); z-index: 200;
   display: flex; align-items: stretch; justify-content: flex-end;
 }
 .review-panel {
-  background: var(--panel); border-left: 1px solid var(--bd); width: min(920px, 100%);
+  background: var(--superficie); border-left: 1px solid var(--hairline); width: min(920px, 100%);
   height: 100%; overflow: auto; padding: 20px 22px 40px;
 }
-.review-header { border-bottom: 1px solid var(--bd); padding-bottom: 12px; margin-bottom: 16px; }
+.review-header { border-bottom: 1px solid var(--hairline); padding-bottom: 12px; margin-bottom: 16px; }
 .review-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .review-title-row h3 { margin: 0; font-size: 17px; }
-.reason { color: var(--mut); font-size: 13px; margin: 8px 0 0; }
+.reason { color: var(--texto-mudo); font-size: 13px; margin: 8px 0 0; }
 .source-badge {
   font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
-  border: 1px solid var(--bd); text-transform: uppercase; color: var(--mut);
+  border: 1px solid var(--hairline); text-transform: uppercase; color: var(--texto-mudo);
 }
-.source-badge.pr { color: var(--acc); border-color: color-mix(in srgb, var(--acc) 45%, transparent); }
+.source-badge.pr { color: var(--acento); border-color: color-mix(in srgb, var(--acento) 45%, transparent); }
 .verdict-badge {
   font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
-  border: 1px solid var(--bd); text-transform: uppercase;
+  border: 1px solid var(--hairline); text-transform: uppercase;
 }
 .verdict-badge.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
-.verdict-badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
-.verdict-badge.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
-.verdict-badge.neutral { color: var(--mut); }
+.verdict-badge.warn { color: var(--atencao); border-color: color-mix(in srgb, var(--atencao) 50%, transparent); }
+.verdict-badge.bad { color: var(--falha); border-color: color-mix(in srgb, var(--falha) 50%, transparent); }
+.verdict-badge.neutral { color: var(--texto-mudo); }
 .preview-jump {
-  font: inherit; font-size: 11.5px; font-weight: 600; color: var(--acc);
-  background: transparent; border: 1px solid color-mix(in srgb, var(--acc) 45%, transparent);
+  font: inherit; font-size: 11.5px; font-weight: 600; color: var(--acento);
+  background: transparent; border: 1px solid color-mix(in srgb, var(--acento) 45%, transparent);
   border-radius: 7px; padding: 3px 9px; cursor: pointer;
 }
-.auto-refresh { font-size: 11px; color: var(--mut); margin-left: auto; }
+.auto-refresh { font-size: 11px; color: var(--texto-mudo); margin-left: auto; }
 .close-btn {
-  font: inherit; background: var(--panel2); color: var(--tx); border: 1px solid var(--bd);
+  font: inherit; background: var(--superficie-2); color: var(--texto); border: 1px solid var(--hairline);
   border-radius: 7px; padding: 4px 10px; cursor: pointer;
 }
-.loading, .error, .empty { color: var(--mut); font-size: 13px; padding: 12px 0; }
-.error { color: var(--bad); }
+.loading, .error, .empty { color: var(--texto-mudo); font-size: 13px; padding: 12px 0; }
+.error { color: var(--falha); }
 .questions { margin-bottom: 18px; }
 .questions h4, .files-section h4 {
-  font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--mut); margin: 0 0 8px;
+  font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--texto-mudo); margin: 0 0 8px;
 }
 .questions ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .questions label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .phase-group { margin-bottom: 16px; }
 .phase-label {
   font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
-  color: var(--acc); margin-bottom: 6px;
+  color: var(--acento); margin-bottom: 6px;
 }
-.review-footer { margin-top: 20px; border-top: 1px solid var(--bd); padding-top: 14px; }
+.review-footer { margin-top: 20px; border-top: 1px solid var(--hairline); padding-top: 14px; }
 .pr-link {
-  background: var(--acc); border: 1px solid var(--acc); color: #fff; padding: 7px 14px;
+  background: var(--acento); border: 1px solid var(--acento); color: var(--acento-contraste); padding: 7px 14px;
   border-radius: 8px; font-weight: 600; font-size: 13px;
 }
 .pr-link:hover { text-decoration: none; }

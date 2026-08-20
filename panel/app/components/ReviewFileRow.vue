@@ -131,40 +131,40 @@ function submit(): void {
 </template>
 
 <style scoped>
-.file-row { border: 1px solid var(--bd); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+.file-row { border: 1px solid var(--hairline); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
 .file-summary {
   display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-  background: var(--panel2); border: none; border-radius: 0; padding: 8px 12px; cursor: pointer;
+  background: var(--superficie-2); border: none; border-radius: 0; padding: 8px 12px; cursor: pointer;
 }
 .file-status { font-family: monospace; font-weight: 700; width: 16px; text-align: center; border-radius: 4px; font-size: 11px; }
-.file-status.a { color: var(--ok); } .file-status.m { color: var(--warn); }
-.file-status.d { color: var(--bad); } .file-status.r { color: var(--acc); }
-.file-path { font-family: monospace; font-size: 14px; color: #fff; flex: 1; }
-.file-caret { color: var(--mut); font-size: 11px; }
-.file-body { padding: 10px 12px; background: var(--bg); }
-.file-loading, .file-error { color: var(--mut); font-size: 12.5px; padding: 10px 0; }
-.file-error { color: var(--bad); }
+.file-status.a { color: var(--ok); } .file-status.m { color: var(--atencao); }
+.file-status.d { color: var(--falha); } .file-status.r { color: var(--acento); }
+.file-path { font-family: monospace; font-size: 14px; color: var(--texto); flex: 1; }
+.file-caret { color: var(--texto-mudo); font-size: 11px; }
+.file-body { padding: 10px 12px; background: var(--fundo); }
+.file-loading, .file-error { color: var(--texto-mudo); font-size: 12.5px; padding: 10px 0; }
+.file-error { color: var(--falha); }
 .correct-box { margin-top: 10px; }
-.correct-box-label { font-size: 10.5px; color: var(--mut); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
+.correct-box-label { font-size: 10.5px; color: var(--texto-mudo); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
 .correct-box textarea, .line-correct-box textarea {
-  width: 100%; font: inherit; font-size: 12.5px; color: var(--tx); background: var(--panel2);
-  border: 1px solid var(--bd); border-radius: 7px; padding: 8px 10px; resize: vertical;
+  width: 100%; font: inherit; font-size: 12.5px; color: var(--texto); background: var(--superficie-2);
+  border: 1px solid var(--hairline); border-radius: 7px; padding: 8px 10px; resize: vertical;
 }
 .line-correct-box {
-  margin-top: 10px; padding: 10px; border: 1px solid var(--acc); border-radius: 8px;
-  background: color-mix(in srgb, var(--acc) 8%, var(--panel2));
+  margin-top: 10px; padding: 10px; border: 1px solid var(--acento); border-radius: 8px;
+  background: color-mix(in srgb, var(--acento) 8%, var(--superficie-2));
 }
-.line-anchor { font-size: 12px; color: var(--acc); font-weight: 600; margin-bottom: 6px; }
-.line-anchor code { font-family: monospace; color: var(--tx); font-weight: 400; }
+.line-anchor { font-size: 12px; color: var(--acento); font-weight: 600; margin-bottom: 6px; }
+.line-anchor code { font-family: monospace; color: var(--texto); font-weight: 400; }
 .correct-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; margin-top: 6px; }
-.correcting-flag { color: var(--acc); font-size: 12px; font-weight: 600; }
-.correct-hint { color: var(--mut); font-size: 11.5px; margin-right: auto; }
+.correcting-flag { color: var(--acento); font-size: 12px; font-weight: 600; }
+.correct-hint { color: var(--texto-mudo); font-size: 11.5px; margin-right: auto; }
 .correct-actions button {
-  font: inherit; font-weight: 600; color: #fff; background: var(--acc); border: 1px solid var(--acc);
+  font: inherit; font-weight: 600; color: var(--acento-contraste); background: var(--acento); border: 1px solid var(--acento);
   border-radius: 7px; padding: 6px 14px; cursor: pointer;
 }
 .correct-actions button.ghost {
-  background: var(--panel2); border-color: var(--bd); color: var(--tx); font-weight: 500;
+  background: var(--superficie-2); border-color: var(--hairline); color: var(--texto); font-weight: 500;
 }
 .correct-actions button:disabled { opacity: .5; cursor: not-allowed; }
 </style>

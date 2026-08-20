@@ -52,15 +52,15 @@ function submit(): void {
 </template>
 
 <style scoped>
-.clarify{ margin:8px 0; padding:10px 12px; border:1px solid color-mix(in srgb,var(--acc) 45%,transparent); border-radius:8px; background:color-mix(in srgb,var(--acc) 8%,transparent) }
-.clarify-head{ color:var(--acc); font-weight:700; margin-bottom:8px }
-.clarify-loading{ color:var(--mut); font-size:13px }
-.clarify-q{ border:1px solid var(--bd); border-radius:7px; padding:8px 10px; margin:0 0 8px; display:flex; flex-direction:column; gap:6px }
-.clarify-q legend{ padding:0 4px; color:var(--tx); font-weight:600; font-size:13px }
-.clarify-opt{ display:flex; align-items:center; gap:7px; font-size:13px; color:var(--tx); cursor:pointer }
-.clarify-opt input{ accent-color:var(--acc); width:15px; height:15px; margin:0 }
+.clarify{ margin:8px 0; padding:10px 12px; border:1px solid color-mix(in srgb,var(--acento) 45%,transparent); border-radius:8px; background:color-mix(in srgb,var(--acento) 8%,transparent) }
+.clarify-head{ color:var(--acento); font-weight:700; margin-bottom:8px }
+.clarify-loading{ color:var(--texto-mudo); font-size:13px }
+.clarify-q{ border:1px solid var(--hairline); border-radius:7px; padding:8px 10px; margin:0 0 8px; display:flex; flex-direction:column; gap:6px }
+.clarify-q legend{ padding:0 4px; color:var(--texto); font-weight:600; font-size:13px }
+.clarify-opt{ display:flex; align-items:center; gap:7px; font-size:13px; color:var(--texto); cursor:pointer }
+.clarify-opt input{ accent-color:var(--acento); width:15px; height:15px; margin:0 }
 .clarify-rec{ font-size:10px; color:var(--ok); border:1px solid color-mix(in srgb,var(--ok) 45%,transparent); border-radius:5px; padding:1px 6px; text-transform:uppercase; letter-spacing:.02em }
 .clarify-actions{ display:flex; margin-top:10px }
-.clarify-actions button{ background:var(--acc); border:1px solid var(--acc); color:#fff; padding:7px 14px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer }
+.clarify-actions button{ background:var(--acento); border:1px solid var(--acento); color:var(--acento-contraste); padding:7px 14px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer }
 .clarify-actions button:hover{ filter:brightness(1.08) }
 </style>

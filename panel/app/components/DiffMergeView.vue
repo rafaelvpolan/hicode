@@ -92,7 +92,7 @@ onBeforeUnmount(() => {
 .diff-merge-view {
   height: 65vh;
   overflow: auto;
-  border: 1px solid var(--bd);
+  border: 1px solid var(--hairline);
   border-radius: 8px;
 }
 

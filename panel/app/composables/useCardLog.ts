@@ -1,8 +1,9 @@
 import { computed, onScopeDispose, ref, watch, type ComputedRef, type Ref } from 'vue'
 import type { CardStatus, LogResponse } from '#shared/types'
 import { ACTIVE_STATUSES } from './usePhases'
+import { useFluxoDoMotor } from './useFluxoDoMotor'
 
-const POLL_INTERVAL_MS = 2000
+const POLL_DE_SEGURANCA_MS = 10000
 
 export type CardLogSource = 'estado' | 'ia'
 
@@ -29,6 +30,8 @@ export function useCardLog(cardId: Ref<string>, status: Ref<CardStatus>): UseCar
   const open = ref(false)
   const source = ref<CardLogSource>('estado')
   const text = ref('')
+  const { porCard } = useFluxoDoMotor()
+  const versaoAoVivoDoCard = computed(() => porCard.value.get(cardId.value)?.versao ?? 0)
   let timer: ReturnType<typeof setInterval> | null = null
 
   async function fetchLog(): Promise<void> {
@@ -49,10 +52,11 @@ export function useCardLog(cardId: Ref<string>, status: Ref<CardStatus>): UseCar
     stopPolling()
     if (!shouldPoll) return
     fetchLog()
-    timer = setInterval(fetchLog, POLL_INTERVAL_MS)
+    timer = setInterval(fetchLog, POLL_DE_SEGURANCA_MS)
   }
 
   watch(isPolling, syncPolling)
+  watch(versaoAoVivoDoCard, () => { if (isPolling.value) void fetchLog() })
   watch(status, (next, prev) => {
     if (ACTIVE_STATUSES.includes(next) && !ACTIVE_STATUSES.includes(prev)) {
       open.value = true

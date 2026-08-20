@@ -67,8 +67,7 @@ function handleFileChange(event: Event): void {
 </script>
 
 <template>
-  <section class="card-sec">
-    <h2>Sprint — feature</h2>
+  <div class="conteudo">
     <label>Repositório</label>
     <select :value="sprintRepo" @change="$emit('update:sprintRepo', ($event.target as HTMLSelectElement).value)">
       <option v-if="!repos.length" value="">(adicione um repo)</option>
@@ -125,20 +124,19 @@ function handleFileChange(event: Event): void {
 
     <div class="row mt"><button @click="$emit('createSprint')">criar card da sprint</button></div>
     <div class="msg">{{ sprintMsg }}</div>
-  </section>
+  </div>
 </template>
 
 <style scoped>
-.card-sec{ background:var(--panel); border:1px solid var(--bd); border-radius:10px; padding:16px }
-.card-sec h2{ font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); margin:0 0 12px }
-label{ display:block; font-size:12px; color:var(--mut); margin:8px 0 3px }
-input,textarea,select,button{ font:inherit; color:var(--tx); background:var(--panel2); border:1px solid var(--bd); border-radius:7px; padding:7px 10px }
+.conteudo{ display:flex; flex-direction:column; gap:var(--esp-3) }
+label{ display:block; font-size:12px; color:var(--texto-mudo); margin:8px 0 3px }
+input,textarea,select,button{ font:inherit; color:var(--texto); background:var(--superficie-2); border:1px solid var(--hairline); border-radius:7px; padding:7px 10px }
 textarea,select{ width:100% } textarea{ min-height:88px; resize:vertical }
-button{ background:var(--acc); border-color:var(--acc); color:#fff; cursor:pointer; font-weight:600 }
-button.ghost{ background:var(--panel2); border-color:var(--bd); color:var(--tx); font-weight:500 }
+button{ background:var(--acento); border-color:var(--acento); color:var(--acento-contraste); cursor:pointer; font-weight:600 }
+button.ghost{ background:var(--superficie-2); border-color:var(--hairline); color:var(--texto); font-weight:500 }
 button:disabled{ opacity:.5; cursor:not-allowed }
 .row{ display:flex; gap:8px; flex-wrap:wrap } .row.mt{ margin-top:10px }
-.msg{ font-size:12px; min-height:16px; margin-top:8px; color:var(--mut) }
+.msg{ font-size:12px; min-height:16px; margin-top:8px; color:var(--texto-mudo) }
 .refs-add{ margin-top:8px }
 .refs-linkrow{ display:flex; gap:6px }
 .refs-linkrow input{ flex:1; min-width:0 }
@@ -146,18 +144,18 @@ button:disabled{ opacity:.5; cursor:not-allowed }
 .staged-grid{ list-style:none; display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 0; padding:0 }
 .staged-chip{
   position:relative; display:flex; align-items:center; max-width:180px;
-  background:var(--panel2); border:1px solid var(--bd); border-radius:7px; padding:6px 22px 6px 10px;
+  background:var(--superficie-2); border:1px solid var(--hairline); border-radius:7px; padding:6px 22px 6px 10px;
 }
 .staged-chip-text{ font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-.staged-thumb{ position:relative; width:56px; height:56px; border-radius:8px; overflow:hidden; border:1px solid var(--bd) }
+.staged-thumb{ position:relative; width:56px; height:56px; border-radius:8px; overflow:hidden; border:1px solid var(--hairline) }
 .staged-thumb img{ width:100%; height:100%; object-fit:cover; display:block }
 .staged-remove{
   position:absolute; top:2px; right:2px; width:18px; height:18px; line-height:1; padding:0;
   display:flex; align-items:center; justify-content:center;
-  font-size:10px; font-weight:700; color:#fff; background:rgba(0,0,0,.55);
+  font-size:10px; font-weight:700; color:var(--texto); background:var(--veu-legenda);
   border:none; border-radius:50%; cursor:pointer;
 }
-.staged-chip .staged-remove{ position:static; margin-left:6px; background:transparent; color:var(--mut) }
-.staged-chip .staged-remove:hover{ color:var(--bad) }
-.staged-thumb .staged-remove:hover{ background:var(--bad) }
+.staged-chip .staged-remove{ position:static; margin-left:6px; background:transparent; color:var(--texto-mudo) }
+.staged-chip .staged-remove:hover{ color:var(--falha) }
+.staged-thumb .staged-remove:hover{ background:var(--falha) }
 </style>
