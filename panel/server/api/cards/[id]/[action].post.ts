@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CardActionResponse, CardRisk } from '#shared/types'
+import { STATUS_URL_APROVADA, STATUS_URL_PENDENTE, aguardaAprovacaoDeUrl, estaEncerrado, paraCardStatus, podeReexecutarEtapa } from '#shared/status'
 
 const VALID_RESUME_STEPS = new Set(['Arquitetura', 'Testes', 'Seguranca', 'Review', 'Limpeza'])
 
@@ -18,7 +19,8 @@ interface CardActionBody {
 }
 
 export default defineEventHandler(async (event): Promise<CardActionResponse> => {
-  const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
+  const id = parseCardId(getRouterParam(event, 'id'))
+  if (!id) { setResponseStatus(event, 400); return { error: 'id invalido' } }
   const action = getRouterParam(event, 'action')
   const b = await readBody<CardActionBody>(event).catch(() => ({}) as CardActionBody)
   let card = null
@@ -27,16 +29,16 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
   else if (action === 'resume') card = transition(id, 'EXECUTING', 'retomado pelo painel')
   else if (action === 'approve') {
     const cur = readCards().find(c => c.id === id)
-    if (cur && cur.status !== 'PREVIEW') { setResponseStatus(event, 409); return { error: 'só dá pra aprovar um card em PREVIEW' } }
-    card = transition(id, 'PREVIEW_OK', 'preview aprovado')
+    if (cur && !aguardaAprovacaoDeUrl(paraCardStatus(cur.status))) { setResponseStatus(event, 409); return { error: `só dá pra aprovar um card em ${STATUS_URL_PENDENTE}` } }
+    card = transition(id, STATUS_URL_APROVADA, 'url aprovada pelo humano')
   }
   else if (action === 'reject') {
     const reason = (b?.reason || '').trim()
     const cur = readCards().find(c => c.id === id)
-    if (reason && cur && cur.status === 'PREVIEW' && cur.worktree && existsSync(join(cur.worktree, '.git'))) {
+    if (reason && cur && aguardaAprovacaoDeUrl(paraCardStatus(cur.status)) && cur.worktree && existsSync(join(cur.worktree, '.git'))) {
       card = requestCorrection(id, '', reason)
     } else {
-      card = transition(id, 'EXECUTING', reason ? `reject: ${reason} — reexecutando` : 'preview rejeitado — reexecutando')
+      card = transition(id, 'EXECUTING', reason ? `reject: ${reason} — reexecutando` : 'url rejeitada — reexecutando')
     }
   }
   else if (action === 'resolve') {
@@ -57,15 +59,26 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
   else if (action === 'replay') {
     const step = b?.step
     if (!step || !VALID_RESUME_STEPS.has(step)) { setResponseStatus(event, 400); return { error: 'step invalido' } }
+    const cur = readCards().find(c => c.id === id)
+    if (!cur) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
+    if (!podeReexecutarEtapa(paraCardStatus(cur.status))) {
+      const motivo = estaEncerrado(paraCardStatus(cur.status)) ? 'card já encerrado' : 'card ainda não chegou ao polimento'
+      setResponseStatus(event, 409)
+      return { error: `repetir passo só em card no polimento — ${motivo} (${cur.status}); repetir o jogaria em ${STATUS_URL_APROVADA} e o motor o retomaria` }
+    }
+    if (!cur.worktree || !existsSync(join(cur.worktree, '.git'))) {
+      setResponseStatus(event, 409)
+      return { error: 'sem worktree ativo — o motor pararia em HALTED ao retomar' }
+    }
     card = resumeFrom(id, step)
   } else if (action === 'correct') {
     const instruction = (b?.instruction || '').trim()
     if (!instruction) { setResponseStatus(event, 400); return { error: 'instrução vazia' } }
     const cur = readCards().find(c => c.id === id)
     if (!cur) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
-    if (cur.status !== 'PREVIEW' || !cur.worktree || !existsSync(join(cur.worktree, '.git'))) {
+    if (!aguardaAprovacaoDeUrl(paraCardStatus(cur.status)) || !cur.worktree || !existsSync(join(cur.worktree, '.git'))) {
       setResponseStatus(event, 409)
-      return { error: 'correção só no preview com worktree ativo — aprove/rejeite este card ou use /codefox no PR' }
+      return { error: 'correção só na url ao vivo com worktree ativo — aprove/rejeite este card ou use /codefox no PR' }
     }
     const line = typeof b?.line === 'number' && b.line > 0 ? String(b.line) : ''
     card = requestCorrection(id, (b?.file || '').trim(), instruction, line, (b?.lineContent || '').slice(0, 300))

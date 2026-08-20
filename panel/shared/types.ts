@@ -1,6 +1,6 @@
 export type CardStatus =
   | 'INBOX' | 'READY' | 'CLARIFY' | 'SPECCED' | 'PLAN_APPROVED' | 'EXECUTING' | 'PAUSED' | 'WAITING'
-  | 'EXECUTED' | 'PREVIEW' | 'CORRECTING' | 'PREVIEW_OK' | 'REFINED' | 'TESTS_GREEN'
+  | 'EXECUTED' | 'PREVIEW' | 'URL' | 'CORRECTING' | 'PREVIEW_OK' | 'URL_OK' | 'REFINED' | 'TESTS_GREEN'
   | 'SEC_CLEARED' | 'REVIEWED' | 'CLEANED' | 'PR_OPEN' | 'MERGED' | 'DEPLOYED' | 'HALTED'
 
 export type CardRisk = 'low' | 'high'
@@ -41,6 +41,7 @@ export interface StepMetric {
   time: number
   cost: number
   tokens: number
+  costMeasured?: boolean
 }
 
 export interface RunView {
@@ -225,6 +226,11 @@ export interface ResetPreviewResponse {
   hard: boolean
 }
 
+export interface PreviewShotResponse {
+  ok: true
+  captured: boolean
+}
+
 export interface ClarifyQuestion {
   q: string
   options: string[]
@@ -242,3 +248,8 @@ export interface RefsResponse {
   refs: string[]
   error?: string
 }
+
+export type * from './servicos'
+export type * from './motor'
+export type * from './pipeline'
+export type * from './historico'

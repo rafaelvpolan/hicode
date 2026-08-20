@@ -23,7 +23,8 @@ function tailFile(path: string, maxBytes: number): string {
 }
 
 export default defineEventHandler((event): LogResponse => {
-  const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
+  const id = parseCardId(getRouterParam(event, 'id'))
+  if (!id) { setResponseStatus(event, 400); return { id: '', log: '', error: 'id invalido' } }
   const file = join(CARDS_DIR, 'runs', `${id}.live.log`)
   if (!existsSync(file)) return { id, log: '' }
   try {

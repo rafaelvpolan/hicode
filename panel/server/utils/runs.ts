@@ -1,23 +1,29 @@
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
 import type { RunView } from '#shared/types'
-import { CARDS_DIR, readCards } from './card-io'
+import { readCards } from './card-io'
+import { lerExecucoes, type ExecucaoEmDisco } from '../motor/execucoes'
 
-type StoredRun = Omit<RunView, 'title' | 'cost_measured'> & { id: string; cost_measured?: boolean }
+function paraRunView(execucao: ExecucaoEmDisco, titleById: Record<string, string>): RunView {
+  return {
+    id: execucao.cardId,
+    ts: execucao.ts,
+    title: titleById[execucao.cardId] || ('#' + execucao.cardId),
+    tokens_total: execucao.tokensTotal,
+    cost_usd: execucao.custoUsd,
+    cost_measured: execucao.custoMedido,
+    duration_s: execucao.duracaoS,
+    steps: execucao.steps ?? undefined,
+  }
+}
 
 export function getRuns(): RunView[] {
-  const dir = join(CARDS_DIR, 'runs')
-  if (!existsSync(dir)) return []
   const titleById: Record<string, string> = {}
   for (const c of readCards()) titleById[c.id] = c.title || c.slug || ''
-  const out = readdirSync(dir).filter((f) => f.endsWith('.json')).map((f): RunView | null => {
-    try {
-      const r = JSON.parse(readFileSync(join(dir, f), 'utf8')) as StoredRun
-      return { ...r, cost_measured: r.cost_measured !== false, title: titleById[r.id] || ('#' + r.id) }
-    } catch { return null }
-  }).filter((r): r is RunView => r !== null)
-  out.sort((a, b) => String(a.ts).localeCompare(String(b.ts)))
-  return out
+  const { execucoes } = lerExecucoes()
+  const runs = execucoes
+    .filter(execucao => execucao.tipo === 'execucao')
+    .map(execucao => paraRunView(execucao, titleById))
+  runs.sort((a, b) => a.ts.localeCompare(b.ts))
+  return runs
 }
 
 export function getStepEstimates(): Record<string, number> {

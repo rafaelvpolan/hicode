@@ -40,11 +40,11 @@ function hardClean(worktree: string): void {
 }
 
 function freePort(port: number): void {
-  try { spawnSync('bash', ['-c', `fuser -k ${port}/tcp 2>/dev/null; exit 0`], { timeout: 8000 }) } catch { void 0 }
+  try { spawnSync('fuser', ['-k', `${port}/tcp`], { timeout: 8000, stdio: 'ignore' }) } catch { void 0 }
 }
 
 function startDevServer(worktree: string, port: number): number {
-  const child = spawn('npm', ['run', 'dev', '--', '--port', String(port), '--strictPort', '--host'], { cwd: worktree, detached: true, stdio: 'ignore' })
+  const child = spawn('npm', ['run', 'dev', '--', '--port', String(port), '--strictPort'], { cwd: worktree, detached: true, stdio: 'ignore' })
   child.unref()
   return child.pid || 0
 }
@@ -66,7 +66,8 @@ async function waitForDown(url: string, tries: number): Promise<boolean> {
 }
 
 export default defineEventHandler(async (event): Promise<ResetPreviewResponse | ApiError> => {
-  const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
+  const id = parseCardId(getRouterParam(event, 'id'))
+  if (!id) { setResponseStatus(event, 400); return { error: 'id invalido' } }
   const card = readCards().find((c) => c.id === id)
   if (!card) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
 

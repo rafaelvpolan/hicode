@@ -17,7 +17,8 @@ async function collectUploadedPaths(event: H3Event, id: string): Promise<string[
 }
 
 export default defineEventHandler(async (event): Promise<RefsResponse> => {
-  const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
+  const id = parseCardId(getRouterParam(event, 'id'))
+  if (!id) { setResponseStatus(event, 400); return { id: '', refs: [], error: 'id invalido' } }
 
   if (isMultipartRequest(event)) {
     const paths = await collectUploadedPaths(event, id)

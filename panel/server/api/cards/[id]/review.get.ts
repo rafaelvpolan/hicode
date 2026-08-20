@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
 import type { CardStatus, ReviewChangedFile, ReviewResponse } from '#shared/types'
+import { aguardaAprovacaoDeUrl, paraCardStatus } from '#shared/status'
 
 interface ExecResult {
   ok: boolean
@@ -92,7 +93,8 @@ async function changedFiles(cwd: string, range: string, diffRange: string): Prom
 }
 
 export default defineEventHandler(async (event): Promise<ReviewResponse> => {
-  const id = String(getRouterParam(event, 'id') || '').padStart(3, '0')
+  const id = parseCardId(getRouterParam(event, 'id'))
+  if (!id) return emptyReview('', 'id invalido')
   const card = readCards().find(c => c.id === id)
   if (!card) return emptyReview(id, 'card não encontrado')
 
@@ -132,6 +134,6 @@ export default defineEventHandler(async (event): Promise<ReviewResponse> => {
     questions: parseQuestions(card.review_questions || ''),
     files,
     correcting: card.status === 'CORRECTING',
-    canCorrect: source === 'wip' && card.status === 'PREVIEW',
+    canCorrect: source === 'wip' && aguardaAprovacaoDeUrl(paraCardStatus(card.status)),
   }
 })

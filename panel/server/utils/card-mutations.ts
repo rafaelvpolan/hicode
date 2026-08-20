@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CardRecord, CardRisk, CardStatus, CreatedCardRef } from '#shared/types'
-import type { Fields } from '../../../lib/card'
-import * as core from '../../../lib/core/actions'
+import type { Fields } from '../card'
+import * as core from '../card/acoes'
 import { CARDS_DIR, ensure } from './card-io'
 
 function record(fields: Fields | null): CardRecord | null {

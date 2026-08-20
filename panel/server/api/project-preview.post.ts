@@ -27,7 +27,7 @@ function checkoutBranch(cwd: string, branch: string): boolean {
 }
 
 function startDev(cwd: string, port: number): void {
-  const child = spawn('npm', ['run', 'dev', '--', '--port', String(port), '--host'], { cwd, detached: true, stdio: 'ignore' })
+  const child = spawn('npm', ['run', 'dev', '--', '--port', String(port)], { cwd, detached: true, stdio: 'ignore' })
   child.unref()
 }
 
