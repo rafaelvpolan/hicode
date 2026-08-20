@@ -50,7 +50,7 @@ test('REGRESSAO o guarda enxerga subpasta — mover teste para test/hii/ nao pod
   const sub = join(DIR, '__prova_subpasta__')
   const arquivo = join(sub, 'plantado.test.ts')
   mkdirSync(sub, { recursive: true })
-  writeFileSync(arquivo, "import { createCard } from '../../lib/runner/card-store'\ncreateCard({}, '')\n")
+  writeFileSync(arquivo, "import { createCard } from '../../panel/server/card'\ncreateCard({}, '')\n")
   try {
     const achados = arquivosDeTeste()
     expect(achados.some(f => f.endsWith('plantado.test.ts')), 'o guarda nao enxergou a subpasta').toBe(true)
