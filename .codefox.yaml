@@ -10,9 +10,9 @@
 
 project:
   name: "hicode"
-  stack: "Bun + TypeScript strict (motor lib/runner); Nuxt 4 + Vue 3 Composition API + TypeScript strict (painel); Node 22; Playwright (screenshots)"
-  architecture: "Plano de controle autônomo. O card (cards/<NNN-slug>.md) é a única fonte de verdade; o motor (lib/runner, bun runner.ts) executa o pipeline em worktrees do repo-alvo; o painel Nuxt é derivado. Loop fixo: executar → preview → aprovar → qualidade → PR. Estado e custo são carimbados pelo harness lendo cards/runs/*.json em disco, nunca pela fala do modelo."
-  critical_domain: "Motor autônomo que abre PR no repo-alvo. Merge é SEMPRE humano — nada de gh pr merge no código. Erro no gate/estado corrompe o loop de todos os cards."
+  stack: "Nuxt 4 + Vue 3 Composition API + TypeScript strict (painel); Bun; Node 22; Playwright (screenshots)"
+  architecture: "Plano de controle autônomo. Este repo é o painel Nuxt mais o estado em disco (cards/, config/); o motor que executa o pipeline vive no repo irmão hii e é acionado pelo CLI dele, atrás da interface MotorClient (panel/server/motor). O card (cards/<NNN-slug>.md) é a única fonte de verdade; o painel é derivado. Loop fixo: executar → preview → aprovar → qualidade → PR. Estado e custo são carimbados lendo cards/runs/*.json em disco, nunca pela fala do modelo."
+  critical_domain: "Painel e estado compartilhado de um motor autônomo que abre PR no repo-alvo. Merge é SEMPRE humano — nada de gh pr merge no código. Escrita errada no card corrompe o loop de todos os cards."
   reference_docs:
     - "CLAUDE.md"
     - "METODOLOGIA.md"
@@ -46,11 +46,11 @@ precision:
     - "Proibido referenciar arquivos, símbolos ou linhas inexistentes no diff."
 
 priorities:
-  - "Bugs e riscos reais — lógica incorreta, null/undefined, race conditions, edge cases no motor"
+  - "Bugs e riscos reais — lógica incorreta, null/undefined, race conditions, edge cases na leitura/escrita do card"
   - "Regressões comportamentais — mudança de contrato do pipeline/estado sem intenção declarada"
-  - "Impacto operacional — worktrees, push, PR, auto-cura, sync de conflito, deploy"
+  - "Impacto operacional — disparo do motor (hii), preview, PR, sync de conflito, deploy"
   - "Segurança — segredos, escopo do cwd-guard, denylist, banco read-only"
-  - "Lacunas de teste — caminhos do motor sem cobertura (typecheck/lint contam como suíte)"
+  - "Lacunas de teste — caminhos do painel sem cobertura (typecheck/lint contam como suíte)"
   - "Manutenibilidade — conforme nitpick.level e as regras globais do hicode"
 
 severity:
@@ -78,17 +78,17 @@ path_filters:
   - "!cards/runs/**"
 
 path_instructions:
-  - path: "lib/runner/**"
+  - path: "panel/server/card/**"
     instructions: |
-      - Motor autônomo. Cada arquivo ≤ 350 linhas e nunca god-file (≥20 funções e <3 exports).
+      - Domínio card do painel. Helpers puros, tipos únicos, cada arquivo ≤ 350 linhas.
       - Tudo tipado strict; proibido `any` e `unknown` (explícito ou implícito); toda função com tipo de retorno.
       - Estado e custo são carimbados lendo disco (cards/runs/*.json), não pela fala do modelo.
-      - Merge é sempre humano: proibido `gh pr merge` no código. O fluxo termina em PR_OPEN.
-      - Toda branch parte do main atualizado (fetch origin main + ff-only, ou origin/main recém-buscado).
-  - path: "lib/card/**"
+      - Espelha o domínio equivalente no repo hii; divergência silenciosa entre os dois é regressão.
+  - path: "panel/server/motor/**"
     instructions: |
-      - Domínio card compartilhado (motor + painel). Helpers puros, tipos únicos.
-      - Sem IO de runtime acoplado aqui; resolução de ROOT/leitura de dir fica em cada lado.
+      - Única fronteira com o motor (repo hii): tudo passa por MotorClient, nada de shell solto na UI.
+      - O contrato de ambiente (HICODE_*) é declarado aqui; espelha hii/lib/runner/environment-contract.ts.
+      - Merge é sempre humano: proibido `gh pr merge` no código. O fluxo termina em PR_OPEN.
   - path: "panel/app/**"
     instructions: |
       - Vue 3 Composition API (`<script setup lang="ts">`) + composables. NUNCA React/JSX.
@@ -96,7 +96,7 @@ path_instructions:
       - Extraia lógica para composables; quebre em componentes menores.
   - path: "panel/server/**"
     instructions: |
-      - Endpoints tipados; `readBody` validado (nada de `b?.x` solto). Usa tipos de lib/card.
+      - Endpoints tipados; `readBody` validado (nada de `b?.x` solto). Usa tipos de panel/server/card.
       - Dashboard e índice são derivados dos cards; nunca co-autore o card pela API sem passar pelo mutation certo.
   - path: ".claude/hooks/**"
     instructions: |
@@ -109,7 +109,7 @@ global_rules:
   - "Arquivo de código ≤ 350 linhas e nunca god-file (≥20 funções e <3 exports). Em .vue, conta só o <script>."
   - "Tudo tipado strict; toda função com tipo de retorno; `$fetch<T>()` sempre tipado."
   - "Frontend é Vue 3 Composition API; nunca React/JSX."
-  - "Merge é sempre humano: nunca `gh pr merge` no código; o motor para em PR_OPEN."
+  - "Merge é sempre humano: nunca `gh pr merge` no código; o fluxo para em PR_OPEN."
   - "Erros: nunca capturar e silenciar; log com contexto ou HALT com motivo."
 
 never_comment:
@@ -164,11 +164,11 @@ learnings: []
 tools:
   typecheck:
     command: "bun run typecheck"
-    paths: ["runner.ts", "lib/**/*.ts", "scripts/**", "tsconfig*.json"]
+    paths: ["test/**/*.ts", "scripts/**", "tsconfig*.json"]
     timeout_seconds: 300
   lint_types:
     command: "bun run lint:types"
-    paths: ["runner.ts", "lib/**", "panel/app/**", "panel/server/**", "panel/shared/**"]
+    paths: ["panel/app/**", "panel/server/**", "panel/shared/**"]
     timeout_seconds: 180
   panel_typecheck:
     command: "bun run typecheck:panel"

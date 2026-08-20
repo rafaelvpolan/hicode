@@ -5,7 +5,9 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Runtime do harness (gerados em execução; não versionar)
+# Runtime do harness (gerados em execução; não versionar).
+# O pidfile e o lock continuam nascendo AQUI: o motor (repo hii) os resolve por
+# HICODE_RUNNER_PIDFILE/HICODE_RUNNER_LOCK, que apontam para esta raiz via .hii-env.sh.
 *.log
 .runner.pid
 .runner.pid.root
