@@ -1,8 +1,12 @@
+import type { CapacidadesHii, ConfiguracaoHii, ProvedorHii, PapelHii } from '../../shared/configuracao-hii'
 import type { Atividade, Escopo, Snapshot } from '../../shared/observabilidade'
 interface Recurso<T> { valor: T; etag: string }
 interface Projecao { atividades: Map<string, Atividade>; cursor: string; degradado: boolean }
 export declare function clienteHii(base: string, token: string): {
-  capacidades(): Promise<Recurso<{ versao: number; observabilidade?: { versoes: number[] } }>>
+  capacidades(): Promise<Recurso<CapacidadesHii>>
+  configuracao(): Promise<Recurso<ConfiguracaoHii>>
+  provedores(): Promise<Recurso<{ provedores: ProvedorHii[] }>>
+  configurar(ajuste: { versao: 1; papel: PapelHii; provider: string; model: string }, chave: string, etag: string): Promise<Recurso<ConfiguracaoHii>>
   observarSnapshot(filtro?: Partial<Escopo>, depois?: string): Promise<Recurso<Snapshot>>
   observar(filtro: Partial<Escopo>, receber: (p: Projecao) => void, falhar?: (e: Error) => void): { dispose(): void; concluido: Promise<void> }
   novaSessao(repo: string, titulo: string, chave: string): Promise<Recurso<{ id: string }>>

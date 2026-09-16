@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { enviarIntencao, lerIntencao } from '#shared/intencao'
+import type { ResultadoDoPedido } from '#shared/intencao'
 import type { Atividade, Snapshot } from '#shared/observabilidade'
 // Esta pagina nao inicia o observador legado de filesystem do layout padrao.
 definePageMeta({ layout: false })
@@ -69,6 +71,13 @@ async function carregar(): Promise<void> {
   try {
     const s = await $fetch<Snapshot & { repo: string }>('/api/hii/snapshot')
     atualizar(s); autenticado.value = true; conectar(); erro.value = ''
+    const pendente = lerIntencao(sessionStorage, repo.value)
+    if (pendente) {
+      texto.value = pendente.pedido.texto
+      modo.value = pendente.pedido.modo
+      sessao.value = pendente.pedido.sessao
+      aviso.value = 'Pedido anterior sem confirmacao. Revise e reenvie para retomar a mesma intencao.'
+    }
   } catch { erro.value = 'Entre para conectar. Se ja entrou, verifique a configuracao do backend e do motor.' }
 }
 async function entrar(): Promise<void> {
@@ -76,21 +85,25 @@ async function entrar(): Promise<void> {
   catch { erro.value = 'Nao foi possivel entrar. Confira a credencial e a configuracao do painel.' }
 }
 async function enviar(): Promise<void> {
+  if (ocupado.value) return
   ocupado.value = true; erro.value = ''; aviso.value = ''
   try {
+    const r = await enviarIntencao(sessionStorage, repo.value,
+      { texto: texto.value, modo: modo.value, sessao: sessao.value },
+      comando => $fetch<ResultadoDoPedido>('/api/hii/comando', { method: 'POST', body: comando }))
     if (modo.value === 'ask') {
-      const c = await $fetch<{ id: string }>('/api/hii/comando', { method: 'POST', body: { acao: 'perguntar', texto: texto.value, chave: crypto.randomUUID() } })
-      consulta.value = c.id; resposta.value = 'Consulta em andamento…'
+      consulta.value = r.id
+      resposta.value = 'Consulta em andamento…'
     } else {
-      if (!sessao.value) sessao.value = (await $fetch<{ id: string }>('/api/hii/comando', { method: 'POST', body: { acao: 'nova_sessao', texto: 'Sessao Hicode', chave: crypto.randomUUID() } })).id
-      const r = await $fetch<{ id: string; status: string }>('/api/hii/comando', { method: 'POST', body: { acao: 'pedido', id: sessao.value, texto: texto.value, modo: modo.value, chave: crypto.randomUUID() } })
+      sessao.value = r.sessao
       aviso.value = `Execucao #${r.id}: ${r.status}`
     }
     texto.value = ''
-  } catch { erro.value = 'Pedido nao confirmado. Reconcilie o estado antes de enviar uma nova intencao.' }
+  } catch { erro.value = 'Pedido sem confirmacao. Reenvie o mesmo pedido para consultar a intencao original com a mesma chave; nao altere o texto.' }
   finally { ocupado.value = false }
 }
 async function agir(acao: string): Promise<void> {
+  if (ocupado.value) return
   const id = detalhe.value?.execucao
   if (!id) return
   ocupado.value = true
@@ -123,6 +136,8 @@ onBeforeUnmount(() => { fonte?.close(); if (timer) clearInterval(timer) })
     <p v-if="aviso" role="status">{{ aviso }}</p>
     <form v-if="!autenticado" class="entrada" @submit.prevent="entrar"><label>Credencial do painel <input v-model="senha" type="password" autocomplete="current-password" required></label><button>Entrar</button><p>O token do motor permanece no backend.</p></form>
     <template v-else>
+      <MotorConfiguracao />
+      <p class="alerta">Conclusao do gateway indica o fim da chamada. Gates, evidencias e PR dependem da execucao orquestrada e de suas verificacoes.</p>
       <form class="pedido" @submit.prevent="enviar">
         <label>Modo <select v-model="modo"><option value="gateway">Gateway</option><option value="orquestrador">Orquestrador /hii</option><option value="ask">Pergunta · somente leitura</option></select></label>
         <label>Sessao <input v-model="sessao" placeholder="Nova automaticamente" inputmode="numeric"></label>
