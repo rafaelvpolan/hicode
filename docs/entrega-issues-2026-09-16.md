@@ -19,15 +19,37 @@ A branch e o checkout originais foram preservados.
 - Preferência de provedor não é apresentada como garantia de localidade.
   Gateway concluído não é apresentado como gates/PR aprovados.
 
+## hicode#19/#20: descoberta e proposta de produto
+
+O novo fluxo `/planejamento`, acessível pelo Motor autenticado, salva rascunhos
+e revisões de descoberta no escopo do projeto. Perguntas cobrem somente os campos
+pendentes. Hipóteses e decisões humanas ficam separadas dos fatos e das fontes.
+
+Aprovação da síntese é explícita e invalidada quando as respostas mudam.
+O épico guarda a revisão da síntese aprovada; tarefas têm IDs duráveis,
+critérios, prioridade justificada, dependências e vínculo opcional a tarefa HII
+do mesmo projeto. IDs duplicados, referências ausentes e ciclos são recusados.
+
+Persistência usa o lock e a escrita atômica existentes, revisão esperada e chave
+de intenção. Retry retorna a mesma revisão. Salvar ou aprovar não cria card de
+execução. A skill local `hicode-descobrir` orienta o mesmo fluxo sem inventar pesquisa.
+
+Ative apenas projetos escolhidos em `HICODE_DISCOVERY_REPOS=owner/repo,outro/repo`.
+Dados ficam em `HICODE_CARDS_DIR/planejamento/`; sem a flag, criação direta
+e acompanhamento continuam disponíveis. Rollback desabilita a flag e preserva
+o histórico. O diretório de planejamento não é uma fila.
+
 ## Validação
 
-- `bun run test`: tipagem, lint, **168 testes passaram, 1 pulado**, tipagem Vue/Nuxt.
+- `bun run test`: tipagem, lint, **173 testes passaram, 1 pulado**, tipagem Vue/Nuxt.
 - `bun run panel:build`: build de produção concluído.
 - `HII_TEST_CHECKOUT=<worktree-hii> node scripts/test-hii-observabilidade.mjs`:
   desktop 1365px e mobile 390px passaram em autenticação, HTTP/SSE, hierarquia,
   métricas desconhecidas, XSS, ask readonly, configuração/ETag e conflito.
 - Testes de intenção exercitam timeout após efeito remoto, resposta perdida de
   criação de sessão, duplo clique e isolamento por projeto.
+- E2E também cobre descoberta → salvar → recarregar → aprovar → épico/tarefa → recarregar, nas duas larguras.
+- Skill validada com `quick_validate.py`.
 - Testes usam servidor HII de fixture. Não comprovam inferência Ollama real.
 
 ## Pré-requisitos e reversão
@@ -50,8 +72,8 @@ resultado incerto.
 
 | Issue | Situação |
 | --- | --- |
-| #19 | Descoberta guiada e síntese persistida/versionada não implementadas aqui. |
-| #20 | Épicos, hierarquia e progresso por evidência não implementados aqui. |
+| #19 | Fluxo guiado, skill, rascunho, revisão, aprovação e origem de épico implementados e testados com fixture. Perguntas são determinísticas; nenhuma pesquisa ou inferência real foi alegada. |
+| #20 | Proposta de épico/tarefas, vínculo à síntese, prioridade, ordenação e grafo implementados. Faltam progresso derivado de evidência e despacho integrado de toda a hierarquia. |
 | #21 | Editor técnico, limite de 500 linhas e fluxo revisão/despacho não implementados aqui. |
 | #24 | Parcial: faltam política local resolvida, ciclo de ferramentas, recursos de inferência, pacote ampliado de revisão e piloto real, dependentes do HII #59. |
 

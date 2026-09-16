@@ -136,6 +136,7 @@ onBeforeUnmount(() => { fonte?.close(); if (timer) clearInterval(timer) })
     <p v-if="aviso" role="status">{{ aviso }}</p>
     <form v-if="!autenticado" class="entrada" @submit.prevent="entrar"><label>Credencial do painel <input v-model="senha" type="password" autocomplete="current-password" required></label><button>Entrar</button><p>O token do motor permanece no backend.</p></form>
     <template v-else>
+      <p><NuxtLink to="/planejamento">Descoberta e planejamento de produto →</NuxtLink></p>
       <MotorConfiguracao />
       <p class="alerta">Conclusao do gateway indica o fim da chamada. Gates, evidencias e PR dependem da execucao orquestrada e de suas verificacoes.</p>
       <form class="pedido" @submit.prevent="enviar">

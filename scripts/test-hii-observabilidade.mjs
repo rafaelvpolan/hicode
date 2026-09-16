@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:net'
-import { resolve } from 'node:path'
-import { mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { resolve, join } from 'node:path'
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { chromium } from 'playwright'
 
@@ -11,7 +12,8 @@ async function porta() { const s = createServer(); await new Promise(r => s.list
 const motorPort = await porta(), panelPort = await porta()
 const token = 'fixture-bearer-nao-pode-ir-ao-navegador-123456789'
 const senha = 'fixture-password-123456'
-const env = { ...process.env, HII_API_TOKEN: token, HII_API_URL: `http://127.0.0.1:${motorPort}`, HII_API_REPO: 'fixture/app', HII_FIXTURE_PORT: String(motorPort), HII_FIXTURE_ADMIN: '1', HICODE_PANEL_PASSWORD: senha, HICODE_SESSION_SECRET: 'fixture-assinatura-1234567890123456789012345' }
+const panelCards = mkdtempSync(join(tmpdir(), 'hicode-planejamento-e2e-'))
+const env = { ...process.env, HICODE_CARDS_DIR: panelCards, HICODE_DISCOVERY_REPOS: 'fixture/app', HII_API_TOKEN: token, HII_API_URL: `http://127.0.0.1:${motorPort}`, HII_API_REPO: 'fixture/app', HII_FIXTURE_PORT: String(motorPort), HII_FIXTURE_ADMIN: '1', HICODE_PANEL_PASSWORD: senha, HICODE_SESSION_SECRET: 'fixture-assinatura-1234567890123456789012345' }
 const saidas = []
 function subir(cmd, args, cwd) { const p = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] }); p.stdout.on('data', d => saidas.push(String(d))); p.stderr.on('data', d => saidas.push(String(d))); return p }
 const motor = subir(process.execPath, ['test/fixtures/api-observabilidade-server.ts'], hii)
@@ -72,9 +74,36 @@ try {
     await page.getByText('Configuracao atual relida.', { exact: false }).waitFor()
     assert.equal(await page.locator('.configuracao input').inputValue(), 'minha-proposta')
     await page.screenshot({ path: `/tmp/hicode-54-visual/motor-${width}.png`, fullPage: true })
+    await page.goto(base + '/planejamento?id=fixture-' + width)
+    await page.getByLabel('Nome da demanda', { exact: true }).fill('Reduzir espera de suporte')
+    await page.getByRole('button', { name: 'Salvar rascunho', exact: true }).click()
+    await page.getByText('Revisao salva. Nenhuma execucao foi criada.', { exact: true }).waitFor()
+    await page.reload()
+    await page.waitForFunction(() => document.querySelector('#desc-titulo')?.value === 'Reduzir espera de suporte')
+    for (const campo of ['publico', 'dor', 'situacao', 'impacto', 'evidencias', 'hipoteses', 'perguntas', 'restricoes']) {
+      await page.locator('#desc-' + campo).fill('Informacao fornecida pelo operador para ' + campo + '; fonte entrevista 1')
+    }
+    await page.getByRole('button', { name: 'Aprovar sintese', exact: true }).click()
+    await page.getByText('Sintese aprovada. Agora voce pode preparar o epico.', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Preparar epico', exact: true }).click()
+    await page.getByLabel('Objetivo', { exact: true }).fill('Diminuir o tempo de primeira resposta')
+    await page.getByLabel('Resultado esperado', { exact: true }).fill('Fila responde em ate uma hora')
+    await page.getByLabel('Metrica de sucesso', { exact: true }).fill('p95 abaixo de uma hora')
+    await page.getByLabel('Escopo', { exact: true }).fill('Triagem inicial')
+    await page.getByRole('button', { name: 'Adicionar tarefa de produto', exact: true }).click()
+    await page.getByLabel('Titulo', { exact: true }).fill('Triagem de entradas')
+    await page.getByLabel('Resultado observavel', { exact: true }).fill('Categorias visiveis para a equipe')
+    await page.getByLabel('Criterios de aceite', { exact: false }).fill('Quando uma entrada chega, a categoria correspondente deve ser registrada.')
+    await page.getByLabel('Justificativa', { exact: true }).fill('Desbloqueia o atendimento')
+    await page.getByRole('button', { name: 'Salvar epico e tarefas', exact: true }).click()
+    await page.getByText('Revisao salva. Nenhuma execucao foi criada.', { exact: true }).waitFor()
+    await page.reload()
+    await page.waitForFunction(() => document.body.textContent.includes('Triagem de entradas') || [...document.querySelectorAll('input')].some(i => i.value === 'Triagem de entradas'))
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'overflow no planejamento')
+    await page.screenshot({ path: `/tmp/hicode-54-visual/planejamento-${width}.png`, fullPage: true })
     assert.deepEqual(erros, [])
     await page.close()
-    console.log(`${width}px: autenticacao, HTTP/SSE, hierarquia, metricas, XSS, ask readonly, configuracao/ETag, conflito sem sobrescrita e token server-side OK`)
+    console.log(`${width}px: autenticacao, HTTP/SSE, hierarquia, metricas, XSS, ask readonly, configuracao/ETag, conflito sem sobrescrita token server-side e descoberta/epico persistidos OK`)
   }
 } catch (e) { console.error(saidas.slice(-20).join('')); throw e }
-finally { await browser?.close(); panel.kill('SIGTERM'); motor.kill('SIGTERM') }
+finally { await browser?.close(); panel.kill('SIGTERM'); motor.kill('SIGTERM'); rmSync(panelCards, { recursive: true, force: true }) }
