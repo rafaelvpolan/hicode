@@ -1,9 +1,9 @@
 import { test, expect, afterAll } from 'bun:test'
 import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
-import { spawn } from 'node:child_process'
+import { spawn, execFileSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { tmpdir } from 'node:os'
+import { tmpdir, hostname } from 'node:os'
 
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-card-bloqueio-'))
 const BLOQUEIO_TS = join(dirname(dirname(fileURLToPath(import.meta.url))), 'panel', 'server', 'card', 'bloqueio.ts')
@@ -43,10 +43,11 @@ test('withFileLock libera o .lock mesmo quando a funcao lanca, e propaga o erro 
   expect(existsSync(`${alvo}.lock`)).toBe(false)
 })
 
-test('withFileLock rouba um .lock parado (mais velho que o limite de stale) em vez de travar para sempre', () => {
+test('withFileLock recupera lock cujo dono comprovadamente encerrou', () => {
   const alvo = join(BASE, 'c.md')
   const lock = `${alvo}.lock`
-  writeFileSync(lock, '')
+  const pid = Number(execFileSync('node', ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' }))
+  writeFileSync(lock, JSON.stringify({ versao: 1, pid, host: hostname(), token: 'orfao-confirmado' }))
   const antigo = Date.now() - 20_000
   utimesSync(lock, antigo / 1000, antigo / 1000)
 
