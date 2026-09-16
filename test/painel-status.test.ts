@@ -120,8 +120,8 @@ const RODAR_CONTRATO_HII = process.env.HICODE_CONTRATO_HII === '1'
 const testeDeContratoHii = RODAR_CONTRATO_HII ? test : test.skip
 
 testeDeContratoHii('CONTRATO o status gravado por resumeFrom e o que a fila do hii mapeia para finish (HICODE_CONTRATO_HII=1)', () => {
-  const fonte = join(hiiHome(), 'lib', 'runner', 'queue-state.ts')
-  expect(existsSync(fonte), `queue-state.ts nao encontrado em ${fonte} — HICODE_CONTRATO_HII=1 exige o clone do hii ao lado (ou HII_HOME apontando para ele); este teste e o unico guardiao da costura entre os dois repos e nao pode passar em silencio sem checar nada`).toBe(true)
+  const fonte = join(hiiHome(), 'motor', 'oswaldo', 'mutirao', 'estado-da-fila.ts')
+  expect(existsSync(fonte), `estado-da-fila.ts nao encontrado em ${fonte} — HICODE_CONTRATO_HII=1 exige o clone do hii ao lado (ou HII_HOME apontando para ele); este teste e o unico guardiao da costura entre os dois repos e nao pode passar em silencio sem checar nada`).toBe(true)
   const texto = readFileSync(fonte, 'utf8')
   expect(fielAoContratoDeFinish(texto, STATUS_URL_APROVADA), 'a fila do hii nao mapeia mais este status para finish').toBe(true)
 })

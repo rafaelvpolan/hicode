@@ -14,6 +14,14 @@ Painel de controle + repositório de estado para um sistema autônomo de engenha
 
 ## Setup
 
+### Conexao HTTP com o HII
+
+A pagina `/motor` acompanha atividades, executores, loops e saida do HII por
+HTTP/SSE, com sessao autenticada e bearer somente no backend. Permite pedidos
+gateway/orquestrador, perguntas readonly e acoes com revisao esperada.
+Veja [configuracao, validacao e limites](docs/hii-observabilidade.md).
+As outras paginas ainda usam a integracao legada descrita abaixo.
+
 ```bash
 bun install            # dependências do painel (raiz)
 cd panel && bun dev    # inicia o painel em http://localhost:4318
@@ -84,7 +92,7 @@ Toda a execução ocorre no motor, um CLI autônomo que vive em `/home/rpolan/pr
 
 ## Segurança
 
-- Painel escuta em loopback por padrão (`127.0.0.1:4318`) — sem autenticação, por design (operador único, máquina local)
+- Painel escuta em loopback por padrão (`127.0.0.1:4318`). As páginas legadas seguem o modelo local sem autenticação; `/motor` e `/api/hii/*` exigem sessão do operador.
 - Endpoints mutantes rejeitam origem estrangeira (Origin guard)
 - Motor roda em worktree isolado com `cwd-guard` (confina FS ao checkout do card)
 - Banco read-only via role `SELECT`
@@ -113,7 +121,7 @@ Ver `CLAUDE.md` para a lista completa.
 ## Roadmap
 
 - ✅ **Separação Motor-Painel** (agosto/2026): motor em repo irmão (`hii`)
-- 🔄 **HTTP + SSE** (próximo): painel fala com motor por REST em vez de CLI
+- 🔄 **HTTP + SSE**: `/motor` usa a API pública; migração das páginas legadas permanece no roadmap
 - ⚠️ **Dashboard (Hidash)**: observação e métricas (próximo)
 
 ---

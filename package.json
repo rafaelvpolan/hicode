@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "typecheck:panel": "cd panel && bun run typecheck",
     "lint:types": "bun scripts/check-no-any.mjs",
-    "test:unit": "bun test ./test",
+    "test:unit": "bun scripts/test-unit-isolado.mjs",
     "test": "bun run typecheck && bun run lint:types && bun run test:unit && bun run typecheck:panel"
   },
   "devDependencies": {
