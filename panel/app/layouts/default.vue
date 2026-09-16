@@ -9,6 +9,7 @@ interface ItemDeNavegacao {
 }
 
 const NAVEGACAO: ItemDeNavegacao[] = [
+  { rota: '/motor', rotulo: 'motor ao vivo' },
   { rota: '/', rotulo: 'execução' },
   { rota: '/custo', rotulo: 'custo' },
   { rota: '/servicos', rotulo: 'serviços' },
