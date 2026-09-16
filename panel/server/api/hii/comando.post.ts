@@ -7,7 +7,7 @@ export default defineEventHandler(async event => {
   const b = await readBody<Pedido>(event)
   if (!b || typeof b.chave !== 'string' || !/^[a-zA-Z0-9._:-]{8,128}$/.test(b.chave) || (b.texto && (typeof b.texto !== 'string' || b.texto.length > 16000))) throw createError({ statusCode: 400, statusMessage: 'Pedido invalido' })
   if (b.acao === 'nova_sessao') return (await cliente.novaSessao(repo, b.texto || 'Sessao Hicode', b.chave)).valor
-  if (b.acao === 'perguntar') return (await cliente.perguntar(repo, b.texto || '', b.chave)).valor
+  if (b.acao === 'perguntar') return (await cliente.perguntar(repo, b.texto || '', b.chave, b.id)).valor
   if (b.acao === 'pedido' && b.id && ['gateway', 'orquestrador'].includes(b.modo || '')) {
     if ((await cliente.sessao(b.id)).valor.repo !== repo) throw createError({ statusCode: 403, statusMessage: 'Sessao fora do projeto' })
     return (await cliente.pedido(b.id, { modo: b.modo || 'gateway', texto: b.texto || '' }, b.chave)).valor

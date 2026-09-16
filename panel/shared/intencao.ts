@@ -34,12 +34,12 @@ export async function enviarIntencao(
     if (anterior && JSON.stringify(anterior.pedido) !== JSON.stringify(pedido)) throw new Error('Existe um pedido sem confirmacao. Retome a intencao original antes de criar outra.')
     const i: IntencaoDePedido = anterior ?? { versao: 1, pedido: { ...pedido }, chaveSessao: novaChave(), chavePedido: novaChave(), sessao: pedido.sessao }
     storage.setItem(chave, JSON.stringify(i))
-    if (pedido.modo !== 'ask' && !i.sessao) {
+    if (!i.sessao) {
       i.sessao = (await enviar({ acao: 'nova_sessao', texto: 'Sessao Hicode', chave: i.chaveSessao })).id
       storage.setItem(chave, JSON.stringify(i))
     }
     const r = await enviar(pedido.modo === 'ask'
-      ? { acao: 'perguntar', texto: pedido.texto, chave: i.chavePedido }
+      ? { acao: 'perguntar', id: i.sessao, texto: pedido.texto, chave: i.chavePedido }
       : { acao: 'pedido', id: i.sessao, texto: pedido.texto, modo: pedido.modo, chave: i.chavePedido })
     storage.removeItem(chave)
     return { ...r, sessao: i.sessao }

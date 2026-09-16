@@ -156,7 +156,7 @@ function clienteHii(base, token) {
     historico: (id, offset = 0) => get(`/v1/tarefas/${idSeguro(id)}/historico?offset=${offset}`),
     configuracao: () => get("/v1/configuracao"),
     configurar: (ajuste, chave, etag) => post("/v1/configuracao", ajuste, chave, etag),
-    perguntar: (repo, pergunta, chave) => post("/v1/ask", { repo, pergunta }, chave),
+    perguntar: (repo, pergunta, chave, sessao) => post("/v1/ask", { repo, pergunta, ...(sessao ? { sessao } : {}) }, chave),
     consulta: (id) => get(`/v1/consultas/${encodeURIComponent(id)}`),
     revisarPlano: (id, plano, revisaoEsperada, chave, etag) => post(`/v1/tarefas/${idSeguro(id)}/plano`, { plano, revisaoEsperada }, chave, etag),
     artefatos: (id) => get(`/v1/tarefas/${idSeguro(id)}/artefatos`),

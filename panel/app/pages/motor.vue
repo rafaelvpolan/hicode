@@ -71,6 +71,7 @@ async function carregar(): Promise<void> {
   try {
     const s = await $fetch<Snapshot & { repo: string }>('/api/hii/snapshot')
     atualizar(s); autenticado.value = true; conectar(); erro.value = ''
+    sessao.value = sessionStorage.getItem(`hicode:sessao:${repo.value}`) || ''
     const pendente = lerIntencao(sessionStorage, repo.value)
     if (pendente) {
       texto.value = pendente.pedido.texto
@@ -91,11 +92,12 @@ async function enviar(): Promise<void> {
     const r = await enviarIntencao(sessionStorage, repo.value,
       { texto: texto.value, modo: modo.value, sessao: sessao.value },
       comando => $fetch<ResultadoDoPedido>('/api/hii/comando', { method: 'POST', body: comando }))
+    sessao.value = r.sessao
+    sessionStorage.setItem(`hicode:sessao:${repo.value}`, r.sessao)
     if (modo.value === 'ask') {
       consulta.value = r.id
       resposta.value = 'Consulta em andamento…'
     } else {
-      sessao.value = r.sessao
       aviso.value = `Execucao #${r.id}: ${r.status}`
     }
     texto.value = ''

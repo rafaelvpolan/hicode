@@ -44,7 +44,7 @@ test('pedido alterado nao reutiliza chave nem cria efeito; outro projeto e indep
   await expect(enviarIntencao(s, 'org/app', { ...p, texto: 'y' }, enviar)).rejects.toThrow('intencao original')
   expect(efeitos).toBe(0)
   await enviarIntencao(s, 'org/outro', p, enviar)
-  expect(efeitos).toBe(1)
+  expect(efeitos).toBe(2)
 })
 test('duplo clique nao dispara um segundo POST em voo', async () => {
   const s = armazenamento()
@@ -57,5 +57,20 @@ test('duplo clique nao dispara um segundo POST em voo', async () => {
   await expect(enviarIntencao(s, 'org/app', p, enviar)).rejects.toThrow('sendo enviado')
   liberar()
   await primeiro
-  expect(efeitos).toBe(1)
+  expect(efeitos).toBe(2)
+})
+
+test('perguntas criam sessao duravel e as seguintes reutilizam seu identificador', async () => {
+  const s = armazenamento()
+  const chamadas: ComandoDoPainel[] = []
+  const enviar = async (c: ComandoDoPainel): Promise<{ id: string }> => {
+    chamadas.push(c)
+    return { id: c.acao === 'nova_sessao' ? 'sessao-001' : 'consulta-001' }
+  }
+  const primeira = await enviarIntencao(s, 'org/app', { texto: 'contexto', modo: 'ask', sessao: '' }, enviar)
+  expect(primeira.sessao).toBe('sessao-001')
+  expect(chamadas[1]?.id).toBe('sessao-001')
+  await enviarIntencao(s, 'org/app', { texto: 'continue', modo: 'ask', sessao: primeira.sessao }, enviar)
+  expect(chamadas.map(c => c.acao)).toEqual(['nova_sessao', 'perguntar', 'perguntar'])
+  expect(chamadas[2]?.id).toBe('sessao-001')
 })
