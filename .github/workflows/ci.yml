@@ -15,7 +15,7 @@ jobs:
         with:
           repository: rafaelvpolan/hii
           path: .hii-ref
-          ref: 221151f25b3ee64ebf71477c0c79a1504f8e6e39 # contrato tecnico e avaliacao v1 testados
+          ref: f51a49895276eff0506c8724ac40929e3dd5af80 # avaliacao v1 com evidencia de entrega
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

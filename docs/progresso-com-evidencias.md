@@ -39,12 +39,26 @@ motor anuncia o contrato. Nenhum estado operacional e escrito pelo Hicode.
 
 Os detalhes mostram resultado atual e historico, comando, saida redigida, timeout,
 exit code, duracao, tentativa/revisao e instante. Fonte Vue escapada, sem HTML de
-logs. Worktree removido torna a atualidade indisponivel, mesmo com merge registrado.
-Ainda falta certificacao portavel de entrega arquivada e liberacao de dependencias
-de produto; esses pontos nao sao declarados concluidos por este incremento.
+logs. Worktree removido sem certificado torna a atualidade indisponivel, mesmo
+com merge registrado. A prova arquivada e descrita abaixo. A liberacao de
+dependencias de produto para despacho permanece pendente.
 
 Teste integrado: descoberta → epico → tecnico → despacho → criterios ausentes
 visiveis → epico nao concluido, em 1365/390px. Fixtures do motor exercitam comando
 real, prova atual, arquivo novo, relatorio incompleto e worktree removido. Testes
 do painel cobrem merge comprovado, PR aberto, revisao diferente, cobertura parcial,
 escopo, falha, parada humana, pagina incompleta e ciclos, sem usar IA real.
+
+## Entrega arquivada
+
+O HII pode fornecer o campo opcional entrega com o commit validado, a arvore Git,
+o PR e o commit integrado. O painel mostra essa proveniencia junto aos criterios.
+Com certificado valido e consulta remota consistente, remover o worktree nao
+impede a conclusao do produto. Novo head, arvore integrada diferente, PR fechado
+ou GitHub indisponivel tornam a verificacao inconclusiva. Execucoes antigas sem
+certificado continuam sem prova quando o worktree foi removido. Nao comprova deploy.
+
+A CI fixa o commit HII que fornece o contrato e a fixture. O E2E usa Git real e
+transporte HTTP, com GitHub controlado: conclui o epico apos limpar o worktree e
+retira a conclusao quando o head remoto diverge. A extensao nao libera despacho
+de dependencias nem modifica a fila.
