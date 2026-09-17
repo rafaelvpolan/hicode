@@ -86,6 +86,8 @@ onMounted(() => { void carregar() })
     <textarea id="documento-tecnico" v-model="fonte" :disabled="ocupado || !!pendente" :aria-invalid="!!analise.erros.length" aria-describedby="ajuda-tecnico erros-tecnico linhas-tecnico" spellcheck="false" rows="24" />
     <p id="linhas-tecnico">{{ analise.linhas }} / 500 linhas. Metadados e linhas vazias contam; CRLF equivale a LF. Uma quebra final nao acrescenta linha.</p>
     <ul id="erros-tecnico" aria-live="polite"><li v-for="e in analise.erros" :key="e.campo">{{ e.campo }}: {{ e.mensagem }}</li></ul>
+    <PlanoTecnico v-if="analise.documento && !analise.erros.length" :documento="analise.documento" :alterada="alterada" :enviada="envio?.estado === 'confirmado'" />
+    <p v-else>A previa do plano fica disponivel apos corrigir os erros do documento.</p>
     <div class="acoes">
       <button :disabled="ocupado || !analise.documento || analise.linhas > 500" @click="salvar(false)">{{ pendente ? 'Reconciliar salvamento' : 'Salvar nova revisao' }}</button>
       <button :disabled="ocupado || !!pendente || !!analise.erros.length" @click="salvar(true)">Aprovar revisao</button>
