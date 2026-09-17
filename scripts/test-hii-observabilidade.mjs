@@ -66,6 +66,8 @@ try {
     await page.locator('.configuracao select').nth(1).selectOption('ollama')
     await page.getByRole('button', { name: 'Salvar preferencia', exact: true }).click()
     await page.getByText('Preferencia salva para os proximos despachos.').waitFor()
+    // O aviso de sucesso precede o GET que atualiza o ETag; espere a UI concluir esse GET.
+    await page.waitForFunction(() => document.querySelector('.configuracao input')?.disabled === false)
     const configuracao = await fetch(env.HII_API_URL + '/v1/configuracao', { headers: { authorization: `Bearer ${token}` } })
     const concorrente = await fetch(env.HII_API_URL + '/v1/configuracao', {
       method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json',
