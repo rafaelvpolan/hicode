@@ -1,6 +1,7 @@
 export type PapelHii = 'implement' | 'step' | 'verify' | 'gate'
 export interface PreferenciaHii { provider?: string; model?: string; effort?: string; modo?: string }
 export interface CapacidadesHii {
+  tecnico?: { versoes: number[]; limiteLinhas: number }
   versao: number
   observabilidade?: { versoes: number[] }
   configuracao?: { versoes: number[]; leitura: boolean; escrita: boolean }

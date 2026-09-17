@@ -22,11 +22,12 @@ const base = `http://127.0.0.1:${panelPort}`
 let browser
 try {
   let pronto = false
+  let ultimaResposta = ''
   for (let i = 0; i < 240; i++) {
-    try { if ((await fetch(base + '/motor', { signal: AbortSignal.timeout(5000) })).ok) { pronto = true; break } } catch {}
+    try { const r = await fetch(base + '/motor', { signal: AbortSignal.timeout(5000) }); if (r.ok) { pronto = true; break }; ultimaResposta = String(r.status) + ' ' + (await r.text()).slice(0, 1500) } catch (e) { ultimaResposta = String(e) }
     await new Promise(r => setTimeout(r, 250))
   }
-  assert.ok(pronto, saidas.slice(-10).join(''))
+  assert.ok(pronto, ultimaResposta + '\n' + saidas.slice(-10).join(''))
   const direto = await (await fetch(`${env.HII_API_URL}/v1/observabilidade/snapshot?repo=fixture/app`, { headers: { authorization: `Bearer ${token}` } })).json()
   assert.equal(direto.atividades?.length, 3, JSON.stringify(direto))
   assert.equal((await fetch(base + '/api/hii/snapshot')).status, 401)
@@ -106,9 +107,46 @@ try {
     await page.waitForFunction(() => document.body.textContent.includes('Triagem de entradas') || [...document.querySelectorAll('input')].some(i => i.value === 'Triagem de entradas'))
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'overflow no planejamento')
     await page.screenshot({ path: `/tmp/hicode-54-visual/planejamento-${width}.png`, fullPage: true })
+    await page.getByRole('link', { name: 'Triagem de entradas — detalhar e revisar', exact: true }).click()
+    await page.waitForFunction(() => document.querySelector('#documento-tecnico')?.value.includes('tecnico-'))
+    const modelo = JSON.parse(await page.locator('#documento-tecnico').inputValue())
+    modelo.riscos = 'Categoria incorreta exige reversao'
+    for (const c of modelo.criterios) {
+      c.resultado = 'Categoria correta aparece na consulta'
+      c.verificacao = 'Executar teste com entrada conhecida'
+    }
+    modelo.microtasks[0].saida = 'Codigo e testes da classificacao'
+    for (const campo of Object.keys(modelo.operacao)) modelo.operacao[campo] = 'Conferir classificacao no piloto; reverter em caso de falha'
+    const fonteTecnica = JSON.stringify(modelo, null, 2) + '\n'
+    await page.locator('#documento-tecnico').fill(fonteTecnica)
+    await page.getByRole('button', { name: 'Aprovar revisao', exact: true }).click()
+    await page.getByText('Revisao aprovada. Despacho e uma acao separada.', { exact: true }).waitFor()
+    // Perda da resposta depois de o backend confirmar: o retry deve reencontrar o mesmo envio.
+    let interceptado = false
+    await page.route('**/api/hii/tecnico', async route => {
+      const b = route.request().postDataJSON()
+      if (b?.acao === 'despachar' && !interceptado) {
+        interceptado = true
+        await route.fetch()
+        await route.abort('failed')
+      } else await route.continue()
+    })
+    await page.getByRole('button', { name: 'Despachar revisao aprovada', exact: true }).click()
+    await page.waitForFunction(() => ![...document.querySelectorAll('button')].find(b => b.textContent === 'Despachar revisao aprovada')?.disabled)
+    await page.unroute('**/api/hii/tecnico')
+    await page.getByRole('button', { name: 'Despachar revisao aprovada', exact: true }).click()
+    await page.getByText(/Execucao #.*recebida pelo motor/).waitFor()
+    const mensagem = await page.locator('[role=status]').textContent()
+    await page.reload()
+    await page.getByText(/Envio confirmado/).waitFor()
+    await page.getByRole('button', { name: 'Consultar/reconciliar envio', exact: true }).click()
+    await page.getByText(mensagem, { exact: true }).waitFor()
+    assert.equal(await page.locator('#documento-tecnico').inputValue(), fonteTecnica)
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'overflow no tecnico')
+    await page.screenshot({ path: `/tmp/hicode-54-visual/tecnico-${width}.png`, fullPage: true })
     assert.deepEqual(erros, [])
     await page.close()
-    console.log(`${width}px: autenticacao, HTTP/SSE, hierarquia, metricas, XSS, ask readonly, configuracao/ETag, conflito sem sobrescrita token server-side e descoberta/epico persistidos OK`)
+    console.log(`${width}px: autenticacao, HTTP/SSE, hierarquia, metricas, XSS, ask readonly, configuracao/ETag, conflito sem sobrescrita token server-side descoberta/epico e despacho tecnico com resposta perdida OK`)
   }
 } catch (e) { console.error(saidas.slice(-20).join('')); throw e }
 finally { await browser?.close(); panel.kill('SIGTERM'); motor.kill('SIGTERM'); rmSync(panelCards, { recursive: true, force: true }) }
