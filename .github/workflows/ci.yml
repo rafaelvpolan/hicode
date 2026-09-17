@@ -15,7 +15,7 @@ jobs:
         with:
           repository: rafaelvpolan/hii
           path: .hii-ref
-          ref: f51a49895276eff0506c8724ac40929e3dd5af80 # avaliacao v1 com evidencia de entrega
+          ref: 0bccf47f13a429e63e05a58529ab63201abac15c # despacho com dependencias comprovadas
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

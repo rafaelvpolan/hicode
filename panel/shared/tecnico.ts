@@ -1,7 +1,8 @@
 import { serializarTecnico } from './contrato-tecnico'
 import type { DocumentoTecnico } from './contrato-tecnico'
 import type { RevisaoDePlanejamento, TarefaDeProduto } from './planejamento'
-export interface EnvioTecnico { chave: string; estado: 'pendente' | 'confirmado'; sessao: string; execucao: string; status: string; mensagem?: string; enfileirada?: boolean }
+export interface ReferenciaDeDependencia { produto: string; execucao: string; tecnicoHash: string }
+export interface EnvioTecnico { dependencias?: ReferenciaDeDependencia[]; chave: string; estado: 'pendente' | 'confirmado'; sessao: string; execucao: string; status: string; mensagem?: string; enfileirada?: boolean }
 export interface RevisaoTecnica { revisao: number; fonte: string; hash: string; aprovada: boolean; criadaEm: string; envio: EnvioTecnico | null }
 export function modeloTecnico(p: RevisaoDePlanejamento, tarefa: TarefaDeProduto): string {
   const d: DocumentoTecnico = { versao: 1, id: `tecnico-${tarefa.id}`, repo: p.documento.repo, produtoId: tarefa.id,

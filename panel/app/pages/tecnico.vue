@@ -95,6 +95,7 @@ onMounted(() => { void carregar() })
     <p v-if="envio">Envio {{ envio.estado }} · sessao {{ envio.sessao || 'aguardando' }} · execucao {{ envio.execucao || 'aguardando confirmacao' }}</p>
     <p v-if="envio?.mensagem">{{ envio.mensagem }}</p>
     <section v-if="envio?.execucao"><h2>Evidencias da execucao vinculada</h2><p v-if="alterada">As evidencias pertencem ao documento ja enviado, anterior as edicoes no editor.</p><button :disabled="ocupado || verificando" @click="conferirEvidencias">Consultar evidencias da execucao</button><p role="status">{{ avisoEvidencia }}</p><EvidenciasDaExecucao v-if="avaliacao" :avaliacao="avaliacao" /></section>
+    <p v-if="analise.documento?.dependencias.length">O envio exige entrega comprovada das dependencias de produto. Em caso de bloqueio, confira a tarefa indicada e tente novamente.</p>
     <p>Edicoes criam novas revisoes. A execucao existente conserva o documento que recebeu.</p>
   </main>
 </template>

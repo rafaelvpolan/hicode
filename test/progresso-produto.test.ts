@@ -87,3 +87,18 @@ test('parada humana, falha de criterio e gateway terminal permanecem distintos',
   expect(estadoDaExecucao({ ...a, status: 'EXECUTING', criterios: [{ ...a.criterios[0]!, estado: 'reprovado' }], criteriosAprovados: false })).toBe('falhou')
   expect(estadoDaExecucao({ ...a, status: 'COMPLETED', modo: 'gateway', criteriosAprovados: false })).toBe('inconclusiva')
 })
+
+test('despacho exige certificado da predecessora aprovada e rejeita revisao concorrente', async () => {
+  const { dependenciasParaEnvio } = await import('../panel/server/hii/dependencias-produto')
+  const { p, tarefa, tecnico, a } = fixture()
+  const sucessora = { ...tarefa, id: 'sucessora', dependeDe: [tarefa.id] }
+  await expect(dependenciasParaEnvio(p, sucessora, () => tecnico, async () => a)).rejects.toThrow('sem entrega comprovada')
+  a.entrega = { head: 'a'.repeat(40), tree: 'b'.repeat(40), pr: 'https://github.com/org/app/pull/1', merge: 'c'.repeat(40) }
+  expect(await dependenciasParaEnvio(p, sucessora, () => tecnico, async () => a)).toEqual([{ produto: tarefa.id, execucao: '002', tecnicoHash: a.plano!.tecnicoHash }])
+  a.status = 'PR_OPEN'
+  await expect(dependenciasParaEnvio(p, sucessora, () => tecnico, async () => a)).rejects.toThrow('sem entrega comprovada')
+  a.status = 'MERGED'
+  let consultas = 0
+  await expect(dependenciasParaEnvio(p, sucessora, () => ++consultas === 1 ? tecnico : { ...tecnico, revisao: 2 }, async () => a)).rejects.toThrow('sem entrega comprovada')
+  await expect(dependenciasParaEnvio(p, sucessora, () => null, async () => a)).rejects.toThrow('sem revisao aprovada')
+})

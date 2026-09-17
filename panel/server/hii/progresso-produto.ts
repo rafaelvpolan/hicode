@@ -13,7 +13,7 @@ export async function progressoDaTarefa(
     execucao: tecnico?.envio?.execucao || t.cardExistente || '', estado: 'sem_execucao',
     motivo: 'Nenhuma execucao vinculada a esta revisao.', avaliacao: null }
   if (tecnico && !tecnico.envio?.execucao) return { ...base, estado: 'revisao_pendente', motivo: tecnico.envio ? 'Envio ainda sem confirmacao; reconcilie no card tecnico.' : 'Revisao tecnica ainda nao despachada; evidencias antigas nao concluem esta revisao.' }
-  if (!base.execucao) return t.dependeDe.length ? { ...base, estado: 'bloqueada', motivo: 'Dependencias de produto ainda precisam de conclusao verificavel antes do despacho.' } : base
+  if (!base.execucao) return t.dependeDe.length ? { ...base, estado: 'bloqueada', motivo: 'Aguardando despacho com verificacao das dependencias de produto.' } : base
   let a: AvaliacaoDeExecucao
   try { a = await avaliar(base.execucao) }
   catch { return { ...base, estado: 'inconclusiva', motivo: 'Motor indisponivel, tarefa ausente ou acesso recusado; nao foi possivel verificar.' } }

@@ -40,8 +40,7 @@ motor anuncia o contrato. Nenhum estado operacional e escrito pelo Hicode.
 Os detalhes mostram resultado atual e historico, comando, saida redigida, timeout,
 exit code, duracao, tentativa/revisao e instante. Fonte Vue escapada, sem HTML de
 logs. Worktree removido sem certificado torna a atualidade indisponivel, mesmo
-com merge registrado. A prova arquivada e descrita abaixo. A liberacao de
-dependencias de produto para despacho permanece pendente.
+com merge registrado. A prova arquivada e descrita abaixo. O despacho explicito pode conferir dependencias conforme descrito abaixo.
 
 Teste integrado: descoberta → epico → tecnico → despacho → criterios ausentes
 visiveis → epico nao concluido, em 1365/390px. Fixtures do motor exercitam comando
@@ -60,5 +59,18 @@ certificado continuam sem prova quando o worktree foi removido. Nao comprova dep
 
 A CI fixa o commit HII que fornece o contrato e a fixture. O E2E usa Git real e
 transporte HTTP, com GitHub controlado: conclui o epico apos limpar o worktree e
-retira a conclusao quando o head remoto diverge. A extensao nao libera despacho
-de dependencias nem modifica a fila.
+retira a conclusao quando o head remoto diverge. Consultar progresso nao cria execucoes nem modifica a fila.
+
+## Despacho de tarefas dependentes
+
+O painel exige a capacidade tecnico.dependenciasProduto=1. Antes de iniciar um
+novo envio, consulta as entregas das predecessoras na mesma revisao de planejamento
+e exige revisao tecnica aprovada, criterios cobertos e certificado de merge atual.
+Sem prova, mostra o ID bloqueador e nao cria intencao nem sessao para a sucessora.
+
+Ao iniciar envio, os vinculos de produto/execucao/hash ficam fixados na intencao.
+Retry usa os mesmos vinculos para reconciliar resposta perdida. Editar predecessoras
+depois disso nao muda silenciosamente a intencao: para adotar novos vinculos,
+crie e aprove uma nova revisao tecnica da sucessora. O HII confere a prova novamente
+e exige o merge na base antes de executar IA. Limite: oito dependencias diretas.
+Nao ha despacho automatico de filhos nem paralelismo interno neste incremento.

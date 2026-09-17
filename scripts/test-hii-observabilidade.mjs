@@ -154,9 +154,9 @@ try {
     await page.getByRole('heading', { name: 'Triagem de entradas · Em execucao', exact: true }).waitFor()
     await page.screenshot({ path: `/tmp/hicode-54-visual/progresso-${width}.png`, fullPage: true })
     const execucao = mensagem.match(/Execucao #(\d+)/)[1]
-    async function controlar(acao) {
-      const marcador = 'entrega ' + acao + ' ' + execucao
-      motor.stdin.write(JSON.stringify({ id: execucao, acao }) + '\n')
+    async function controlar(acao, alvo = execucao) {
+      const marcador = 'entrega ' + acao + ' ' + alvo
+      motor.stdin.write(JSON.stringify({ id: alvo, acao }) + '\n')
       for (let i = 0; i < 100 && !saidas.some(s => s.includes(marcador)); i++) await new Promise(r => setTimeout(r, 100))
       assert.ok(saidas.some(s => s.includes(marcador)), saidas.slice(-5).join('\n'))
     }
@@ -172,9 +172,42 @@ try {
     await page.getByRole('button', { name: 'Consultar evidencias do epico', exact: true }).click()
     await page.getByRole('heading', { name: 'Triagem de entradas · Verificacao inconclusiva', exact: true }).waitFor()
     await page.getByText('Epico ainda nao concluido com evidencias.', { exact: false }).waitFor()
+
+    // Duas tarefas na mesma revisao: a sucessora nao cria envio antes da prova.
+    const planejamentoDeps = 'dependencias-' + width
+    const planejamentoOriginal = await (await page.request.get(base + '/api/hii/planejamento?id=fixture-' + width)).json()
+    const documentoDeps = structuredClone(planejamentoOriginal.planejamento.documento)
+    documentoDeps.id = planejamentoDeps
+    const tarefaBase = { ...documentoDeps.epico.tarefas[0], id: 'base', dependeDe: [], cardExistente: '' }
+    documentoDeps.epico.tarefas = [tarefaBase, { ...tarefaBase, id: 'sucessora', titulo: 'Consumir entrega anterior', dependeDe: ['base'] }]
+    const salvoDeps = await page.request.post(base + '/api/hii/planejamento', { data: { documento: documentoDeps, revisao: 0, chave: crypto.randomUUID(), aprovar: true } })
+    assert.equal(salvoDeps.status(), 200, await salvoDeps.text())
+    const revisaoDeps = (await salvoDeps.json()).revisao
+    for (const produto of ['base', 'sucessora']) {
+      const tecnicoDeps = { ...modelo, id: 'tecnico-' + produto, produtoId: produto, origem: { planejamento: planejamentoDeps, revisao: revisaoDeps }, dependencias: produto === 'base' ? [] : ['base'] }
+      const r = await page.request.post(base + '/api/hii/tecnico', { data: { planejamento: planejamentoDeps, produto, acao: 'salvar', fonte: JSON.stringify(tecnicoDeps, null, 2) + '\n', revisao: 0, chave: crypto.randomUUID(), aprovar: true } })
+      assert.equal(r.status(), 200, await r.text())
+    }
+    await page.goto(base + '/tecnico?planejamento=' + planejamentoDeps + '&produto=sucessora')
+    await page.getByRole('button', { name: 'Despachar revisao aprovada', exact: true }).click()
+    await page.getByText('Dependencia sem revisao aprovada e execucao: base', { exact: false }).waitFor()
+    const pendenteDeps = await (await page.request.get(base + '/api/hii/tecnico?planejamento=' + planejamentoDeps + '&produto=sucessora')).json()
+    assert.equal(pendenteDeps.revisao.envio, null)
+    const enviadoBase = await page.request.post(base + '/api/hii/tecnico', { data: { planejamento: planejamentoDeps, produto: 'base', acao: 'despachar', revisao: 1 } })
+    assert.equal(enviadoBase.status(), 200, await enviadoBase.text())
+    const baseId = (await enviadoBase.json()).envio.execucao
+    await controlar('certificar', baseId)
+    await page.getByRole('button', { name: 'Despachar revisao aprovada', exact: true }).click()
+    await page.getByText(/Execucao #.*recebida pelo motor/).waitFor()
+    const enviadaDeps = await (await page.request.get(base + '/api/hii/tecnico?planejamento=' + planejamentoDeps + '&produto=sucessora')).json()
+    assert.equal(enviadaDeps.revisao.envio.dependencias[0].execucao, baseId)
+    const repetidaDeps = await page.request.post(base + '/api/hii/tecnico', { data: { planejamento: planejamentoDeps, produto: 'sucessora', acao: 'despachar', revisao: 1 } })
+    assert.equal((await repetidaDeps.json()).envio.execucao, enviadaDeps.revisao.envio.execucao)
+    await page.screenshot({ path: '/tmp/hicode-54-visual/dependencias-' + width + '.png', fullPage: true })
+
     assert.deepEqual(erros, [])
     await page.close()
-    console.log(`${width}px: autenticacao, HTTP/SSE, hierarquia, metricas, XSS, ask readonly, configuracao/ETag, conflito sem sobrescrita token server-side descoberta/epico e despacho tecnico, entrega arquivada e invalidacao remota OK`)
+    console.log(`${width}px: autenticacao, HTTP/SSE, hierarquia, metricas, XSS, ask readonly, configuracao/ETag, conflito sem sobrescrita token server-side descoberta/epico e despacho tecnico, entrega arquivada, invalidacao remota e despacho dependente OK`)
   }
 } catch (e) { console.error(saidas.slice(-20).join('')); throw e }
 finally { await browser?.close(); panel.kill('SIGTERM'); motor.kill('SIGTERM'); rmSync(panelCards, { recursive: true, force: true }) }

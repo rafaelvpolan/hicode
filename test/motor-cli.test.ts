@@ -110,9 +110,9 @@ test('dispatch resolve ok=false, sem lancar, quando o runtime resolvido nao pode
 test('rodada6: SIGTERM ignorado pela IA escala para SIGKILL — a Promise nao fica pendurada esperando para sempre', async () => {
   somenteBunNoPath()
   hiiHomeComRunner("process.on('SIGTERM', () => {})\nsetInterval(() => {}, 1000)\n")
-  const inicio = Date.now()
+  const inicio = performance.now()
   const resultado = await dispatch(['--once'], { timeoutMs: 30, sigkillGraceMs: 30 })
-  const duracaoMs = Date.now() - inicio
+  const duracaoMs = performance.now() - inicio
   expect(resultado.timedOut).toBe(true)
   expect(resultado.ok).toBe(false)
   expect(duracaoMs).toBeLessThan(3000)

@@ -20,9 +20,9 @@ test('executarComando devolve ok=false quando o comando nem existe no PATH, sem 
 })
 
 test('executarComando respeita o timeoutMs — comando que nao termina e encerrado e reportado como falha', async () => {
-  const inicio = Date.now()
+  const inicio = performance.now()
   const resultado = await executarComando('node', ['-e', 'setInterval(() => {}, 1000)'], 50)
-  const duracaoMs = Date.now() - inicio
+  const duracaoMs = performance.now() - inicio
   expect(resultado.ok).toBe(false)
   expect(duracaoMs).toBeLessThan(3000)
 })
@@ -42,9 +42,9 @@ test('sondarComSeguranca cai no fallback quando a sonda rejeita, sem propagar a 
 })
 
 test('sondarComSeguranca cai no fallback quando a sonda excede o timeoutMs, mesmo que a promessa nunca resolva', async () => {
-  const inicio = Date.now()
+  const inicio = performance.now()
   const resultado = await sondarComSeguranca('X', 50, () => new Promise<string>(() => {}), motivo => motivo)
-  const duracaoMs = Date.now() - inicio
+  const duracaoMs = performance.now() - inicio
   expect(resultado).toContain('excedeu 50ms')
   expect(duracaoMs).toBeLessThan(3000)
 })
