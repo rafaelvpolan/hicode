@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { analisarTecnico } from '#shared/contrato-tecnico'
+import type { AvaliacaoDeExecucao } from '#shared/avaliacao-hii'
 import type { RevisaoTecnica } from '#shared/tecnico'
 definePageMeta({ layout: false })
 const route = useRoute()
@@ -13,11 +14,15 @@ const aprovada = ref(false)
 const disponivel = ref(false)
 const ocupado = ref(false)
 const aviso = ref('')
+const avaliacao = ref<AvaliacaoDeExecucao | null>(null)
+const verificando = ref(false)
+const avisoEvidencia = ref('')
 const envio = ref<RevisaoTecnica['envio']>(null)
 const pendente = ref<{ planejamento: string; produto: string; acao: string; fonte: string; revisao: number; chave: string; aprovar: boolean } | null>(null)
 const analise = computed(() => analisarTecnico(fonte.value))
 const alterada = computed(() => fonte.value !== salva.value)
 function aceitar(r: RevisaoTecnica): void {
+  avaliacao.value = null; avisoEvidencia.value = '';
   fonte.value = r.fonte; salva.value = r.fonte; revisao.value = r.revisao
   aprovada.value = r.aprovada; envio.value = r.envio
 }
@@ -55,6 +60,18 @@ async function despachar(): Promise<void> {
   } catch (e) { aviso.value = (e as { statusMessage?: string }).statusMessage || 'Envio sem confirmacao. Repetir reconcilia a mesma execucao.' }
   finally { ocupado.value = false }
 }
+async function conferirEvidencias(): Promise<void> {
+  const execucao = envio.value?.execucao
+  if (!execucao || verificando.value) return
+  verificando.value = true
+  avaliacao.value = null
+  try {
+    const a = await $fetch<AvaliacaoDeExecucao>('/api/hii/avaliacao', { query: { execucao } })
+    if (envio.value?.execucao === execucao) avaliacao.value = a
+    avisoEvidencia.value = 'Consulta concluida; estado da execucao nao substitui os criterios.'
+  } catch (e) { avisoEvidencia.value = (e as { statusMessage?: string }).statusMessage || 'Evidencia indisponivel.' }
+  finally { verificando.value = false }
+}
 onMounted(() => { void carregar() })
 </script>
 <template>
@@ -77,6 +94,7 @@ onMounted(() => { void carregar() })
     </div>
     <p v-if="envio">Envio {{ envio.estado }} · sessao {{ envio.sessao || 'aguardando' }} · execucao {{ envio.execucao || 'aguardando confirmacao' }}</p>
     <p v-if="envio?.mensagem">{{ envio.mensagem }}</p>
+    <section v-if="envio?.execucao"><h2>Evidencias da execucao vinculada</h2><p v-if="alterada">As evidencias pertencem ao documento ja enviado, anterior as edicoes no editor.</p><button :disabled="ocupado || verificando" @click="conferirEvidencias">Consultar evidencias da execucao</button><p role="status">{{ avisoEvidencia }}</p><EvidenciasDaExecucao v-if="avaliacao" :avaliacao="avaliacao" /></section>
     <p>Edicoes criam novas revisoes. A execucao existente conserva o documento que recebeu.</p>
   </main>
 </template>
