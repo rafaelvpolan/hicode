@@ -1,131 +1,64 @@
-# hicode
+# Hicode
 
-Painel de controle + repositório de estado para um sistema autônomo de engenharia de IA.
+Hicode é a IDE de arquivos e gerenciamento de tarefas. O HII é o motor externo que executa o trabalho, mantém sessões com as IAs, aplica o plano de execução e registra resultados.
 
-> **Você não prompta os agentes — você desenha o loop que os prompta.** Cada unidade de trabalho é um **card** em disco (a fonte de verdade); o **motor** (em `/home/rpolan/projects/podium/hii/`) executa o pipeline por card, mostra o preview do resultado, fecha o ciclo verde lendo exit codes reais do disco, e abre o PR. *O repo lembra; a conversa esquece.*
+No Hicode você organiza projetos, consulta arquivos e evidências, prepara tarefas e planos, acompanha execuções e toma decisões. A execução pertence ao [HII](https://github.com/rafaelvpolan/hii).
 
-**Hicode é:**
-- **Painel** (Vue 3 + Nuxt 4) — interface visual para cadastrar tarefas, aprovar previews, ler histórico
-- **Estado** (`cards/`, `config/`) — fonte de verdade, compartilhada com o motor
+## Iniciar o painel
 
-**Motor está em:** `/home/rpolan/projects/podium/hii/` — execução, pipeline, gates, worktrees, CI, deploy
-
----
-
-## Setup
-
-### Conexao HTTP com o HII
-
-A pagina `/motor` acompanha atividades, executores, loops e saida do HII por
-HTTP/SSE, com sessao autenticada e bearer somente no backend. Permite pedidos
-gateway/orquestrador, perguntas readonly e acoes com revisao esperada.
-Veja [configuracao, validacao e limites](docs/hii-observabilidade.md).
-As outras paginas ainda usam a integracao legada descrita abaixo.
+Use Bun 1.4.0, como na CI:
 
 ```bash
-bun install            # dependências do painel (raiz)
-cd panel && bun dev    # inicia o painel em http://localhost:4318
+bun install --frozen-lockfile
+cd panel && bun install --frozen-lockfile
+cd ..
+bun run panel
 ```
 
-O painel se conecta ao motor via CLI do hii. Confirme que o motor está rodando:
+Abra http://localhost:4318. O topo consulta a API do HII imediatamente e a cada cinco segundos, mostrando estado e versão. Quando o daemon está ligado, aparece a versão do processo em execução; quando está desligado, aparece a versão instalada na API. Uma API inacessível é exibida como indisponível, pois ausência de resposta não comprova que o daemon esteja desligado.
+
+## Conectar ao HII
+
+Configure no backend do Hicode:
 
 ```bash
-cd ../hii && bun run runner.ts --status
+export HII_API_URL=http://127.0.0.1:4321
+export HII_API_TOKEN='seu-token-com-pelo-menos-32-caracteres'
+export HII_API_REPO=owner/repo
+export HICODE_PANEL_PASSWORD='sua-senha-do-painel'
+export HICODE_SESSION_SECRET='seu-segredo-de-sessao-com-32-caracteres'
 ```
 
----
+A API do HII e o daemon de execução são processos separados. Configure a API conforme [o guia de conexão](docs/hii-observabilidade.md), usando o mesmo token nos dois backends. O bearer não é enviado ao navegador. O endpoint autenticado GET /v1/motor/status informa estado, versão instalada, versão em execução e confirmação recente do daemon.
 
-## Como usar
+A página /motor usa HTTP/SSE e sessões autenticadas. As páginas legadas de cards ainda leem uma fila local: HICODE_CARDS_DIR deve apontar exatamente para a fila HII_CARDS_DIR usada pela API e pelo daemon. Usar os diretórios cards/ de dois clones diferentes não compartilha tarefas. Uma divergência bloqueia o início com erro visível. A ação de início só muda a tarefa quando a API do HII confirma a admissão, com controle de revisão e repetição idempotente.
 
-### Criar uma tarefa
+### Partida automática opcional
 
-1. Abra http://localhost:4318
-2. Preencha o formulário: **projeto**, **prompt**, **depois** (instrução adicional, opcional)
-3. Clique **Criar Card**
+Para iniciar o daemon ao solicitar trabalho nas páginas legadas, configure HICODE_MOTOR_AUTOSTART=1 no backend Hicode e HII_API_AUTOSTART=1 na API administrativa do HII. O endpoint POST /v1/motor/iniciar reutiliza o comando oficial de partida, serializa pedidos e aguarda confirmação de disponibilidade. Credenciais restritas por projeto não autorizam partida global.
 
-O card é criado em `cards/` e o motor começa a executar. Você acompanha em tempo real no painel.
+A consulta de status ao abrir o painel não inicia processos. A partida exige um pedido de trabalho; não há reinício em loop nem retomada automática de cards pausados pelo usuário. Falha, timeout ou identidade desconhecida impedem o envio. O Hicode não troca de endpoint nem inicia um motor local como alternativa a uma API remota inacessível. Sem opt-in, inicie o daemon pelo procedimento operacional do HII.
 
-### Aprovar um preview
-
-1. Quando o motor diz que a tarefa está `PREVIEW`, o painel mostra um botão **Ver preview**
-2. Clique para abrir o app; se estiver tudo certo, volte e clique **Aprovado**
-3. Se precisar ajustar, clique **Recusar** e explique — o motor corrige
-
-### Navegar histórico
-
-- **Execuções**: abra o card → aba **Histórico** mostra todas as rodadas
-- **Custos**: painel principal mostra custo acumulado por card e por dia
-- **IA em uso**: **Configuração** mostra qual modelo roda cada papel (executor, reviewer, etc)
-
----
-
-## Referência
-
-| Arquivo | O quê |
-|---|---|
-| `CLAUDE.md` | autoridade de instrução do repo — roteamento Nexus, regras, contrato de ambiente |
-| `plano/00..05` | arquitetura e decisões de design |
-| `docs/adr/` | architectural decision records |
-| `docs/kit/` | referência sobre o framework Nexus (agentes, prompting, etc) |
-
----
-
-## Motor (hii)
-
-Toda a execução ocorre no motor, um CLI autônomo que vive em `/home/rpolan/projects/podium/hii/`.
-
-**O que o motor faz:**
-- Lê `cards/` e `config/` (compartilhado com hicode)
-- Cria worktrees a partir do repositório-alvo
-- Roda pipeline de agentes (execute → preview → refine → tests → security → review → cleanup)
-- Gate de code-review adversarial (Crivo)
-- Abre PR no GitHub
-
-**Comunicação:**
-- Hicode fala com motor via CLI (`hii --once <card-id>`)
-- Motor escreve resultados em `cards/runs/` (JSON com exit codes, tokens, tempo)
-- Hicode lê de volta e mostra no painel
-
-**Para saber mais:** `hii/README.md` + `docs/adr/0001-motor-separado.md`
-
----
-
-## Segurança
-
-- Painel escuta em loopback por padrão (`127.0.0.1:4318`). As páginas legadas seguem o modelo local sem autenticação; `/motor` e `/api/hii/*` exigem sessão do operador.
-- Endpoints mutantes rejeitam origem estrangeira (Origin guard)
-- Motor roda em worktree isolado com `cwd-guard` (confina FS ao checkout do card)
-- Banco read-only via role `SELECT`
-- **24/7 desacompanhado:** requer sandbox (container + egress restrito) antes de produção
-
----
-
-## Variáveis de ambiente
+## Testes
 
 ```bash
-# Ambiente do painel
-NUXT_HOST=127.0.0.1           # por padrão loopback
-NUXT_PORT=4318
-
-# Ambiente do motor
-HII_HOME=/home/rpolan/projects/podium/hii
-HICODE_CARDS_DIR=<este-repo>/cards
-HICODE_REPOS_FILE=<este-repo>/config/repos.json
-HICODE_IA_FILE=<este-repo>/config/ia.json
+bun run test
+bun run panel:build
+node scripts/test-motor-status.mjs
 ```
 
-Ver `CLAUDE.md` para a lista completa.
+A suíte inclui filas divergentes, ausência de configuração, API inacessível, autenticação recusada, daemon desligado, estado desconhecido, preservação de tarefa pausada e contraste dos tokens. O teste de navegador verifica estado e versão na abertura, inclusive sem SSE, em desktop e largura de 390 px. Usa processos e cards de fixture; não executa IAs nem consome a fila do operador.
 
----
+O teste completo da integração HTTP, planejamento e evidências usa um checkout candidato do HII:
 
-## Roadmap
+```bash
+HII_TEST_CHECKOUT=/caminho/para/hii node scripts/test-hii-observabilidade.mjs
+```
 
-- ✅ **Separação Motor-Painel** (agosto/2026): motor em repo irmão (`hii`)
-- 🔄 **HTTP + SSE**: `/motor` usa a API pública; migração das páginas legadas permanece no roadmap
-- ⚠️ **Dashboard (Hidash)**: observação e métricas (próximo)
+## Referências
 
----
+- [Conexão HTTP e limites da integração](docs/hii-observabilidade.md)
+- [Separação entre painel e motor](docs/adr/0001-motor-separado.md)
+- [Motor HII](https://github.com/rafaelvpolan/hii)
 
-## Licença
-
-Veja `LICENSE` na raiz.
+As páginas legadas seguem o modelo local com proteção de origem; /motor e /api/hii/* exigem sessão do operador. Mantenha o painel em loopback ou atrás da autenticação da sua infraestrutura.

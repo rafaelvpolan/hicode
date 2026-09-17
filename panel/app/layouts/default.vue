@@ -21,7 +21,7 @@ const NAVEGACAO: ItemDeNavegacao[] = [
 const { conectado, reconectando, degradado } = useFluxoDoMotor()
 
 const rotuloDaTransmissao = computed<string>(() => {
-  if (conectado.value) return 'ao vivo'
+  if (conectado.value) return 'eventos conectados'
   if (degradado.value) return 'atualização manual'
   if (reconectando.value) return 'reconectando…'
   return 'conectando…'

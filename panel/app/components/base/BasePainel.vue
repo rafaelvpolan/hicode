@@ -27,11 +27,21 @@ withDefaults(defineProps<BasePainelProps>(), {
   position: relative;
   background: var(--superficie);
   border: 1px solid var(--hairline);
-  border-radius: var(--raio-3);
+  border-radius: var(--raio-4) 4px var(--raio-4) 4px;
   padding: var(--esp-5);
   transition: border-color var(--dur-media) var(--curva);
 }
 
+.painel::after {
+  content: '';
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  background: linear-gradient(45deg, transparent 46%, var(--hairline-forte) 47%, var(--hairline-forte) 53%, var(--fundo) 54%);
+}
 .painel.denso { padding: var(--esp-3) var(--esp-4); border-radius: var(--raio-2); }
 
 .painel.elevado { background: var(--superficie-2); box-shadow: var(--sombra-elevada); }

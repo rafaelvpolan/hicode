@@ -14,6 +14,17 @@ export interface CardActionsOptions {
 
 export function useCardActions(options: CardActionsOptions) {
   const { load, gh, sprintRepo } = options
+  const erroMotor = useState<string>('erro-admissao-motor', () => '')
+  async function executarAcao(id: string, acao: string): Promise<void> {
+    erroMotor.value = ''
+    try {
+      await $fetch<CardActionResponse>('/api/cards/' + id + '/' + acao, { method: 'POST' })
+      await load()
+    } catch (e) {
+      const falha = e as { data?: { error?: string; message?: string } }
+      erroMotor.value = falha.data?.error || falha.data?.message || 'Não foi possível confirmar a ação. Consulte o estado do motor.'
+    }
+  }
 
   const newRepo = reactive<NewRepoForm>({ name: '', url: '', branch: '', runCmd: '' })
   const repoMsg = ref('')
@@ -73,7 +84,12 @@ export function useCardActions(options: CardActionsOptions) {
     const r = await $fetch<CreateSprintResponse>('/api/sprint', {
       method: 'POST',
       body: { repo: sprintRepo.value, features: [{ title, risk: high ? 'high' : 'low', desc: text }] },
+    }).catch((e: { data?: { error?: string; message?: string } }) => {
+      erroMotor.value = e.data?.error || e.data?.message || 'Criação recusada. Verifique a conexão e a fila do motor.'
+      sprintMsg.value = erroMotor.value
+      return null
     })
+    if (!r) return
     const firstId = r.cards[0]?.id
     if (firstId && (stagedLinks.value.length || stagedFiles.value.length)) await flushStagedRefs(firstId)
     sprintMsg.value = (r.created || 0) + ' card criado (texto inteiro = 1 task)'
@@ -95,25 +111,13 @@ export function useCardActions(options: CardActionsOptions) {
     } catch { projectPreview.msg = 'falhou ao iniciar' }
   }
 
-  async function start(id: string): Promise<void> {
-    await $fetch<CardActionResponse>(`/api/cards/${id}/start`, { method: 'POST' })
-    await load()
-  }
+  async function start(id: string): Promise<void> { await executarAcao(id, 'start') }
 
-  async function pause(id: string): Promise<void> {
-    await $fetch<CardActionResponse>(`/api/cards/${id}/pause`, { method: 'POST' })
-    await load()
-  }
+  async function pause(id: string): Promise<void> { await executarAcao(id, 'pause') }
 
-  async function resume(id: string): Promise<void> {
-    await $fetch<CardActionResponse>(`/api/cards/${id}/resume`, { method: 'POST' })
-    await load()
-  }
+  async function resume(id: string): Promise<void> { await executarAcao(id, 'resume') }
 
-  async function act(id: string, kind: string): Promise<void> {
-    await $fetch<CardActionResponse>(`/api/cards/${id}/${kind}`, { method: 'POST' })
-    await load()
-  }
+  async function act(id: string, kind: string): Promise<void> { await executarAcao(id, kind) }
 
   async function replay(id: string, step: string): Promise<void> {
     if (!window.confirm(`Repetir o passo "${step}" do card #${id}?\nO card volta para URL_OK e o motor refaz o polimento a partir daí.`)) return
