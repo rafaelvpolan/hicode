@@ -1,3 +1,4 @@
+import type { AvaliacaoDeExecucao } from '../../shared/avaliacao-hii'
 import type { CapacidadesHii, ConfiguracaoHii, ProvedorHii, PapelHii } from '../../shared/configuracao-hii'
 import type { Atividade, Escopo, Snapshot } from '../../shared/observabilidade'
 interface Recurso<T> { valor: T; etag: string }
@@ -14,6 +15,7 @@ export declare function clienteHii(base: string, token: string): {
   pedido(id: string, pedido: { modo: 'gateway' | 'orquestrador'; texto: string } | { modo: 'orquestrador'; tecnico: string }, chave: string): Promise<Recurso<{ id: string; sessao: string; status: string; mensagem: string; enfileirada: boolean }>>
   perguntar(repo: string, pergunta: string, chave: string, sessao?: string): Promise<Recurso<{ id: string; atividade: string; estado: string }>>
   consulta(id: string): Promise<Recurso<{ id: string; repo: string; estado: string; resposta: string; custoUsd: number | null }>>
+  avaliacao(id: string): Promise<Recurso<AvaliacaoDeExecucao>>
   tarefa(id: string): Promise<Recurso<{ campos: Record<string, string>; objetivo: string }>>
   perguntas(id: string): Promise<Recurso<{ perguntaId: string | null; pendencia: { atual: { q: string; options: string[]; recommended?: string } } | null }>>
   responderPergunta(id: string, perguntaId: string, texto: string, chave: string, etag: string): Promise<Recurso<object>>
