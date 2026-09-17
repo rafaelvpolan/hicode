@@ -12,7 +12,7 @@ export declare function clienteHii(base: string, token: string): {
   observar(filtro: Partial<Escopo>, receber: (p: Projecao) => void, falhar?: (e: Error) => void): { dispose(): void; concluido: Promise<void> }
   novaSessao(repo: string, titulo: string, chave: string): Promise<Recurso<{ id: string }>>
   sessao(id: string): Promise<Recurso<{ id: string; repo: string }>>
-  pedido(id: string, pedido: { modo: 'gateway' | 'orquestrador'; texto: string } | { modo: 'orquestrador'; tecnico: string }, chave: string): Promise<Recurso<{ id: string; sessao: string; status: string; mensagem: string; enfileirada: boolean }>>
+  pedido(id: string, pedido: { modo: 'gateway' | 'orquestrador'; texto: string } | { modo: 'orquestrador'; tecnico: string; dependencias?: { produto: string; execucao: string; tecnicoHash: string }[] }, chave: string): Promise<Recurso<{ id: string; sessao: string; status: string; mensagem: string; enfileirada: boolean }>>
   perguntar(repo: string, pergunta: string, chave: string, sessao?: string): Promise<Recurso<{ id: string; atividade: string; estado: string }>>
   consulta(id: string): Promise<Recurso<{ id: string; repo: string; estado: string; resposta: string; custoUsd: number | null }>>
   avaliacao(id: string): Promise<Recurso<AvaliacaoDeExecucao>>

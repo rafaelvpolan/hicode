@@ -53,3 +53,13 @@ test('envio sobrevive releitura, retenta com mesma chave e nao altera revisao an
   expect(antiga.fonte).toBe(original.fonte)
   expect(lerTecnico('org/app', 'principal', 'A')?.revisao).toBe(2)
 })
+
+test('retry conserva vinculos de dependencia fixados na intencao original', () => {
+  salvarTecnico('org/app', 'principal', 'A', fonte(), 0, 'revisao-deps-001', true)
+  const refs = [{ produto: 'anterior', execucao: '002', tecnicoHash: 'a'.repeat(64) }]
+  const primeiro = iniciarEnvio('org/app', 'principal', 'A', 1, refs)
+  const repetido = iniciarEnvio('org/app', 'principal', 'A', 1, [{ ...refs[0]!, execucao: '003' }])
+  expect(repetido.envio?.chave).toBe(primeiro.envio?.chave)
+  expect(repetido.envio?.dependencias).toEqual(refs)
+  expect(lerTecnico('org/app', 'principal', 'A')?.envio?.dependencias).toEqual(refs)
+})

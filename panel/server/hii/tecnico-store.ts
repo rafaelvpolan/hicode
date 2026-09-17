@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { cardsDir } from '../motor/ambiente'
 import { withFileLock, writeFileAtomic } from '../card/bloqueio'
 import { analisarTecnico } from '../../shared/contrato-tecnico'
-import type { RevisaoTecnica, EnvioTecnico } from '../../shared/tecnico'
+import type { RevisaoTecnica, EnvioTecnico, ReferenciaDeDependencia } from '../../shared/tecnico'
 export class ErroTecnicoStore extends Error {
   constructor(readonly status: number, mensagem: string) { super(mensagem) }
 }
@@ -46,14 +46,14 @@ export function salvarTecnico(repo: string, planejamento: string, produto: strin
     return nova
   })
 }
-export function iniciarEnvio(repo: string, planejamento: string, produto: string, revisao: number): RevisaoTecnica {
+export function iniciarEnvio(repo: string, planejamento: string, produto: string, revisao: number, dependencias: ReferenciaDeDependencia[] = []): RevisaoTecnica {
   const path = arquivo(repo, planejamento, produto)
   return withFileLock(path, () => {
     const h = ler(path)
     const atual = h.revisoes.at(-1)
     if (!atual || atual.revisao !== revisao) throw new ErroTecnicoStore(412, 'Revisao mudou; releia antes de despachar')
     if (!atual.aprovada) throw new ErroTecnicoStore(409, 'Aprove o card tecnico antes de despachar')
-    atual.envio ??= { chave: hash(JSON.stringify([repo, planejamento, produto, revisao, atual.hash])), estado: 'pendente', sessao: '', execucao: '', status: '' }
+    atual.envio ??= { chave: hash(JSON.stringify([repo, planejamento, produto, revisao, atual.hash])), dependencias, estado: 'pendente', sessao: '', execucao: '', status: '' }
     writeFileAtomic(path, JSON.stringify(h, null, 2))
     return atual
   })
