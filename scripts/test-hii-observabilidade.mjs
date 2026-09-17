@@ -121,6 +121,31 @@ try {
     for (const campo of Object.keys(modelo.operacao)) modelo.operacao[campo] = 'Conferir classificacao no piloto; reverter em caso de falha'
     const fonteTecnica = JSON.stringify(modelo, null, 2) + '\n'
     await page.locator('#documento-tecnico').fill(fonteTecnica)
+    // Rever distribuicao multi-IA sem despachar nem alterar o documento aprovado.
+    const preview = structuredClone(modelo)
+    const primeira = { ...preview.microtasks[0], id: 'preparar', ia: { provedor: 'codex', modelo: 'modelo-fixture' }, arquivos: ['src/triagem.ts'] }
+    const segunda = { ...primeira, id: 'verificar', titulo: 'Verificar classificacao', agente: 'testudo', dependeDe: ['preparar'], ia: { provedor: 'claude' } }
+    preview.microtasks = [segunda, primeira]
+    await page.locator('#documento-tecnico').fill(JSON.stringify(preview, null, 2))
+    const plano = page.getByRole('region', { name: 'Plano de execucao para revisao', exact: true })
+    await plano.waitFor()
+    assert.deepEqual(await plano.locator('[data-microtask]').evaluateAll(items => items.map(i => i.dataset.microtask)), ['preparar', 'verificar'])
+    assert.ok((await plano.textContent()).includes('codex · modelo-fixture'))
+    assert.ok((await plano.textContent()).includes('claude · Modelo resolvido pelo motor'))
+    assert.ok((await plano.textContent()).includes('Previa das edicoes'))
+    await plano.locator('summary').first().focus()
+    await page.keyboard.press('Enter')
+    await plano.getByText('Resultado: Categoria correta aparece na consulta', { exact: true }).first().waitFor()
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'overflow no plano')
+    await plano.screenshot({ path: '/tmp/hicode-54-visual/plano-' + width + '.png' })
+    primeira.dependeDe = ['verificar']
+    await page.locator('#documento-tecnico').fill(JSON.stringify(preview, null, 2))
+    await page.getByText('microtasks: Ciclo de dependencias', { exact: true }).waitFor()
+    assert.equal(await plano.count(), 0, 'plano invalido nao pode manter previa anterior')
+    assert.equal(await page.getByRole('button', { name: 'Aprovar revisao', exact: true }).isDisabled(), true)
+    await page.locator('#documento-tecnico').fill(fonteTecnica)
+    await plano.waitFor()
+    assert.ok((await plano.textContent()).includes('Selecao pelo motor'))
     await page.getByRole('button', { name: 'Aprovar revisao', exact: true }).click()
     await page.getByText('Revisao aprovada. Despacho e uma acao separada.', { exact: true }).waitFor()
     // Perda da resposta depois de o backend confirmar: o retry deve reencontrar o mesmo envio.
@@ -141,6 +166,7 @@ try {
     const mensagem = await page.locator('[role=status]').first().textContent()
     await page.reload()
     await page.getByText(/Envio confirmado/).waitFor()
+    await page.getByText('Plano do documento enviado. Consulte as evidencias para acompanhar a execucao efetiva.', { exact: true }).waitFor()
     await page.getByRole('button', { name: 'Consultar/reconciliar envio', exact: true }).click()
     await page.getByText(mensagem, { exact: true }).waitFor()
     assert.equal(await page.locator('#documento-tecnico').inputValue(), fonteTecnica)
