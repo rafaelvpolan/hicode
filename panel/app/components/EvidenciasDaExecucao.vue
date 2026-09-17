@@ -5,6 +5,7 @@ defineProps<{ avaliacao: AvaliacaoDeExecucao }>()
 <template>
   <section class="evidencias">
     <p>Execucao #{{ avaliacao.execucao }} · {{ avaliacao.status }} · plano {{ avaliacao.plano?.revisao || 'ausente' }}</p>
+    <p v-if="avaliacao.entrega">Entrega verificada no PR: {{ avaliacao.entrega.pr }}<br>Commit validado: {{ avaliacao.entrega.head }}<br>Arvore verificada: {{ avaliacao.entrega.tree }}<template v-if="avaliacao.entrega.merge"><br>Commit integrado: {{ avaliacao.entrega.merge }}</template></p>
     <p>Atualidade: {{ avaliacao.atualidade }}. {{ avaliacao.motivo }}</p>
     <p>Consulta: {{ avaliacao.consultadaEm }}<template v-if="avaliacao.evidenciaEm"> · evidencia: {{ avaliacao.evidenciaEm }}</template></p>
     <p v-if="!avaliacao.criterios.length">Nenhum criterio verificavel registrado. Estado terminal nao comprova entrega.</p>

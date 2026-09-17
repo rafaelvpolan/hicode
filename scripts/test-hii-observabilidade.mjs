@@ -15,7 +15,7 @@ const senha = 'fixture-password-123456'
 const panelCards = mkdtempSync(join(tmpdir(), 'hicode-planejamento-e2e-'))
 const env = { ...process.env, HICODE_CARDS_DIR: panelCards, HICODE_DISCOVERY_REPOS: 'fixture/app', HII_API_TOKEN: token, HII_API_URL: `http://127.0.0.1:${motorPort}`, HII_API_REPO: 'fixture/app', HII_FIXTURE_PORT: String(motorPort), HII_FIXTURE_ADMIN: '1', HICODE_PANEL_PASSWORD: senha, HICODE_SESSION_SECRET: 'fixture-assinatura-1234567890123456789012345' }
 const saidas = []
-function subir(cmd, args, cwd) { const p = spawn(cmd, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] }); p.stdout.on('data', d => saidas.push(String(d))); p.stderr.on('data', d => saidas.push(String(d))); return p }
+function subir(cmd, args, cwd) { const p = spawn(cmd, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] }); p.stdout.on('data', d => saidas.push(String(d))); p.stderr.on('data', d => saidas.push(String(d))); return p }
 const motor = subir(process.execPath, ['test/fixtures/api-observabilidade-server.ts'], hii)
 const panel = subir(process.execPath, ['node_modules/nuxt/bin/nuxt.mjs', 'dev', '--host', '127.0.0.1', '--port', String(panelPort)], resolve('panel'))
 const base = `http://127.0.0.1:${panelPort}`
@@ -153,9 +153,28 @@ try {
     await page.getByText('Epico ainda nao concluido com evidencias.', { exact: false }).waitFor()
     await page.getByRole('heading', { name: 'Triagem de entradas · Em execucao', exact: true }).waitFor()
     await page.screenshot({ path: `/tmp/hicode-54-visual/progresso-${width}.png`, fullPage: true })
+    const execucao = mensagem.match(/Execucao #(\d+)/)[1]
+    async function controlar(acao) {
+      const marcador = 'entrega ' + acao + ' ' + execucao
+      motor.stdin.write(JSON.stringify({ id: execucao, acao }) + '\n')
+      for (let i = 0; i < 100 && !saidas.some(s => s.includes(marcador)); i++) await new Promise(r => setTimeout(r, 100))
+      assert.ok(saidas.some(s => s.includes(marcador)), saidas.slice(-5).join('\n'))
+    }
+    await controlar('certificar')
+    await page.getByRole('button', { name: 'Consultar evidencias do epico', exact: true }).click()
+    await page.getByRole('heading', { name: 'Triagem de entradas · Concluida com evidencia', exact: true }).waitFor()
+    await page.getByText('Epico concluido com evidencias na consulta.', { exact: false }).waitFor()
+    await page.getByText('Ver criterios da execucao #' + execucao, { exact: true }).click()
+    await page.getByText('Entrega verificada no PR:', { exact: false }).waitFor()
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'overflow na prova de entrega')
+    await page.locator('.progresso').screenshot({ path: '/tmp/hicode-54-visual/entrega-' + width + '.png' })
+    await controlar('divergir')
+    await page.getByRole('button', { name: 'Consultar evidencias do epico', exact: true }).click()
+    await page.getByRole('heading', { name: 'Triagem de entradas · Verificacao inconclusiva', exact: true }).waitFor()
+    await page.getByText('Epico ainda nao concluido com evidencias.', { exact: false }).waitFor()
     assert.deepEqual(erros, [])
     await page.close()
-    console.log(`${width}px: autenticacao, HTTP/SSE, hierarquia, metricas, XSS, ask readonly, configuracao/ETag, conflito sem sobrescrita token server-side descoberta/epico e despacho tecnico com resposta perdida OK`)
+    console.log(`${width}px: autenticacao, HTTP/SSE, hierarquia, metricas, XSS, ask readonly, configuracao/ETag, conflito sem sobrescrita token server-side descoberta/epico e despacho tecnico, entrega arquivada e invalidacao remota OK`)
   }
 } catch (e) { console.error(saidas.slice(-20).join('')); throw e }
 finally { await browser?.close(); panel.kill('SIGTERM'); motor.kill('SIGTERM'); rmSync(panelCards, { recursive: true, force: true }) }

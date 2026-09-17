@@ -12,6 +12,7 @@ export interface AvaliacaoDeExecucao {
   consultadaEm: string
   evidenciaEm: string | null
   tentativa: string | null
+  entrega?: { head: string; tree: string; pr: string; merge: string | null }
   criteriosAprovados: boolean
   criterios: {
     id: string; descricao: string; obrigatorio: boolean
