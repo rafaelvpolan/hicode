@@ -58,7 +58,7 @@ const {
       <BasePilha v-else espaco="4">
         <CardRow
           v-for="c in cardsOrdenados"
-          :key="c.id"
+          :key="c.arquivo || c.id"
           :card="c"
           :runs="runs"
           :estimates="estimates"

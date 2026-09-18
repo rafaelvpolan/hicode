@@ -1,3 +1,4 @@
+import { lerVinculo, agirNoVinculo, ErroRecuperacao } from '../../../hii/recuperacao'
 import { comMotorDisponivel, MotorIndisponivel, iniciarCardPelaApi } from '../../../hii/status'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -24,6 +25,19 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
   if (!id) { setResponseStatus(event, 400); return { error: 'id invalido' } }
   const action = getRouterParam(event, 'action')
   const b = await readBody<CardActionBody>(event).catch(() => ({}) as CardActionBody)
+  const locais = readCards().filter(c => c.id === id)
+  if (locais.length > 1) { setResponseStatus(event, 409); return { error: 'ID ambiguo; selecione o arquivo de origem na recuperacao.' } }
+  const local = locais[0]
+  if (local && lerVinculo(local.file)) {
+    if (!['pause', 'resume', 'resolve'].includes(action || '')) { setResponseStatus(event, 409); return { error: 'Tarefa vinculada ao HII; use os controles do motor.' } }
+    try {
+      const campos = await agirNoVinculo(local.file, action === 'pause' ? 'parar' : 'retomar')
+      return { ok: true, card: { ...campos, id, file: local.file } }
+    } catch (e) {
+      if (!(e instanceof ErroRecuperacao)) throw e
+      setResponseStatus(event, e.status); return { error: e.message }
+    }
+  }
   if (['start', 'resume', 'approve', 'reject', 'resolve', 'clarify', 'replay', 'correct'].includes(action || '')) {
     const existente = readCards().find(c => c.id === id)
     if (!existente) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }

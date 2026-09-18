@@ -1,7 +1,7 @@
 import type { Fields, Parsed } from './tipos'
 
 export function splitFrontMatter(text: string): Parsed {
-  const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/)
+  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?([\s\S]*)$/)
   if (!m) return { fm: {}, order: [], body: text }
   const fm: Fields = {}
   const order: string[] = []

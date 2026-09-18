@@ -6,6 +6,8 @@ export type CardStatus =
 export type CardRisk = 'low' | 'high'
 
 export interface CardView {
+  arquivo?: string
+  recuperacao?: { estado: 'pendente' | 'confirmado'; tarefa: string } | null
   id: string
   slug: string
   title: string
