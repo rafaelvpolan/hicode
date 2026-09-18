@@ -70,6 +70,8 @@ const bloqueado = computed<boolean>(() => estaBloqueado(props.card.status))
       @review="$emit('review', card.id)"
     />
 
+    <CardRecuperacao v-if="card.recuperacao || ['PAUSED', 'HALTED'].includes(card.status)" :card="card" />
+
     <CardAtividade :card-id="card.id" :status="card.status" :atualizado="card.updated" />
 
     <CardExecucoes :card="card" :runs="runs" />

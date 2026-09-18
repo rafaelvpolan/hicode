@@ -1,3 +1,4 @@
+import { lerVinculo } from '../hii/recuperacao'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { splitFrontMatter, serializeCard } from './frontmatter'
@@ -25,6 +26,7 @@ export function updateCard(id: string, patch: CardPatch): Fields | null {
   if (!name) return null
   const file = join(cardsDir(), name)
   return withFileLock(file, () => {
+    if (lerVinculo(name)) throw new Error('Tarefa em recuperacao ou vinculada ao HII; use a API do motor.')
     const { fm, order, body } = splitFrontMatter(readFileSync(file, 'utf8'))
     const before: Fields = { ...fm }
     const resolvedFields = typeof patch.fields === 'function' ? patch.fields(before) : (patch.fields ?? {})
