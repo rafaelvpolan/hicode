@@ -18,5 +18,5 @@ defineProps<{ avaliacao: AvaliacaoDeExecucao }>()
   </section>
 </template>
 <style scoped>
-.evidencias{font-size:14px;overflow-wrap:anywhere}article{border-top:1px solid #65716a;padding:12px 0}h4{margin:6px 0}.descricao{white-space:pre-wrap}summary{cursor:pointer}pre{white-space:pre-wrap;max-height:260px;overflow:auto;border:1px solid #65716a;padding:12px;font:12px/1.5 monospace}details:focus-within{outline:2px solid #76d8ad;outline-offset:3px}
+.evidencias{font-size:14px;overflow-wrap:anywhere}article{border-top:1px solid var(--hairline-forte);padding:12px 0}h4{margin:6px 0}.descricao{white-space:pre-wrap}summary{cursor:pointer}pre{white-space:pre-wrap;max-height:260px;overflow:auto;border:1px solid var(--hairline-forte);padding:12px;font:12px/1.5 monospace}details:focus-within{outline:2px solid var(--acento);outline-offset:3px}
 </style>

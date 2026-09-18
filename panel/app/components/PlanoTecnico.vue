@@ -49,8 +49,8 @@ const etapas = computed(() => {
   </section>
 </template>
 <style scoped>
-.plano-tecnico{margin:24px 0;border:1px solid #65716a;border-radius:6px;padding:18px;overflow-wrap:anywhere}
-.etapas{padding-left:24px}.etapas>li{padding:4px 0 18px}.etapas>li+li{border-top:1px solid #65716a}
-h3{font-size:18px}small{font-weight:400}dl{display:grid;grid-template-columns:170px minmax(0,1fr);gap:8px}dt{font-weight:600}dd{margin:0}summary{cursor:pointer}summary:focus-visible{outline:2px solid #76d8ad;outline-offset:3px}
+.plano-tecnico{margin:24px 0;border:1px solid var(--hairline-forte);border-radius:6px;padding:18px;overflow-wrap:anywhere}
+.etapas{padding-left:24px}.etapas>li{padding:4px 0 18px}.etapas>li+li{border-top:1px solid var(--hairline-forte)}
+h3{font-size:18px}small{font-weight:400}dl{display:grid;grid-template-columns:170px minmax(0,1fr);gap:8px}dt{font-weight:600}dd{margin:0}summary{cursor:pointer}summary:focus-visible{outline:2px solid var(--acento);outline-offset:3px}
 @media(max-width:600px){.plano-tecnico{padding:12px}dl{grid-template-columns:1fr;gap:4px}dd{margin-bottom:8px}}
 </style>

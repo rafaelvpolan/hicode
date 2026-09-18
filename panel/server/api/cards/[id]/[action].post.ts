@@ -1,3 +1,4 @@
+import { comMotorDisponivel, MotorIndisponivel, iniciarCardPelaApi } from '../../../hii/status'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CardActionResponse, CardRisk } from '#shared/types'
@@ -23,8 +24,22 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
   if (!id) { setResponseStatus(event, 400); return { error: 'id invalido' } }
   const action = getRouterParam(event, 'action')
   const b = await readBody<CardActionBody>(event).catch(() => ({}) as CardActionBody)
+  if (['start', 'resume', 'approve', 'reject', 'resolve', 'clarify', 'replay', 'correct'].includes(action || '')) {
+    const existente = readCards().find(c => c.id === id)
+    if (!existente) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
+    if (action === 'start' && existente.status !== 'READY') { setResponseStatus(event, 409); return { error: 'inicio exige card READY; use a retomada explicita para card parado' } }
+    try { await comMotorDisponivel(() => undefined) }
+    catch (e) {
+      if (!(e instanceof MotorIndisponivel)) throw e
+      setResponseStatus(event, 503)
+      return { error: e.message }
+    }
+  }
   let card = null
-  if (action === 'start') card = transition(id, 'EXECUTING', 'iniciado pelo painel')
+  if (action === 'start') {
+    try { card = { ...await iniciarCardPelaApi(id), file: '' } }
+    catch { setResponseStatus(event, 503); return { error: 'Inicio sem confirmacao do HII. Consulte o estado da tarefa antes de reenviar.' } }
+  }
   else if (action === 'pause') card = transition(id, 'PAUSED', 'pausado pelo painel')
   else if (action === 'resume') card = transition(id, 'EXECUTING', 'retomado pelo painel')
   else if (action === 'approve') {

@@ -55,5 +55,5 @@ async function carregar(continuar = false): Promise<void> {
   </section>
 </template>
 <style scoped>
-.progresso{border:1px solid #65716a;border-radius:8px;padding:18px;margin:24px 0;overflow-wrap:anywhere}.progresso-tarefa{border-top:1px solid #65716a;margin-top:20px;padding-top:12px}h3{font-size:17px}button{font:inherit;padding:10px;background:transparent;color:inherit;border:1px solid #65716a;border-radius:5px;cursor:pointer}button:disabled{opacity:.5;cursor:default}details{margin-top:16px}summary{cursor:pointer}button:focus-visible,summary:focus-visible{outline:2px solid #76d8ad;outline-offset:3px}
+.progresso{border:1px solid var(--hairline-forte);border-radius:8px;padding:18px;margin:24px 0;overflow-wrap:anywhere}.progresso-tarefa{border-top:1px solid var(--hairline-forte);margin-top:20px;padding-top:12px}h3{font-size:17px}button{font:inherit;padding:10px;background:transparent;color:inherit;border:1px solid var(--hairline-forte);border-radius:5px;cursor:pointer}button:disabled{opacity:.5;cursor:default}details{margin-top:16px}summary{cursor:pointer}button:focus-visible,summary:focus-visible{outline:2px solid var(--acento);outline-offset:3px}
 </style>

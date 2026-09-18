@@ -35,3 +35,5 @@ a:hover { color: var(--acento-claro); }
 ::-webkit-scrollbar-track { background: transparent; }
 
 h1, h2, h3, h4 { font-family: var(--fonte-display); letter-spacing: var(--tracking-display); margin: 0; }
+
+input::placeholder, textarea::placeholder { color: var(--texto-fraco); opacity: 1; }

@@ -11,7 +11,8 @@
     "typecheck:panel": "cd panel && bun run typecheck",
     "lint:types": "bun scripts/check-no-any.mjs",
     "test:unit": "bun scripts/test-unit-isolado.mjs",
-    "test": "bun run typecheck && bun run lint:types && bun run test:unit && bun run typecheck:panel"
+    "test": "bun run typecheck && bun run lint:types && bun run test:unit && bun run typecheck:panel",
+    "test:e2e:status": "bun run panel:build && node scripts/test-motor-status.mjs"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
