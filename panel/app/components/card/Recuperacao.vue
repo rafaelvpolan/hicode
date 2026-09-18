@@ -30,6 +30,7 @@ onBeforeUnmount(() => clearInterval(timer))
 </script>
 <template>
   <section v-if="card.arquivo" class="recuperacao" aria-label="Recuperacao da tarefa">
+    <p v-if="card.recuperacao?.erro" role="alert">{{ card.recuperacao.erro }}</p>
     <button type="button" :disabled="ocupado" @click="acao('diagnosticar')">{{ ocupado ? 'Consultando motor…' : 'Diagnosticar recuperacao' }}</button>
     <p v-if="erro" role="alert" class="erro">{{ erro }}</p>
     <template v-if="dados">

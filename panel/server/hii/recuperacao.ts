@@ -19,11 +19,19 @@ export function arquivoDoVinculo(arquivo: string): string { return join(cardsDir
 export function lerVinculo(arquivo: string): Vinculo | null {
   const path = arquivoDoVinculo(arquivo)
   if (!existsSync(path)) return null
-  const v = JSON.parse(readFileSync(path, 'utf8')) as Vinculo
-  if (v.versao !== 1 || v.arquivo !== arquivo || !/^[a-f0-9]{64}$/.test(v.hash) || !['pendente', 'confirmado'].includes(v.estado)) throw new ErroRecuperacao(409, 'Vinculo inconsistente; original preservado.')
-  return v
+  try {
+    const v = JSON.parse(readFileSync(path, 'utf8')) as Vinculo
+    if (!v || v.versao !== 1 || v.arquivo !== arquivo || !/^[a-f0-9]{64}$/.test(v.hash) ||
+      !/^[a-f0-9]{64}$/.test(v.origem) || !['pendente', 'confirmado'].includes(v.estado) ||
+      (v.estado === 'confirmado' ? !/^\d{3,12}$/.test(v.tarefa) : v.tarefa !== '')) throw new Error('identidade invalida')
+    return v
+  } catch { throw new ErroRecuperacao(409, 'Vinculo inconsistente; original preservado.') }
 }
-export async function chamarHii<T>(rota: string, corpo?: object, revisao = '', chave = ''): Promise<T> {
+export function resumoDoVinculo(arquivo: string): import('../../shared/types').CardView['recuperacao'] {
+  try { return lerVinculo(arquivo) }
+  catch { return { estado: 'inconsistente', tarefa: '', erro: 'Vinculo ilegivel. Reconciliacao necessaria; original preservado.' } }
+}
+export async function chamarHii<T>(rota: string, corpo?: object, revisao = '', chave = '', signal?: AbortSignal): Promise<T> {
   const base = process.env.HII_API_URL || ''
   const token = process.env.HII_API_TOKEN || ''
   if (!base || token.length < 32) throw new ErroRecuperacao(503, 'Configure a API do HII no backend.')
@@ -31,7 +39,7 @@ export async function chamarHii<T>(rota: string, corpo?: object, revisao = '', c
   if (!['http:', 'https:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) throw new ErroRecuperacao(503, 'Endereco da API invalido.')
   endpoint.pathname = endpoint.pathname.replace(/\/$/, '') + rota
   let r: Response
-  try { r = await fetch(endpoint, { method: corpo ? 'POST' : 'GET', redirect: 'error', signal: AbortSignal.timeout(15000),
+  try { r = await fetch(endpoint, { method: corpo ? 'POST' : 'GET', redirect: 'error', signal: signal ?? AbortSignal.timeout(15000),
     headers: { authorization: 'Bearer ' + token, ...(corpo ? { 'content-type': 'application/json', 'idempotency-key': chave, 'if-match': revisao } : {}) },
     ...(corpo ? { body: JSON.stringify(corpo) } : {}) }) }
   catch { throw new ErroRecuperacao(503, 'API sem confirmacao. A intencao foi preservada; diagnostique novamente antes de reenviar.') }
@@ -121,11 +129,12 @@ export async function agirNoVinculo(arquivo: string, acao: 'retomar' | 'parar'):
 }
 
 export async function estadoComVinculos<T extends { cards: import('../../shared/types').CardView[] }>(estado: T): Promise<T> {
-  const cards = await Promise.all(estado.cards.map(async card => {
-    const v = card.arquivo ? lerVinculo(card.arquivo) : null
-    if (!v?.tarefa || v.estado !== 'confirmado') return card
+  const signal = AbortSignal.timeout(5000)
+  const projetar = async (card: import('../../shared/types').CardView): Promise<import('../../shared/types').CardView> => {
     try {
-      const { campos } = await chamarHii<{ campos: Record<string, string> }>('/v1/tarefas/' + v.tarefa)
+      const v = card.arquivo ? lerVinculo(card.arquivo) : null
+      if (!v?.tarefa || v.estado !== 'confirmado') return card
+      const { campos } = await chamarHii<{ campos: Record<string, string> }>('/v1/tarefas/' + v.tarefa, undefined, '', '', signal)
       if (campos.recuperacao_origem !== v.origem || campos.repo !== card.repo) throw new ErroRecuperacao(409, 'Identidade remota diverge do vinculo.')
       const { statusCanonicoOuNulo } = await import('../../shared/status')
       const status = statusCanonicoOuNulo(campos.status)
@@ -134,6 +143,14 @@ export async function estadoComVinculos<T extends { cards: import('../../shared/
         cost_unverified: campos.cost_unverified || '', tokens_total: campos.tokens_total || card.tokens_total,
         halt_reason: campos.halt_reason || '', pr_url: campos.pr_url || card.pr_url }
     } catch { return { ...card, halt_reason: 'Estado remoto sem confirmacao. Consulte a recuperacao; o original permanece preservado.' } }
+  }
+  const cards = [...estado.cards]
+  let proximo = 0
+  await Promise.all(Array.from({ length: Math.min(4, cards.length) }, async () => {
+    while (proximo < cards.length) {
+      const indice = proximo++
+      cards[indice] = await projetar(cards[indice]!)
+    }
   }))
   return { ...estado, cards }
 }

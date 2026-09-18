@@ -28,7 +28,10 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
   const locais = readCards().filter(c => c.id === id)
   if (locais.length > 1) { setResponseStatus(event, 409); return { error: 'ID ambiguo; selecione o arquivo de origem na recuperacao.' } }
   const local = locais[0]
-  if (local && lerVinculo(local.file)) {
+  let vinculado = false
+  try { vinculado = !!local && !!lerVinculo(local.file) }
+  catch { setResponseStatus(event, 409); return { error: 'Vinculo inconsistente; reconcilie a recuperacao antes de agir.' } }
+  if (local && vinculado) {
     if (!['pause', 'resume', 'resolve'].includes(action || '')) { setResponseStatus(event, 409); return { error: 'Tarefa vinculada ao HII; use os controles do motor.' } }
     try {
       const campos = await agirNoVinculo(local.file, action === 'pause' ? 'parar' : 'retomar')

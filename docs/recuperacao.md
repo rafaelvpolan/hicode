@@ -39,3 +39,12 @@ O teste usa processos separados, filas temporarias, dois cards 020 e o 025,
 preserva um worktree modificado, verifica reload e largura de 390px. A presenca
 do daemon e simulada; nao executa IA ou cards operacionais. As verificacoes de
 modelo real sao uma trilha diferente e nao sao provadas por esse E2E.
+
+
+Vinculo ilegivel ou identidade invalida bloqueia a tarefa afetada, preserva os arquivos
+e informa reconciliacao. Os demais cards continuam acessiveis. A leitura de estado
+consulta no maximo quatro vinculos simultaneamente, com prazo total de cinco segundos.
+
+Checkpoint: 208 testes passaram, um skip existente; tipos e build aprovados.
+E2E de status e recuperacao aprovados em desktop e 390px, com API em processo
+separado e presenca do daemon simulada, sem inferencia real.

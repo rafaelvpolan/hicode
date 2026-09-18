@@ -1,4 +1,4 @@
-import { lerVinculo } from '../hii/recuperacao'
+import { resumoDoVinculo } from '../hii/recuperacao'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CardStatus, CardView, StateResponse } from '#shared/types'
@@ -9,7 +9,7 @@ export function getState(): StateResponse {
   const cards: CardView[] = readCards().map((c) => ({
     id: c.id,
     arquivo: c.file,
-    recuperacao: lerVinculo(c.file),
+    recuperacao: resumoDoVinculo(c.file),
     slug: c.slug || '',
     title: c.title || c.slug || '',
     status: (c.status || 'INBOX') as CardStatus,

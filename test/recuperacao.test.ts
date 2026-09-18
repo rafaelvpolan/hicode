@@ -95,3 +95,25 @@ test('alteracao concorrente e tentativa de traversal nao escrevem vinculo', asyn
   expect(() => pacoteLocal('../' + nome)).toThrow()
   expect(importar).toBe(0)
 })
+
+test('vinculo corrompido fica restrito ao card e nao permite acao local', async () => {
+  const { arquivoDoVinculo, estadoComVinculos } = await import('../panel/server/hii/recuperacao')
+  const p = arquivoDoVinculo(nome)
+  mkdirSync(join(process.env.HICODE_CARDS_DIR!, 'recuperacao'))
+  writeFileSync(p, '{truncado')
+  const card = { arquivo: nome, id: '025', slug: 'icones', title: 'Icones', status: 'PAUSED' as const, risk: 'low' as const, repo: 'org/app',
+    updated: '', desc: '', cost_usd: '', cost_floor: '', cost_unverified: '', tokens_total: '', verify: '', revalidacao: '', preview_url: '', pr_url: '', shot: false, halt_reason: '', surface: '', eval_score: '', eval_notes: '' }
+  const r = await estadoComVinculos({ cards: [card, { ...card, arquivo: '020-a.md', id: '020' }] })
+  expect(r.cards).toHaveLength(2)
+  expect(r.cards[0]!.halt_reason).toContain('sem confirmacao')
+  expect(r.cards[1]!.halt_reason).toBe('')
+  expect(() => transition('025', 'EXECUTING')).toThrow()
+  expect(readFileSync(p, 'utf8')).toBe('{truncado')
+})
+
+test('identidade remota invalida no vinculo nao autoriza consulta nem acao', async () => {
+  const { arquivoDoVinculo } = await import('../panel/server/hii/recuperacao')
+  mkdirSync(join(process.env.HICODE_CARDS_DIR!, 'recuperacao'))
+  writeFileSync(arquivoDoVinculo(nome), JSON.stringify({ versao: 1, origem: 'invalida', hash: 'a'.repeat(64), estado: 'confirmado', tarefa: '../configuracao', arquivo: nome }))
+  expect(() => lerVinculo(nome)).toThrow(/inconsistente/)
+})
