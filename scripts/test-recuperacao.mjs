@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { pathToFileURL } from 'node:url'
 import { spawn, execFileSync } from 'node:child_process'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -25,10 +27,25 @@ execFileSync('git', ['-C', projeto, 'worktree', 'add', '-qb', 'fixture-025', wt]
 writeFileSync(join(wt, 'trabalho-preservado.txt'), 'alteracao parcial importante')
 writeFileSync(join(base, 'repos.json'), JSON.stringify([{ name: 'fixture/app', path: projeto }]))
 writeFileSync(join(base, 'config/repos.json'), JSON.stringify([{ name: 'fixture/app', url: 'https://github.com/fixture/app', branch: 'main' }]))
+const { fingerprintDoTrabalho } = await import(pathToFileURL(join(hii, 'motor/oswaldo/orquestracao/evidencias.ts')).href)
+const sha = s => createHash('sha256').update(s).digest('hex')
+const plano = { versao: 1, id: '025', repo: 'fixture/app', sessaoId: '025', objetivo: 'Recuperar icones', risco: 'low',
+  criterios: [{ id: 'teste', descricao: 'exit zero', obrigatorio: true, comando: { binario: 'true', argumentos: [], diretorio: '.', timeoutMs: 1000 } }],
+  microtasks: ['A', 'B'].map(id => ({ id, titulo: id, instrucao: 'Etapa ' + id, agente: 'limpio', dependeDe: id === 'A' ? [] : ['A'], arquivos: [], criterios: ['teste'] })),
+  rollout: { ativacao: 'humana', sucesso: 'criterios', interrupcao: 'falha', reversao: 'preservar' } }
+const planoHash = sha(JSON.stringify(plano))
+for (const d of ['planos', 'orquestracao']) mkdirSync(join(base, 'panel', d))
+writeFileSync(join(base, 'panel', 'planos', sha('fixture/app').slice(0, 24) + '-025.json'),
+  JSON.stringify({ versao: 1, revisoes: [{ revisao: 1, chave: 'fixture', hash: planoHash, plano }] }))
+const instante = new Date().toISOString()
+writeFileSync(join(base, 'panel', 'orquestracao', 'execucao-025-1.json'), JSON.stringify({
+  versao: 1, hash: planoHash, feitas: ['A'], fingerprint: await fingerprintDoTrabalho(wt),
+  tentativas: [{ microtask: 'A', inicio: instante, fim: instante, provedor: 'claude', modelo: 'fixture',
+    estado: 'concluida', custo: '0.15', motivo: 'fixture; nenhuma IA real' }] }))
 const originais = {}
 for (const [nome, id, status] of [['020-a.md', '020', 'EXECUTING'], ['020-b.md', '020', 'MERGED'], ['025-icones.md', '025', 'PAUSED']]) {
   const texto = '---\nid: ' + id + '\nrepo: fixture/app\ntitle: ' + (id === '025' ? 'Recuperar icones fixture' : nome) + '\nstatus: ' + status
-    + (id === '025' ? '\ncost_usd: 0.15\nbranch: fixture-025\nworktree: ' + wt : '') + '\n---\nObjetivo original e historico intactos\n'
+    + (id === '025' ? '\ncost_usd: 0.15\nbranch: fixture-025\nplano_revisao: 1\nplano_hash: ' + planoHash + '\nworktree: ' + wt : '') + '\n---\nObjetivo original e historico intactos\n'
   originais[nome] = texto; writeFileSync(join(base, 'panel', nome), texto)
 }
 const env = { ...process.env, HICODE_ROOT: base, HICODE_CARDS_DIR: join(base, 'panel'), HICODE_REPOS_FILE: join(base, 'config/repos.json'),
@@ -63,6 +80,7 @@ try {
   await card.getByRole('button', { name: 'Preservar e vincular ao HII', exact: true }).click()
   await card.getByRole('button', { name: 'Confirmar revalidacao da etapa', exact: true }).waitFor()
   assert.equal(await card.getByRole('button', { name: 'Retomar pelo motor', exact: true }).isDisabled(), true)
+  await card.getByText(/1 de 2 microtarefas registradas/).waitFor()
   await page.reload()
   await card.getByRole('button', { name: 'Confirmar revalidacao da etapa', exact: true }).click()
   await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === 'Retomar pelo motor' && !b.disabled))
@@ -75,11 +93,17 @@ try {
   await page.reload()
   await card.locator('.recuperacao strong').filter({ hasText: 'EXECUTING' }).waitFor()
   assert.equal(readdirSync(env.HII_CARDS_DIR).filter(n => n.endsWith('.md')).length, 1)
+  const checkpoints = readdirSync(join(env.HII_CARDS_DIR, 'orquestracao')).filter(n => n.startsWith('execucao-'))
+  assert.equal(checkpoints.length, 1)
+  const migrado = JSON.parse(readFileSync(join(env.HII_CARDS_DIR, 'orquestracao', checkpoints[0]), 'utf8'))
+  assert.deepEqual(migrado.feitas, ['A'])
+  assert.equal(migrado.tentativas[0].custo, '0.15')
+  assert.notEqual(migrado.hash, planoHash)
   for (const [nome, original] of Object.entries(originais)) assert.equal(readFileSync(join(base, 'panel', nome), 'utf8'), original)
   assert.equal(readFileSync(join(wt, 'trabalho-preservado.txt'), 'utf8'), 'alteracao parcial importante')
   assert.deepEqual(errors, [])
   assert.ok(!(await page.locator('body').innerText()).includes(token))
-  console.log('PASS: processos separados, filas distintas, #020 duplicado preservado, #025 vinculado e retomado pela API, reload, desktop e 390px. Presenca do daemon simulada; nenhuma IA executada.')
+  console.log('PASS: processos separados, filas distintas, #020 duplicado preservado, #025 com plano/checkpoint migrados, vinculado e retomado pela API, reload, desktop e 390px. Presenca do daemon simulada; nenhuma IA executada.')
 } catch (e) {
   console.error(logs.slice(-20).join('').replaceAll(token, '[REDACTED]'))
   throw e

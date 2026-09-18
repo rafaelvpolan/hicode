@@ -44,6 +44,7 @@ onBeforeUnmount(() => clearInterval(timer))
       <template v-if="dados.diagnostico">
         <p v-for="item in dados.diagnostico.bloqueios" :key="item" class="erro">{{ item }}</p>
         <p v-for="item in dados.diagnostico.avisos" :key="item">{{ item }}</p>
+        <p v-if="dados.diagnostico.plano">Plano legado, revisao {{ dados.diagnostico.plano.revisao }}: {{ dados.diagnostico.plano.concluidas.length }} de {{ dados.diagnostico.plano.total }} microtarefas registradas como concluidas. O motor verificara suas evidencias antes de continuar pelas pendentes.</p>
         <p v-if="dados.diagnostico.branch">Branch preservada: {{ dados.diagnostico.branch }}</p>
         <details v-if="dados.diagnostico.snapshots.length">
           <summary>Configuracoes registradas</summary>

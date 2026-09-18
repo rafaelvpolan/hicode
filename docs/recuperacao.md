@@ -48,3 +48,15 @@ consulta no maximo quatro vinculos simultaneamente, com prazo total de cinco seg
 Checkpoint: 208 testes passaram, um skip existente; tipos e build aprovados.
 E2E de status e recuperacao aprovados em desktop e 390px, com API em processo
 separado e presenca do daemon simulada, sem inferencia real.
+
+
+Planos legados v1 com historico e checkpoint completos podem ser transferidos.
+A previa informa revisao e microtarefas concluidas. O motor valida hashes, identidade,
+worktree, custo e dependencias; revalida criterios das concluidas antes de executar
+as pendentes. Tentativa incerta, dependencia entre produtos nao reconciliada ou
+artefato ausente continua bloqueando. Sessoes nativas de provedores nao sao
+anunciadas como migradas.
+
+O E2E agora transfere plano/checkpoint por HTTP, preserva A concluida, custo e
+originais, e verifica retomada confirmada depois de reload em desktop/390px.
+Presenca do daemon simulada, sem chamada real de IA. Suite: 209 testes e um skip.

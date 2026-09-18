@@ -117,3 +117,14 @@ test('identidade remota invalida no vinculo nao autoriza consulta nem acao', asy
   writeFileSync(arquivoDoVinculo(nome), JSON.stringify({ versao: 1, origem: 'invalida', hash: 'a'.repeat(64), estado: 'confirmado', tarefa: '../configuracao', arquivo: nome }))
   expect(() => lerVinculo(nome)).toThrow(/inconsistente/)
 })
+
+test('pacote inclui plano e checkpoint de #025 sem anexar os de outro projeto ou tarefa', () => {
+  const pasta = process.env.HICODE_CARDS_DIR!
+  for (const sub of ['planos', 'orquestracao']) mkdirSync(join(pasta, sub))
+  const chave = createHash('sha256').update('org/app').digest('hex').slice(0, 24)
+  writeFileSync(join(pasta, 'planos', chave + '-025.json'), '{"versao":1}')
+  writeFileSync(join(pasta, 'planos', 'outro-projeto-025.json'), 'nao anexar')
+  writeFileSync(join(pasta, 'orquestracao', 'execucao-025-1.json'), '{"feitas":["A"]}')
+  writeFileSync(join(pasta, 'orquestracao', 'execucao-020-1.json'), 'nao anexar')
+  expect(pacoteLocal(nome).anexos.map(a => a.nome)).toEqual(['orquestracao/execucao-025-1.json', 'planos/' + chave + '-025.json'])
+})

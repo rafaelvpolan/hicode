@@ -6,6 +6,7 @@ export interface PreviaRecuperacao {
 export interface DiagnosticoRecuperacao {
   versao: 1; tarefa: string; revisao: string; origem: string; status: string
   preparada: boolean; podePreparar: boolean; bloqueios: string[]; avisos: string[]; worktree: string; branch: string; fingerprint: string
+  plano?: { origemId: string; revisao: number; concluidas: string[]; total: number }
   configuracao: string | null
   snapshots: { hash: string; instante: string; motivo: string; configuracao: Record<string, ValorRecuperacao> }[]
   motor: { estado: string; motivo: string; versao: string }

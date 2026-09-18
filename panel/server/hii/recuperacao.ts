@@ -65,8 +65,10 @@ export function pacoteLocal(arquivo: string): Pacote {
     if (profundidade > 6) throw new ErroRecuperacao(409, 'Artefatos excedem profundidade suportada; nada foi descartado.')
     for (const nome of readdirSync(dir)) {
       const p = join(dir, nome)
-      const rel = relative(raiz, p)
-      const pertence = rel.split('/').some(parte => parte === fm.id || parte.startsWith(fm.id + '-') || parte.startsWith(fm.id + '.'))
+      const rel = relative(raiz, p).split('\\').join('/')
+      const plano = rel === 'planos/' + sha(fm.repo!).slice(0, 24) + '-' + fm.id + '.json'
+      const checkpoint = rel.startsWith('orquestracao/execucao-' + fm.id + '-') && /^orquestracao\/execucao-\d{3,12}-\d+\.json$/.test(rel)
+      const pertence = plano || checkpoint || rel.split('/').some(parte => parte === fm.id || parte.startsWith(fm.id + '-') || parte.startsWith(fm.id + '.'))
       const stat = lstatSync(p)
       if (stat.isSymbolicLink()) { if (pertence) throw new ErroRecuperacao(409, 'Artefato por symlink exige reconciliacao: ' + rel); continue }
       if (stat.isDirectory()) { visitar(p, profundidade + 1); continue }
@@ -76,7 +78,7 @@ export function pacoteLocal(arquivo: string): Pacote {
       anexos.push({ nome: rel, conteudo: bytes.toString('base64'), sha256: sha(bytes) })
     }
   }
-  for (const dir of ['runs', 'refs', 'answers', 'clarify', 'orquestracao', 'evidencias', 'diagnosticos']) visitar(join(raiz, dir), 0)
+  for (const dir of ['runs', 'refs', 'answers', 'clarify', 'orquestracao', 'planos', 'evidencias', 'diagnosticos']) visitar(join(raiz, dir), 0)
   anexos.sort((a, b) => a.nome.localeCompare(b.nome))
   return { versao: 1, origem, arquivo, repo: fm.repo, documento, anexos }
 }
