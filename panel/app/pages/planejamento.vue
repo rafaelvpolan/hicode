@@ -75,7 +75,7 @@ onMounted(() => { void carregar() })
       <PlanejamentoEpico v-if="documento.epico" :epico="documento.epico" :bloqueado="ocupado || !!pendente" />
       <ul v-if="erros.some(e => e.campo.startsWith('epico') || e.campo.startsWith('tarefas'))" role="alert"><li v-for="e in erros" :key="e.campo">{{ e.campo }}: {{ e.mensagem }}</li></ul>
       <div v-if="documento.epico" class="acoes"><button :disabled="ocupado" @click="salvar(false)">Salvar epico e tarefas</button><p>Salvar a proposta nao conclui criterios nem despacha tarefas. Consulte as evidencias abaixo.</p></div>
-      <section v-if="documento.epico && revisao > 0"><h2>Cards tecnicos</h2><p>Salve o epico antes de detalhar as tarefas.</p><ul><li v-for="t in documento.epico.tarefas" :key="t.id"><NuxtLink :to="{ path: '/tecnico', query: { planejamento: id, produto: t.id } }">{{ t.titulo }} — detalhar e revisar</NuxtLink></li></ul></section>
+      <section v-if="documento.epico && revisao > 0"><h2>Cards tecnicos</h2><p>Salve o epico antes de detalhar as tarefas.</p><ul><li v-for="t in documento.epico.tarefas.filter(t => !t.cancelada)" :key="t.id"><NuxtLink :to="{ path: '/tecnico', query: { planejamento: id, produto: t.id } }">{{ t.titulo }} — detalhar e revisar</NuxtLink></li></ul></section>
       <PlanejamentoProgresso v-if="documento.epico && revisao > 0" :planejamento="id" :revisao="revisao" />
       <details><summary>Documento da proposta para comparacao</summary><pre>{{ JSON.stringify(documento, null, 2) }}</pre><button :disabled="ocupado || !!pendente" @click="carregar">Reler revisao salva</button></details>
     </template>

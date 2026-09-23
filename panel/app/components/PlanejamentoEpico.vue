@@ -7,6 +7,10 @@ function adicionar(): void {
   props.epico.tarefas.push({ id: crypto.randomUUID(), titulo: '', resultado: '', criterios: [''], prioridade: 'media', justificativa: '', dependeDe: [] })
 }
 function linhas(t: TarefaDeProduto, event: Event): void { t.criterios = (event.target as HTMLTextAreaElement).value.split('\n') }
+function definirCancelada(t: TarefaDeProduto, event: Event): void {
+  t.cancelada = (event.target as HTMLInputElement).checked
+  if (t.cancelada) for (const outra of props.epico.tarefas) outra.dependeDe = outra.dependeDe.filter(id => id !== t.id)
+}
 function mover(indice: number, delta: number): void {
   const destino = indice + delta
   if (destino < 0 || destino >= props.epico.tarefas.length) return
@@ -20,7 +24,7 @@ function mover(indice: number, delta: number): void {
     <p>Revise a decomposicao antes de salvar. Nenhuma tarefa e enviada ao motor por esta tela.</p>
     <fieldset :disabled="bloqueado">
       <div class="grade"><label v-for="(rotulo, campo) in campos" :key="campo">{{ rotulo }}<textarea v-model="epico[campo]" rows="2" /></label></div>
-      <article v-for="(t, i) in epico.tarefas" :key="t.id" :id="'tarefa-' + t.id">
+      <article v-for="(t, i) in epico.tarefas" :key="t.id" :id="'tarefa-' + t.id" :class="{ cancelada: t.cancelada }">
         <h3>Tarefa {{ i + 1 }} <small>{{ t.id }}</small></h3>
         <label>Titulo<input v-model="t.titulo"></label>
         <label>Resultado observavel<textarea v-model="t.resultado" rows="2" /></label>
@@ -28,8 +32,9 @@ function mover(indice: number, delta: number): void {
         <div class="grade">
           <label>Prioridade<select v-model="t.prioridade"><option value="alta">Alta</option><option value="media">Media</option><option value="baixa">Baixa</option></select></label>
           <label>Justificativa<textarea v-model="t.justificativa" rows="2" /></label>
-          <label>Depende de<select v-model="t.dependeDe" multiple><option v-for="outra in epico.tarefas.filter(o => o.id !== t.id)" :key="outra.id" :value="outra.id">{{ outra.titulo || outra.id }}</option></select></label>
+          <label>Depende de<select v-model="t.dependeDe" multiple><option v-for="outra in epico.tarefas.filter(o => o.id !== t.id && !o.cancelada)" :key="outra.id" :value="outra.id">{{ outra.titulo || outra.id }}</option></select></label>
           <label>ID de tarefa existente no HII (opcional)<input v-model="t.cardExistente" placeholder="001"></label>
+          <label><input type="checkbox" :checked="!!t.cancelada" @change="definirCancelada(t, $event)"> Cancelada — excluir do progresso do epico</label>
         </div>
         <div class="acoes"><button type="button" :disabled="i === 0" @click="mover(i, -1)">Mover para cima</button><button type="button" :disabled="i === epico.tarefas.length - 1" @click="mover(i, 1)">Mover para baixo</button><button type="button" @click="epico.tarefas.splice(i, 1)">Remover da proposta</button></div>
       </article>

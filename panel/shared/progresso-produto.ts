@@ -1,4 +1,5 @@
 import type { AvaliacaoDeExecucao } from './avaliacao-hii'
+import type { TarefaDeProduto } from './planejamento'
 export type EstadoProduto = 'sem_execucao' | 'em_execucao' | 'bloqueada' | 'interrompida' | 'falhou' | 'aguarda_revisao' | 'concluida' | 'inconclusiva' | 'revisao_pendente'
 export interface ProgressoProduto {
   id: string; titulo: string; dependeDe: string[]; execucao: string; estado: EstadoProduto; motivo: string
@@ -12,6 +13,9 @@ export const ROTULOS_PRODUTO: Record<EstadoProduto, string> = {
   sem_execucao: 'Sem execucao', em_execucao: 'Em execucao', bloqueada: 'Bloqueada',
   interrompida: 'Interrompida', falhou: 'Falhou', aguarda_revisao: 'Aguarda revisao',
   concluida: 'Concluida com evidencia', inconclusiva: 'Verificacao inconclusiva', revisao_pendente: 'Nova revisao pendente',
+}
+export function tarefasQueContam(tarefas: TarefaDeProduto[]): TarefaDeProduto[] {
+  return tarefas.filter(t => t.cancelada !== true)
 }
 export function estadoDaExecucao(a: AvaliacaoDeExecucao): EstadoProduto {
   const verificada = a.modo === 'passivo' && a.atualidade === 'atual' && a.criteriosAprovados &&

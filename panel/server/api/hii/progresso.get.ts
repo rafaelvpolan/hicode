@@ -3,6 +3,7 @@ import { motorHii } from '../../hii/motor'
 import { lerPlanejamento, ErroPlanejamento } from '../../hii/planejamento-store'
 import { lerTecnico } from '../../hii/tecnico-store'
 import { progressoDaTarefa } from '../../hii/progresso-produto'
+import { tarefasQueContam } from '../../../shared/progresso-produto'
 import type { PaginaDeProgresso, ProgressoProduto } from '../../../shared/progresso-produto'
 export default defineEventHandler(async (event): Promise<PaginaDeProgresso> => {
   exigirSessao(event)
@@ -19,7 +20,7 @@ export default defineEventHandler(async (event): Promise<PaginaDeProgresso> => {
     if (!p || !p.documento.epico) throw createError({ statusCode: 404, statusMessage: 'Epico ausente' })
     if (p.revisao !== revisao) throw createError({ statusCode: 409, statusMessage: 'Planejamento mudou; releia antes de consultar progresso' })
     if (!(await cliente.capacidades()).valor.avaliacao?.versoes.includes(1)) throw createError({ statusCode: 409, statusMessage: 'Motor sem suporte a avaliacao de evidencias v1' })
-    const todas = p.documento.epico.tarefas
+    const todas = tarefasQueContam(p.documento.epico.tarefas)
     const pagina = todas.slice(depois, depois + 20)
     const tarefas: ProgressoProduto[] = []
     // Limite de quatro leituras simultaneas; nao ha POST nem novo executor.

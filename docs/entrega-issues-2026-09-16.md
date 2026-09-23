@@ -34,6 +34,11 @@ Persistência usa o lock e a escrita atômica existentes, revisão esperada e ch
 de intenção. Retry retorna a mesma revisão. Salvar ou aprovar não cria card de
 execução. A skill local `hicode-descobrir` orienta o mesmo fluxo sem inventar pesquisa.
 
+Tarefas canceladas continuam registradas no plano para preservar a decisao, mas
+saem do denominador, da consulta de progresso e da lista de cards tecnicos. O
+editor remove dependencias para a tarefa cancelada; o contrato tambem recusa uma
+tarefa ativa que ainda dependa dela, evitando conclusao falsa do epico.
+
 Ative apenas projetos escolhidos em `HICODE_DISCOVERY_REPOS=owner/repo,outro/repo`.
 Dados ficam em `HICODE_CARDS_DIR/planejamento/`; sem a flag, criação direta
 e acompanhamento continuam disponíveis. Rollback desabilita a flag e preserva
