@@ -15,7 +15,7 @@ jobs:
         with:
           repository: rafaelvpolan/hii
           path: .hii-ref
-          ref: 533eb0264dcedfaaa917a09d49c499634a5e4978 # candidato integrado do PR HII #68
+          ref: dc55ede252c415fd388f4fed88e80a490fb36aa7 # candidato integrado do PR HII #68
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
