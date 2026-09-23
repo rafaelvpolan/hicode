@@ -15,7 +15,7 @@ jobs:
         with:
           repository: rafaelvpolan/hii
           path: .hii-ref
-          ref: 400c2b4d64fd608f0c967dce608c8e0b8c77d54f # candidato integrado: recuperacao, snapshots e heartbeat
+          ref: 533eb0264dcedfaaa917a09d49c499634a5e4978 # candidato integrado do PR HII #68
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
