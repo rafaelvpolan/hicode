@@ -14,12 +14,14 @@ test('servidor antigo nao recebe consultas ou escritas de configuracao', async (
 test('permissao de leitura conserva ETag e nao concede escrita', async () => {
   const r = await consultarConfiguracao({
     capacidades: async () => ({ valor: { versao: 1, configuracao: { versoes: [1], leitura: true, escrita: false } } }),
-    configuracao: async () => ({ etag: '"rev1"', valor: { versao: 1, preferencias: {}, aplicacao: 'novos despachos' } }),
+    configuracao: async () => ({ etag: '"rev1"', valor: { versao: 1, preferencias: {}, aplicacao: 'novos despachos',
+      execucao: { localidade: 'somente_local', fallbackRemoto: false, editavel: false } } }),
     provedores: async () => ({ valor: { provedores: [] } }),
   })
   expect(r.disponivel).toBe(true)
   expect(r.escrita).toBe(false)
   expect(r.etag).toBe('"rev1"')
+  expect(r.configuracao?.execucao).toEqual({ localidade: 'somente_local', fallbackRemoto: false, editavel: false })
 })
 test('Ollama sem ferramentas nao e elegivel para edicao nem JSON; geracao continua disponivel', () => {
   const p = { nome: 'ollama', situacao: 'disponivel', comoObter: '', modelo: '', modelos: [],

@@ -44,6 +44,7 @@ onBeforeUnmount(() => clearInterval(timer))
       <template v-if="dados.diagnostico">
         <p v-for="item in dados.diagnostico.bloqueios" :key="item" class="erro">{{ item }}</p>
         <p v-for="item in dados.diagnostico.avisos" :key="item">{{ item }}</p>
+        <p v-if="dados.diagnostico.escolhaConfiguracaoPendente" class="erro">A configuracao original nao foi comprovada. Compare as alternativas e escolha uma; nenhuma configuracao sera adotada automaticamente.</p>
         <p v-if="dados.diagnostico.plano">Plano legado, revisao {{ dados.diagnostico.plano.revisao }}: {{ dados.diagnostico.plano.concluidas.length }} de {{ dados.diagnostico.plano.total }} microtarefas registradas como concluidas. O motor verificara suas evidencias antes de continuar pelas pendentes.</p>
         <p v-if="dados.diagnostico.branch">Branch preservada: {{ dados.diagnostico.branch }}</p>
         <details v-if="dados.diagnostico.snapshots.length">
@@ -55,7 +56,7 @@ onBeforeUnmount(() => clearInterval(timer))
             </select>
           </label>
           <template v-if="snapshotEscolhido">
-            <p>A configuracao abaixo sera usada nos proximos despachos desta tarefa. A tarefa permanece parada.</p>
+            <p>A configuracao abaixo sera usada nos proximos despachos somente se voce confirmar. A tarefa permanece parada.</p>
             <pre>{{ JSON.stringify(snapshotEscolhido.configuracao, null, 2) }}</pre>
             <button type="button" :disabled="ocupado || !['PAUSED', 'HALTED'].includes(dados.diagnostico.status)" @click="acao('configurar')">Restaurar esta configuracao</button>
           </template>

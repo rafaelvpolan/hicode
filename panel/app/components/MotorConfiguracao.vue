@@ -6,10 +6,11 @@ const dados = ref<ConfiguracaoDoPainel | null>(null)
 const papel = ref<PapelHii>('implement')
 const provider = ref('')
 const model = ref('')
+const modoRevisao = ref<'nao-configurado' | 'humana' | 'automatica'>('nao-configurado')
 const ocupado = ref(false)
 const aviso = ref('')
 const conflito = ref(false)
-const intencao = ref<{ papel: PapelHii; provider: string; model: string; etag: string; chave: string } | null>(null)
+const intencao = ref<{ papel: PapelHii; provider: string; model: string; autoReview?: boolean; etag: string; chave: string } | null>(null)
 const atual = computed(() => dados.value?.configuracao?.preferencias[papel.value])
 const escolhido = computed(() => dados.value?.provedores.find(p => p.nome === provider.value))
 const recusa = computed(() => escolhido.value ? motivoDeInelegibilidade(escolhido.value, papel.value) : 'Escolha um provedor')
@@ -27,8 +28,9 @@ async function carregar(): Promise<void> {
 }
 async function salvar(): Promise<void> {
   if (ocupado.value || conflito.value || !dados.value?.escrita || recusa.value) return
-  const proposta = { papel: papel.value, provider: provider.value, model: model.value, etag: dados.value.etag }
-  if (intencao.value && JSON.stringify(proposta) !== JSON.stringify({ papel: intencao.value.papel, provider: intencao.value.provider, model: intencao.value.model, etag: intencao.value.etag })) {
+  const proposta = { papel: papel.value, provider: provider.value, model: model.value,
+    ...(papel.value === 'gate' && modoRevisao.value !== 'nao-configurado' ? { autoReview: modoRevisao.value === 'automatica' } : {}), etag: dados.value.etag }
+  if (intencao.value && JSON.stringify(proposta) !== JSON.stringify({ papel: intencao.value.papel, provider: intencao.value.provider, model: intencao.value.model, ...(intencao.value.autoReview !== undefined ? { autoReview: intencao.value.autoReview } : {}), etag: intencao.value.etag })) {
     aviso.value = 'Reenvie a proposta anterior para reconciliar sua gravacao antes de alterar os campos.'
     return
   }
@@ -58,12 +60,15 @@ onMounted(() => { void carregar() })
     <p v-if="dados?.motivo">{{ dados.motivo }}</p>
     <template v-if="dados?.disponivel">
       <p>{{ dados.configuracao?.aplicacao }}</p>
-      <p>Selecao de provedor nao comprova localidade. Politica de execucao estritamente local ainda nao foi negociada por este contrato.</p>
+      <p v-if="dados.configuracao?.execucao">Execucao: {{ dados.configuracao.execucao.localidade }} · fallback remoto {{ dados.configuracao.execucao.fallbackRemoto ? 'ligado' : 'desligado' }} · politica administrada pelo motor.</p>
+      <p v-else>Este motor ainda nao informa sua politica de localidade.</p>
       <form @submit.prevent="salvar">
         <label>Papel<select v-model="papel" :disabled="ocupado || !!intencao"><option>implement</option><option>step</option><option>verify</option><option>gate</option></select></label>
         <p>Preferencia atual: {{ atual?.provider || 'padrao do motor' }} / {{ atual?.model || 'modelo padrao' }}</p>
         <label>Provedor<select v-model="provider" :disabled="ocupado || !!intencao"><option value="">Selecione</option><option v-for="p in dados.provedores" :key="p.nome" :value="p.nome" :disabled="!!motivoDeInelegibilidade(p, papel)">{{ p.nome }} · {{ motivoDeInelegibilidade(p, papel) || p.situacao }}</option></select></label>
         <label>Modelo<input v-model="model" list="modelos-hii" :disabled="ocupado || !!intencao" maxlength="200" placeholder="Padrao do provedor"><datalist id="modelos-hii"><option v-for="m in escolhido?.modelos || []" :key="m" :value="m" /></datalist></label>
+        <label v-if="papel === 'gate'">Revisao do PR<select v-model="modoRevisao" :disabled="ocupado || !!intencao"><option value="nao-configurado">Perguntar / manter escolha atual</option><option value="humana">Revisao humana</option><option value="automatica" :disabled="!atual?.revisao">Auto review (exige politica)</option></select></label>
+        <p v-if="papel === 'gate'">Atual: {{ atual?.autoReview === true ? 'auto review' : atual?.autoReview === false ? 'revisao humana' : 'ainda nao escolhida' }}. O merge permanece humano.</p>
         <p v-if="escolhido">{{ escolhido.comoObter }}</p>
         <p v-if="recusa" id="recusa-config">{{ recusa }}</p>
         <button :disabled="ocupado || !dados.escrita || !!recusa || conflito" aria-describedby="recusa-config">Salvar preferencia</button>

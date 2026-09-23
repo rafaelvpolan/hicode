@@ -16,6 +16,11 @@ A branch e o checkout originais foram preservados.
   e preserva a proposta no formulário para comparação; não sobrescreve sozinho.
 - Opções sem capacidade declarada de edição/verificação ficam inelegíveis.
   O HII revalida no servidor, inclusive contra requisição manipulada.
+- O painel exibe a localidade e o fallback remoto efetivos informados pelo HII;
+  motores antigos recebem uma mensagem de compatibilidade. A política permanece
+  somente leitura no Hicode.
+- No papel gate, o operador escolhe revisão humana ou auto review. Auto review
+  só fica disponível com política de revisão existente; o merge permanece humano.
 - Preferência de provedor não é apresentada como garantia de localidade.
   Gateway concluído não é apresentado como gates/PR aprovados.
 
@@ -80,7 +85,7 @@ resultado incerto.
 | #19 | Fluxo guiado, skill, rascunho, revisão, aprovação e origem de épico implementados e testados com fixture. Perguntas são determinísticas; nenhuma pesquisa ou inferência real foi alegada. |
 | #20 | Proposta de épico/tarefas, vínculo à síntese, prioridade, ordenação e grafo implementados. Faltam progresso derivado de evidência e despacho integrado de toda a hierarquia. |
 | #21 | Editor técnico, limite de 500 linhas e fluxo revisão/despacho não implementados aqui. |
-| #24 | Parcial: faltam política local resolvida, ciclo de ferramentas, recursos de inferência, pacote ampliado de revisão e piloto real, dependentes do HII #59. |
+| #24 | Política local/fallback e escolha humana/automática de revisão integradas ao contrato HII. Piloto real e calibração por instalação permanecem como validação operacional. |
 
 A recuperação persistente cobre envio de pedido/ask; ações de cancelar/retomar e
 configuração não têm recuperação de intenção entre recargas nesta entrega.

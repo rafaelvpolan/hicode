@@ -1,5 +1,5 @@
 export type PapelHii = 'implement' | 'step' | 'verify' | 'gate'
-export interface PreferenciaHii { provider?: string; model?: string; effort?: string; modo?: string }
+export interface PreferenciaHii { provider?: string; model?: string; effort?: string; modo?: string; autoReview?: boolean; revisao?: object }
 export interface CapacidadesHii {
   avaliacao?: { versoes: number[] }
   tecnico?: { versoes: number[]; limiteLinhas: number; dependenciasProduto?: number }
@@ -19,6 +19,7 @@ export interface ConfiguracaoHii {
   versao: number
   preferencias: Partial<Record<PapelHii, PreferenciaHii>>
   aplicacao: string
+  execucao?: { localidade: 'preferir_local' | 'somente_local' | 'qualquer'; fallbackRemoto: boolean; editavel: boolean }
 }
 export interface ConfiguracaoDoPainel {
   disponivel: boolean

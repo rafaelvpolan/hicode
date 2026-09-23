@@ -7,8 +7,11 @@ diagnostico/importacao pela API; nao escreve EXECUTING na copia local vinculada.
 2. Confira a origem, o inventario e os avisos. A transferencia e por arquivo;
    IDs numericos duplicados nao selecionam automaticamente outro card.
 3. Use **Preservar e vincular ao HII**. A importacao nasce PAUSED.
-4. Revise o worktree, branch e configuracao. A preparacao revalida os arquivos
-   atuais e pode exigir novas chamadas de IA na etapa retomada.
+4. Revise o worktree, branch e configuracao. Se a configuracao original nao
+   puder ser comprovada, a tarefa permanece bloqueada. A configuracao atual pode
+   aparecer como alternativa, mas so e adotada depois de uma escolha humana
+   explicita. A preparacao revalida os arquivos atuais e pode exigir novas
+   chamadas de IA na etapa retomada.
 5. Confirme a revalidacao; depois use **Retomar pelo motor**. A interface so
    apresenta a mudanca confirmada pela API.
 
@@ -18,7 +21,8 @@ A copia local permanece intacta e nao aceita uma segunda execucao independente.
 
 Snapshots anteriores podem ser consultados e restaurados com revisao esperada.
 A restauracao nao despacha IA nem reverte custos e historico. Configuracao
-original desconhecida nao e apresentada como comprovada.
+original desconhecida nao e apresentada como comprovada nem libera a retomada
+automaticamente.
 
 ## Limites atuais
 
