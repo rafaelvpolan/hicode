@@ -37,7 +37,9 @@ beforeEach(async () => {
       importar++; existe = true
       expect(b.hash).toBe(hash)
       resposta = { ...previa, tarefa: '101', estado: 'vinculada' }
-      if (perderResposta) { perderResposta = false; req.socket.destroy(); return }
+      // Entrega HTTP confirmada com corpo truncado: evita retry transparente do
+      // cliente e reproduz de forma deterministica a perda da confirmacao.
+      if (perderResposta) { perderResposta = false; res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"truncado":'); return }
     } else if (req.url === '/v1/tarefas/101/recuperacao') {
       resposta = { versao: 1, tarefa: '101', status: remoto, revisao, preparada: true, podePreparar: false,
         bloqueios: [], avisos: [], snapshots: [], motor: { estado: 'ligado', versao: 'fixture', motivo: '' } }

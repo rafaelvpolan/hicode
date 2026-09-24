@@ -47,7 +47,8 @@ export async function chamarHii<T>(rota: string, corpo?: object, revisao = '', c
     const b = await r.json().catch(() => null) as { erro?: { mensagem?: string } } | null
     throw new ErroRecuperacao(r.status, b?.erro?.mensagem || 'HII recusou a operacao (HTTP ' + r.status + ').')
   }
-  return await r.json() as T
+  try { return await r.json() as T }
+  catch { throw new ErroRecuperacao(503, 'API respondeu sem confirmacao valida. A intencao foi preservada; diagnostique novamente antes de reenviar.') }
 }
 export function pacoteLocal(arquivo: string): Pacote {
   if (!/^\d{3,12}-[^/\\]+\.md$/.test(arquivo)) throw new ErroRecuperacao(400, 'Selecione o arquivo exato da tarefa.')
