@@ -15,11 +15,18 @@ export interface ProvedorHii {
   modelos: string[]
   localidade?: 'verificada' | 'indeterminada' | 'remota'
   aptidao?: { agentic: boolean; isolatesReadonly: boolean; emitsStructuredJson: boolean; restrictsTools: boolean }
+  inferencia?: { servidor: string; modelo: string; limiteServidor: number; limiteModelo: number; emUsoNoServidor: number; emUsoNoModelo: number; disponivel: boolean; configuracaoValida: boolean } | null
 }
 export function rotuloDeLocalidade(p: ProvedorHii): string {
   if (p.localidade === 'verificada') return 'inferencia local verificada'
   if (p.localidade === 'remota') return 'inferencia remota'
   return 'localidade da inferencia indeterminada'
+}
+export function rotuloDeCapacidade(p: ProvedorHii): string {
+  const c = p.inferencia
+  if (!c) return 'capacidade de inferencia nao informada'
+  if (!c.configuracaoValida) return 'capacidade de inferencia com configuracao invalida'
+  return `${c.emUsoNoServidor}/${c.limiteServidor} chamada(s) no servidor · ${c.emUsoNoModelo}/${c.limiteModelo} no modelo ${c.modelo} · ${c.disponivel ? 'slot disponivel' : 'fila ocupada'}`
 }
 export interface ConfiguracaoHii {
   versao: number
