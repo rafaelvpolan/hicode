@@ -13,5 +13,7 @@ export function normalizeId(id: string): string {
 
 export function findCardFile(id: string): string | null {
   const alvo = normalizeId(id)
-  return cardFiles().find(f => f.startsWith(`${alvo}-`)) || null
+  const encontrados = cardFiles().filter(f => f.startsWith(`${alvo}-`))
+  if (encontrados.length > 1) throw new Error('ID de tarefa ambiguo: ' + alvo + '; selecione o arquivo de origem antes de recuperar')
+  return encontrados[0] || null
 }

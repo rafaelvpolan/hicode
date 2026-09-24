@@ -1,7 +1,8 @@
-# Entrega parcial das issues — 16/09/2026
+# Entrega consolidada das issues — atualizada em 24/09/2026
 
-Esta entrega **não conclui todas as issues**. Base `origin/main` em `d466f3d`.
-A branch e o checkout originais foram preservados.
+A branch e o checkout originais foram preservados. A issue #20 permanece fora
+do escopo por decisao do operador; sua implementacao parcial nao sera usada para
+declara-la concluida.
 
 ## hicode#24: configuração e envio confiável
 
@@ -16,6 +17,11 @@ A branch e o checkout originais foram preservados.
   e preserva a proposta no formulário para comparação; não sobrescreve sozinho.
 - Opções sem capacidade declarada de edição/verificação ficam inelegíveis.
   O HII revalida no servidor, inclusive contra requisição manipulada.
+- O painel exibe a localidade e o fallback remoto efetivos informados pelo HII;
+  motores antigos recebem uma mensagem de compatibilidade. A política permanece
+  somente leitura no Hicode.
+- No papel gate, o operador escolhe revisão humana ou auto review. Auto review
+  só fica disponível com política de revisão existente; o merge permanece humano.
 - Preferência de provedor não é apresentada como garantia de localidade.
   Gateway concluído não é apresentado como gates/PR aprovados.
 
@@ -34,6 +40,11 @@ Persistência usa o lock e a escrita atômica existentes, revisão esperada e ch
 de intenção. Retry retorna a mesma revisão. Salvar ou aprovar não cria card de
 execução. A skill local `hicode-descobrir` orienta o mesmo fluxo sem inventar pesquisa.
 
+Tarefas canceladas continuam registradas no plano para preservar a decisao, mas
+saem do denominador, da consulta de progresso e da lista de cards tecnicos. O
+editor remove dependencias para a tarefa cancelada; o contrato tambem recusa uma
+tarefa ativa que ainda dependa dela, evitando conclusao falsa do epico.
+
 Ative apenas projetos escolhidos em `HICODE_DISCOVERY_REPOS=owner/repo,outro/repo`.
 Dados ficam em `HICODE_CARDS_DIR/planejamento/`; sem a flag, criação direta
 e acompanhamento continuam disponíveis. Rollback desabilita a flag e preserva
@@ -41,7 +52,7 @@ o histórico. O diretório de planejamento não é uma fila.
 
 ## Validação
 
-- `bun run test`: tipagem, lint, **173 testes passaram, 1 pulado**, tipagem Vue/Nuxt.
+- `bun run test`: tipagem, lint, **213 testes passaram, 1 pulado**, tipagem Vue/Nuxt.
 - `bun run panel:build`: build de produção concluído.
 - `HII_TEST_CHECKOUT=<worktree-hii> node scripts/test-hii-observabilidade.mjs`:
   desktop 1365px e mobile 390px passaram em autenticação, HTTP/SSE, hierarquia,
@@ -72,10 +83,18 @@ resultado incerto.
 
 | Issue | Situação |
 | --- | --- |
-| #19 | Fluxo guiado, skill, rascunho, revisão, aprovação e origem de épico implementados e testados com fixture. Perguntas são determinísticas; nenhuma pesquisa ou inferência real foi alegada. |
-| #20 | Proposta de épico/tarefas, vínculo à síntese, prioridade, ordenação e grafo implementados. Faltam progresso derivado de evidência e despacho integrado de toda a hierarquia. |
-| #21 | Editor técnico, limite de 500 linhas e fluxo revisão/despacho não implementados aqui. |
-| #24 | Parcial: faltam política local resolvida, ciclo de ferramentas, recursos de inferência, pacote ampliado de revisão e piloto real, dependentes do HII #59. |
+| #19 | Fluxo guiado, skill, rascunho, revisão, aprovação e origem de épico implementados e testados com fixture. Aguarda aceite do operador. |
+| #20 | Fora do escopo por decisão do operador. A base existente foi preservada. |
+| #24 | Política local/fallback, capacidade, identidade, carga/VRAM do Ollama e escolha humana/automática de revisão integradas. O piloto real foi executado no HII; aguarda aceite do operador. |
+| #31 | Estado/versão do motor, autostart controlado e heartbeat compartilhado entre runtimes implementados; aguarda aceite do operador. |
+| #32 | Contraste WCAG AA, foco ciano, superfícies e cards recortados implementados e inspecionados; aguarda aceite visual do operador. |
+| #34 | Recuperação, configuração escolhida pelo humano e retomada explícita implementadas; estados ambíguos continuam bloqueados; aguarda aceite do operador. |
+
+O tema compartilhado foi medido automaticamente: textos principais,
+secundarios, placeholders e cores semanticas atendem contraste WCAG AA nas
+superficies usadas pelos cards. A recuperacao deixou de manter cores locais fora
+dos tokens. A validacao visual do worktree confirmou separacao das superficies,
+recortes angulares, foco ciano e renderizacao sem erro em desktop.
 
 A recuperação persistente cobre envio de pedido/ask; ações de cancelar/retomar e
 configuração não têm recuperação de intenção entre recargas nesta entrega.

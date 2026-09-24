@@ -8,7 +8,7 @@ import { serializarTecnico } from '../panel/shared/contrato-tecnico'
 import type { DocumentoTecnico } from '../panel/shared/contrato-tecnico'
 import type { AvaliacaoDeExecucao } from '../panel/shared/avaliacao-hii'
 import { progressoDaTarefa } from '../panel/server/hii/progresso-produto'
-import { conclusaoDoEpico, estadoDaExecucao } from '../panel/shared/progresso-produto'
+import { conclusaoDoEpico, estadoDaExecucao, tarefasQueContam } from '../panel/shared/progresso-produto'
 function fixture() {
   const tarefa = { id: 'triagem', titulo: 'Triagem', resultado: 'Registrar categoria correta', prioridade: 'alta' as const,
     justificativa: 'Desbloqueia atendimento', dependeDe: [] as string[], criterios: ['Entrada conhecida recebe a categoria esperada'] }
@@ -79,6 +79,19 @@ test('rascunho novo e pagina parcial nunca reutilizam conclusao antiga', async (
   expect(conclusaoDoEpico([{ ...pronto, dependeDe: ['inexistente'] }], 1)).toBe(false)
   const novo = await progressoDaTarefa(p, tarefa, { ...tecnico, revisao: 2, aprovada: false, envio: null }, async () => a)
   expect(novo.estado).toBe('revisao_pendente')
+})
+test('tarefas canceladas saem do denominador e nao liberam dependencia ativa', async () => {
+  const { p, tarefa, tecnico, a } = fixture()
+  const cancelada = { ...tarefa, id: 'fora', cancelada: true }
+  const ativas = tarefasQueContam([tarefa, cancelada])
+  expect(ativas.map(t => t.id)).toEqual(['triagem'])
+  const pronto = await progressoDaTarefa(p, tarefa, tecnico, async () => a)
+  expect(conclusaoDoEpico([pronto], ativas.length)).toBe(true)
+
+  const dependente = { ...tarefa, id: 'dependente', dependeDe: ['fora'] }
+  p.documento.epico!.tarefas = [cancelada, dependente]
+  const { validarPlanejamento } = await import('../panel/shared/planejamento')
+  expect(validarPlanejamento(p.documento).some(e => e.mensagem.includes('cancelada'))).toBe(true)
 })
 test('parada humana, falha de criterio e gateway terminal permanecem distintos', () => {
   const { a } = fixture()

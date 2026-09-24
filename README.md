@@ -62,3 +62,8 @@ HII_TEST_CHECKOUT=/caminho/para/hii node scripts/test-hii-observabilidade.mjs
 - [Motor HII](https://github.com/rafaelvpolan/hii)
 
 As páginas legadas seguem o modelo local com proteção de origem; /motor e /api/hii/* exigem sessão do operador. Mantenha o painel em loopback ou atrás da autenticação da sua infraestrutura.
+
+### Recuperacao de tarefas
+
+Cards parados oferecem diagnostico, vinculo persistente com o HII, snapshots de
+configuracao e retomada confirmada pela API. Veja [o fluxo e seus limites](docs/recuperacao.md).

@@ -15,7 +15,7 @@ jobs:
         with:
           repository: rafaelvpolan/hii
           path: .hii-ref
-          ref: c75362e859b1ecba080349e2fb95a4a93ca111e4 # estado, versao e admissao via API (hii#67)
+          ref: 42eec66e9f95b6b86a519a3c902b1831967bafac # candidato integrado do PR HII #68
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -37,6 +37,10 @@ jobs:
           HII_TEST_CHECKOUT: ${{ github.workspace }}/.hii-ref
       - run: bunx playwright install --with-deps chromium
       - run: node scripts/test-hii-observabilidade.mjs
+        env:
+          HII_TEST_CHECKOUT: ${{ github.workspace }}/.hii-ref
+
+      - run: node scripts/test-recuperacao.mjs
         env:
           HII_TEST_CHECKOUT: ${{ github.workspace }}/.hii-ref
 

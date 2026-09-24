@@ -24,6 +24,18 @@ export interface Atividade extends Escopo {
 export interface Evento { id: string; versao: 1; tipo: 'activity' | 'output'; atividade: Atividade }
 export interface Snapshot { versao: 1; cursor: string; atividades: Atividade[]; degradado: boolean; motivo: string | null; proxima: string | null; retencao: { eventos: number; atividades: number; dias: number } }
 export const terminal = (e: Estado): boolean => ['succeeded', 'failed', 'cancelled', 'skipped'].includes(e)
+const ROTULOS_DE_ETAPA: Readonly<Record<string, string>> = {
+  modelo_verificado: 'modelo e ferramentas verificados',
+  inferencia_inicio: 'inferência em andamento',
+  inferencia_fim: 'inferência concluída',
+  ferramenta_inicio: 'ferramenta em execução',
+  ferramenta_fim: 'ferramenta concluída',
+}
+export function rotuloDaEtapa(etapa: string, detalhes: Atividade['detalhes'] = {}): string {
+  const rotulo = ROTULOS_DE_ETAPA[etapa] ?? etapa
+  const ferramenta = typeof detalhes.ferramenta === 'string' && detalhes.ferramenta ? detalhes.ferramenta : ''
+  return ferramenta && etapa.startsWith('ferramenta_') ? `${rotulo}: ${ferramenta}` : rotulo
+}
 export function corresponde(a: Escopo, filtro: Partial<Escopo>): boolean {
   return (!filtro.repo || a.repo === filtro.repo) && (!filtro.sessao || a.sessao === filtro.sessao) && (!filtro.execucao || a.execucao === filtro.execucao)
 }

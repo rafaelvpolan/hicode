@@ -23,6 +23,7 @@ export interface TarefaDeProduto {
   justificativa: string
   dependeDe: string[]
   cardExistente?: string
+  cancelada?: boolean
 }
 export interface EpicoDeProduto {
   problema: string
@@ -91,10 +92,13 @@ export function validarPlanejamento(p: Planejamento, aprovar = false): ErroDePla
     if (!Array.isArray(t.criterios) || !t.criterios.length || !t.criterios.every(s => typeof s === 'string' && s.trim().length >= 12)) erro(`tarefas.${t.id}.criterios`, 'Descreva criterios observaveis e o resultado esperado')
     if (!Array.isArray(t.dependeDe) || !t.dependeDe.every(s => typeof s === 'string') || new Set(t.dependeDe).size !== t.dependeDe.length) erro(`tarefas.${t.id}.dependeDe`, 'Dependencias invalidas')
     if (t.cardExistente !== undefined && t.cardExistente !== '' && !/^\d{3,12}$/.test(t.cardExistente)) erro(`tarefas.${t.id}.cardExistente`, 'ID do motor invalido')
+    if (t.cancelada !== undefined && typeof t.cancelada !== 'boolean') erro(`tarefas.${t.id}.cancelada`, 'Cancelamento invalido')
   }
   if (erros.length) return erros
   const feitas = new Set<string>()
   for (const t of e.tarefas) if (t.dependeDe.some(id => !ids.has(id))) erro(`tarefas.${t.id}.dependeDe`, 'Dependencia ausente')
+  const canceladas = new Set(e.tarefas.filter(t => t.cancelada).map(t => t.id))
+  for (const t of e.tarefas) if (!t.cancelada && t.dependeDe.some(id => canceladas.has(id))) erro(`tarefas.${t.id}.dependeDe`, 'Tarefa ativa depende de tarefa cancelada')
   if (erros.length) return erros
   while (feitas.size < ids.size) {
     const prontas = e.tarefas.filter(t => !feitas.has(t.id) && t.dependeDe.every(id => feitas.has(id)))
