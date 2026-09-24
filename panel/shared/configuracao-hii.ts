@@ -13,7 +13,13 @@ export interface ProvedorHii {
   comoObter: string
   modelo: string
   modelos: string[]
+  localidade?: 'verificada' | 'indeterminada' | 'remota'
   aptidao?: { agentic: boolean; isolatesReadonly: boolean; emitsStructuredJson: boolean; restrictsTools: boolean }
+}
+export function rotuloDeLocalidade(p: ProvedorHii): string {
+  if (p.localidade === 'verificada') return 'inferencia local verificada'
+  if (p.localidade === 'remota') return 'inferencia remota'
+  return 'localidade da inferencia indeterminada'
 }
 export interface ConfiguracaoHii {
   versao: number

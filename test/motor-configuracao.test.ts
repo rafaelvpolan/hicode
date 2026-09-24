@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test'
 import { consultarConfiguracao } from '../panel/server/hii/configuracao'
-import { motivoDeInelegibilidade } from '../panel/shared/configuracao-hii'
+import { motivoDeInelegibilidade, rotuloDeLocalidade } from '../panel/shared/configuracao-hii'
 test('servidor antigo nao recebe consultas ou escritas de configuracao', async () => {
   let chamadas = 0
   const r = await consultarConfiguracao({
@@ -29,4 +29,6 @@ test('Ollama sem ferramentas nao e elegivel para edicao nem JSON; geracao contin
   expect(motivoDeInelegibilidade(p, 'implement')).toContain('edicao')
   expect(motivoDeInelegibilidade(p, 'verify')).toContain('JSON')
   expect(motivoDeInelegibilidade(p, 'step')).toBe('')
+  expect(rotuloDeLocalidade(p)).toContain('indeterminada')
+  expect(rotuloDeLocalidade({ ...p, localidade: 'verificada' })).toContain('verificada')
 })
