@@ -1,7 +1,8 @@
-# Entrega parcial das issues — 16/09/2026
+# Entrega consolidada das issues — atualizada em 24/09/2026
 
-Esta entrega **não conclui todas as issues**. Base `origin/main` em `d466f3d`.
-A branch e o checkout originais foram preservados.
+A branch e o checkout originais foram preservados. A issue #20 permanece fora
+do escopo por decisao do operador; sua implementacao parcial nao sera usada para
+declara-la concluida.
 
 ## hicode#24: configuração e envio confiável
 
@@ -83,9 +84,15 @@ resultado incerto.
 | Issue | Situação |
 | --- | --- |
 | #19 | Fluxo guiado, skill, rascunho, revisão, aprovação e origem de épico implementados e testados com fixture. Perguntas são determinísticas; nenhuma pesquisa ou inferência real foi alegada. |
-| #20 | Proposta de épico/tarefas, vínculo à síntese, prioridade, ordenação e grafo implementados. Faltam progresso derivado de evidência e despacho integrado de toda a hierarquia. |
+| #20 | Fora do escopo por decisão do operador. A base existente foi preservada. |
 | #21 | Editor técnico, limite de 500 linhas e fluxo revisão/despacho não implementados aqui. |
-| #24 | Política local/fallback e escolha humana/automática de revisão integradas ao contrato HII. Piloto real e calibração por instalação permanecem como validação operacional. |
+| #24 | Política local/fallback, capacidade e identidade aferida do Ollama e escolha humana/automática de revisão integradas ao contrato HII. Piloto real e calibração por instalação permanecem como validação operacional. |
+
+O tema compartilhado foi medido automaticamente: textos principais,
+secundarios, placeholders e cores semanticas atendem contraste WCAG AA nas
+superficies usadas pelos cards. A recuperacao deixou de manter cores locais fora
+dos tokens. A validacao visual do worktree confirmou separacao das superficies,
+recortes angulares, foco ciano e renderizacao sem erro em desktop.
 
 A recuperação persistente cobre envio de pedido/ask; ações de cancelar/retomar e
 configuração não têm recuperação de intenção entre recargas nesta entrega.
