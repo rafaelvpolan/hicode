@@ -74,10 +74,10 @@ onBeforeUnmount(() => clearInterval(timer))
 .recuperacao { display: grid; gap: .7rem; border: 1px solid var(--hairline); border-radius: 12px 4px 12px 12px; padding: 1rem; color: var(--texto); overflow-wrap: anywhere; }
 .recuperacao p { margin: 0; }
 .acoes { display: flex; flex-wrap: wrap; gap: .6rem; }
-button { cursor: pointer; color: #e5fbff; background: #12374b; border: 1px solid #3bafc5; border-radius: 9px 3px 9px 9px; padding: .6rem .8rem; font: inherit; }
+button { cursor: pointer; color: var(--texto); background: var(--superficie-3); border: 1px solid var(--acento-borda); border-radius: var(--raio-2) var(--raio-1) var(--raio-2) var(--raio-2); padding: .6rem .8rem; font: inherit; }
 button:disabled { opacity: .65; cursor: wait; }
-button:focus-visible { outline: 2px solid #b7f5ff; outline-offset: 3px; }
-select { display: block; width: 100%; max-width: 100%; padding: .6rem; color: #e5fbff; background: #12374b; }
+button:focus-visible { outline: 2px solid var(--acento-claro); outline-offset: 3px; }
+select { display: block; width: 100%; max-width: 100%; padding: .6rem; color: var(--texto); background: var(--superficie-3); }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-.erro { color: #ffbdad; }
+.erro { color: var(--falha); }
 </style>
