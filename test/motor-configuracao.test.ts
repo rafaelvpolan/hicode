@@ -1,6 +1,6 @@
 import { test, expect } from 'bun:test'
 import { consultarConfiguracao } from '../panel/server/hii/configuracao'
-import { motivoDeInelegibilidade, rotuloDeCapacidade, rotuloDeLocalidade } from '../panel/shared/configuracao-hii'
+import { motivoDeInelegibilidade, rotuloDeCapacidade, rotuloDeIdentidade, rotuloDeLocalidade } from '../panel/shared/configuracao-hii'
 test('servidor antigo nao recebe consultas ou escritas de configuracao', async () => {
   let chamadas = 0
   const r = await consultarConfiguracao({
@@ -32,4 +32,5 @@ test('Ollama sem ferramentas nao e elegivel para edicao nem JSON; geracao contin
   expect(rotuloDeLocalidade(p)).toContain('indeterminada')
   expect(rotuloDeLocalidade({ ...p, localidade: 'verificada' })).toContain('verificada')
   expect(rotuloDeCapacidade({ ...p, inferencia: { servidor: 'http://localhost:11434', modelo: 'qwen', limiteServidor: 2, limiteModelo: 1, emUsoNoServidor: 1, emUsoNoModelo: 1, disponivel: false, configuracaoValida: true } })).toContain('fila ocupada')
+  expect(rotuloDeIdentidade({ ...p, modelo: 'qwen:7b', identidadeInferencia: { endpoint: 'http://127.0.0.1:11434', versao: '0.12.3', verificadoEm: Date.now(), origem: 'servidor', modelos: [{ nome: 'qwen:7b', digest: 'sha256:abcdef' }] } })).toContain('qwen:7b (sha256:abcdef)')
 })

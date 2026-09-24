@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { ConfiguracaoDoPainel, PapelHii } from '#shared/configuracao-hii'
-import { motivoDeInelegibilidade, rotuloDeCapacidade, rotuloDeLocalidade } from '#shared/configuracao-hii'
+import { motivoDeInelegibilidade, rotuloDeCapacidade, rotuloDeIdentidade, rotuloDeLocalidade } from '#shared/configuracao-hii'
 const dados = ref<ConfiguracaoDoPainel | null>(null)
 const papel = ref<PapelHii>('implement')
 const provider = ref('')
@@ -71,6 +71,7 @@ onMounted(() => { void carregar() })
         <p v-if="papel === 'gate'">Atual: {{ atual?.autoReview === true ? 'auto review' : atual?.autoReview === false ? 'revisao humana' : 'ainda nao escolhida' }}. O merge permanece humano.</p>
         <p v-if="escolhido">{{ rotuloDeLocalidade(escolhido) }}. {{ escolhido.comoObter }}</p>
         <p v-if="escolhido?.inferencia">Capacidade: {{ rotuloDeCapacidade(escolhido) }}</p>
+        <p v-if="escolhido?.identidadeInferencia">Identidade: {{ rotuloDeIdentidade(escolhido) }}</p>
         <p v-if="recusa" id="recusa-config">{{ recusa }}</p>
         <button :disabled="ocupado || !dados.escrita || !!recusa || conflito" aria-describedby="recusa-config">Salvar preferencia</button>
         <button type="button" :disabled="ocupado || (!!intencao && !conflito)" @click="carregar">Reler configuracao</button>
