@@ -16,7 +16,15 @@ export interface ProvedorHii {
   localidade?: 'verificada' | 'indeterminada' | 'remota'
   aptidao?: { agentic: boolean; isolatesReadonly: boolean; emitsStructuredJson: boolean; restrictsTools: boolean }
   inferencia?: { servidor: string; modelo: string; limiteServidor: number; limiteModelo: number; emUsoNoServidor: number; emUsoNoModelo: number; disponivel: boolean; configuracaoValida: boolean } | null
-  identidadeInferencia?: { endpoint: string; versao: string | null; verificadoEm: number | null; origem: 'servidor' | 'configuracao'; modelos: { nome: string; digest: string | null }[] } | null
+  identidadeInferencia?: { endpoint: string; versao: string | null; verificadoEm: number | null; origem: 'servidor' | 'configuracao'; modelos: { nome: string; digest: string | null }[]; carga?: { nome: string; sizeVram: number | null; tamanho: number | null; expiraEm: string | null }[]; memoriaLivre?: number | null } | null
+}
+export function rotuloDeCarga(p: ProvedorHii): string {
+  const i = p.identidadeInferencia
+  if (!i?.carga?.length) return 'nenhum modelo carregado informado · VRAM livre desconhecida'
+  const modelo = i.carga.find(m => m.nome === p.modelo) ?? i.carga[0]!
+  const vram = modelo.sizeVram === null ? 'VRAM do modelo desconhecida' : `${(modelo.sizeVram / 1024 ** 3).toFixed(1)} GiB de VRAM do modelo`
+  const livre = i.memoriaLivre == null ? 'VRAM livre desconhecida' : `${(i.memoriaLivre / 1024 ** 3).toFixed(1)} GiB livres`
+  return `${modelo.nome} carregado · ${vram} · ${livre}`
 }
 export function rotuloDeIdentidade(p: ProvedorHii): string {
   const i = p.identidadeInferencia
