@@ -52,7 +52,7 @@ o histórico. O diretório de planejamento não é uma fila.
 
 ## Validação
 
-- `bun run test`: tipagem, lint, **173 testes passaram, 1 pulado**, tipagem Vue/Nuxt.
+- `bun run test`: tipagem, lint, **213 testes passaram, 1 pulado**, tipagem Vue/Nuxt.
 - `bun run panel:build`: build de produção concluído.
 - `HII_TEST_CHECKOUT=<worktree-hii> node scripts/test-hii-observabilidade.mjs`:
   desktop 1365px e mobile 390px passaram em autenticação, HTTP/SSE, hierarquia,
@@ -83,10 +83,12 @@ resultado incerto.
 
 | Issue | Situação |
 | --- | --- |
-| #19 | Fluxo guiado, skill, rascunho, revisão, aprovação e origem de épico implementados e testados com fixture. Perguntas são determinísticas; nenhuma pesquisa ou inferência real foi alegada. |
+| #19 | Fluxo guiado, skill, rascunho, revisão, aprovação e origem de épico implementados e testados com fixture. Aguarda aceite do operador. |
 | #20 | Fora do escopo por decisão do operador. A base existente foi preservada. |
-| #21 | Editor técnico, limite de 500 linhas e fluxo revisão/despacho não implementados aqui. |
-| #24 | Política local/fallback, capacidade e identidade aferida do Ollama e escolha humana/automática de revisão integradas ao contrato HII. Piloto real e calibração por instalação permanecem como validação operacional. |
+| #24 | Política local/fallback, capacidade, identidade, carga/VRAM do Ollama e escolha humana/automática de revisão integradas. O piloto real foi executado no HII; aguarda aceite do operador. |
+| #31 | Estado/versão do motor, autostart controlado e heartbeat compartilhado entre runtimes implementados; aguarda aceite do operador. |
+| #32 | Contraste WCAG AA, foco ciano, superfícies e cards recortados implementados e inspecionados; aguarda aceite visual do operador. |
+| #34 | Recuperação, configuração escolhida pelo humano e retomada explícita implementadas; estados ambíguos continuam bloqueados; aguarda aceite do operador. |
 
 O tema compartilhado foi medido automaticamente: textos principais,
 secundarios, placeholders e cores semanticas atendem contraste WCAG AA nas
