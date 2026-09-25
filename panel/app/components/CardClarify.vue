@@ -19,8 +19,10 @@ const statusRef = toRef(props.card, 'status')
 const { questions, loaded, selected, selectAnswer, collectAnswers } = useClarify(cardIdRef, statusRef)
 
 const hasQuestions = computed(() => questions.value.length > 0)
+const allAnswered = computed(() => questions.value.every(q => (selected.value[q.q] || '').trim()))
 
 function submit(): void {
+  if (!allAnswered.value) return
   emit('answered', collectAnswers())
 }
 </script>
@@ -43,9 +45,17 @@ function submit(): void {
           <span>{{ opt }}</span>
           <span v-if="opt === q.recommended" class="clarify-rec">recomendado</span>
         </label>
+        <textarea
+          v-if="!q.options.length"
+          class="clarify-free"
+          :value="selected[q.q] || ''"
+          rows="3"
+          placeholder="Digite sua resposta"
+          @input="selectAnswer(q.q, ($event.target as HTMLTextAreaElement).value)"
+        />
       </fieldset>
       <div class="clarify-actions">
-        <button type="button" @click="submit">✅ responder e executar</button>
+        <button type="button" :disabled="!allAnswered" @click="submit">✅ responder e executar</button>
       </div>
     </template>
   </div>
@@ -59,8 +69,11 @@ function submit(): void {
 .clarify-q legend{ padding:0 4px; color:var(--texto); font-weight:600; font-size:13px }
 .clarify-opt{ display:flex; align-items:center; gap:7px; font-size:13px; color:var(--texto); cursor:pointer }
 .clarify-opt input{ accent-color:var(--acento); width:15px; height:15px; margin:0 }
+.clarify-free{ width:100%; box-sizing:border-box; resize:vertical; border:1px solid var(--hairline); border-radius:7px; padding:8px 10px; background:var(--fundo); color:var(--texto); font:inherit }
+.clarify-free:focus{ outline:2px solid color-mix(in srgb,var(--acento) 55%,transparent); border-color:var(--acento) }
 .clarify-rec{ font-size:10px; color:var(--ok); border:1px solid color-mix(in srgb,var(--ok) 45%,transparent); border-radius:5px; padding:1px 6px; text-transform:uppercase; letter-spacing:.02em }
 .clarify-actions{ display:flex; margin-top:10px }
 .clarify-actions button{ background:var(--acento); border:1px solid var(--acento); color:var(--acento-contraste); padding:7px 14px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer }
 .clarify-actions button:hover{ filter:brightness(1.08) }
+.clarify-actions button:disabled{ opacity:.45; cursor:not-allowed; filter:none }
 </style>
