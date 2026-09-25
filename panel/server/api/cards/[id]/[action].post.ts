@@ -1,5 +1,5 @@
 import { lerVinculo, agirNoVinculo, ErroRecuperacao } from '../../../hii/recuperacao'
-import { comMotorDisponivel, MotorIndisponivel, iniciarCardPelaApi } from '../../../hii/status'
+import { comMotorDisponivel, MotorIndisponivel, iniciarCardPelaApi, responderClarifyPelaApi } from '../../../hii/status'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CardActionResponse, CardRisk } from '#shared/types'
@@ -86,7 +86,8 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
     if (cur.status !== 'CLARIFY') { setResponseStatus(event, 409); return { error: 'só dá pra responder um card em CLARIFY' } }
     const resultado = validarRespostasClarify(readClarify(id), b?.answers)
     if (!resultado.ok) { setResponseStatus(event, 400); return { error: resultado.error } }
-    card = answerClarify(id, resultado.answers)
+    try { card = { ...await responderClarifyPelaApi(id, resultado.answers), file: cur.file } }
+    catch (e) { setResponseStatus(event, 409); return { error: e instanceof Error ? e.message : 'Motor recusou as respostas.' } }
   }
   else if (action === 'edit') card = editCard(id, { title: b?.title, desc: b?.desc, risk: b?.risk })
   else if (action === 'replay') {

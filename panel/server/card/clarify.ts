@@ -39,7 +39,7 @@ export function validarRespostasClarify(questions: ClarifyQuestion[], answers: C
     normalizadas.push({ q, answer })
   }
   const esperadas = questions.map(item => item.q.trim()).filter(Boolean)
-  const desconhecida = normalizadas.find(item => !esperadas.includes(item.q))
+  const desconhecida = esperadas.length ? normalizadas.find(item => !esperadas.includes(item.q)) : undefined
   if (desconhecida) return { ok: false, error: `Pergunta desconhecida: "${desconhecida.q}". Atualize o painel e tente novamente.` }
   const ausente = esperadas.find(q => !normalizadas.some(item => item.q === q))
   if (ausente) return { ok: false, error: `Falta responder: "${ausente}".` }

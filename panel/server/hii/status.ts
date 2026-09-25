@@ -68,3 +68,36 @@ export async function iniciarCardPelaApi(id: string): Promise<Record<string, str
   if (!r.ok) throw new Error('Motor recusou o inicio (HTTP ' + r.status + '). Consulte o estado antes de reenviar.')
   return (await cliente.tarefa(id)).valor.campos
 }
+
+
+interface RespostaClarify { q: string; answer: string }
+interface PerguntaPendente { perguntaId: string | null; pendencia: { atual: { q: string; options: string[]; recommended?: string } } | null }
+
+function clienteDoMotor() {
+  if (!process.env.HII_API_URL || !process.env.HII_API_TOKEN) throw new Error('Motor HII não configurado.')
+  return import('./client.mjs').then(({ clienteHii }) => clienteHii(process.env.HII_API_URL!, process.env.HII_API_TOKEN!))
+}
+
+export async function perguntaClarifyPelaApi(id: string): Promise<{ q: string; options: string[]; recommended: string }[]> {
+  const cliente = await clienteDoMotor()
+  const recurso = await cliente.perguntas(id) as { valor: PerguntaPendente }
+  const atual = recurso.valor.pendencia?.atual
+  return atual ? [{ q: atual.q, options: atual.options, recommended: atual.recommended || '' }] : []
+}
+
+export async function responderClarifyPelaApi(id: string, answers: RespostaClarify[]): Promise<Record<string, string>> {
+  const cliente = await clienteDoMotor()
+  const restantes = new Map(answers.map(item => [item.q, item.answer]))
+  while (restantes.size) {
+    const recurso = await cliente.perguntas(id) as { valor: PerguntaPendente; etag: string }
+    const perguntaId = recurso.valor.perguntaId
+    const pergunta = recurso.valor.pendencia?.atual.q
+    if (!perguntaId || !pergunta) throw new Error('O motor não possui pergunta pendente para esta tarefa.')
+    const texto = restantes.get(pergunta)
+    if (!texto) throw new Error(`A pergunta atual do motor mudou: "${pergunta}". Atualize o painel.`)
+    const chave = 'hicode-clarify-' + id + '-' + createHash('sha256').update(perguntaId + texto).digest('hex')
+    await cliente.responderPergunta(id, perguntaId, texto, chave, recurso.etag)
+    restantes.delete(pergunta)
+  }
+  return (await cliente.tarefa(id)).valor.campos
+}
