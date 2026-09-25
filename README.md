@@ -41,6 +41,8 @@ A consulta de status ao abrir o painel não inicia processos. A partida exige um
 
 ## Testes
 
+O guia completo para atualizar, iniciar e validar os dois projetos esta em [Testar a integracao Hicode + HII](docs/testar-integracao-hii.md).
+
 ```bash
 bun run test
 bun run panel:build
