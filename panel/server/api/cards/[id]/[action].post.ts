@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CardActionResponse, CardRisk } from '#shared/types'
 import { STATUS_URL_APROVADA, STATUS_URL_PENDENTE, aguardaAprovacaoDeUrl, estaEncerrado, paraCardStatus, podeReexecutarEtapa } from '#shared/status'
+import { readClarify, validarRespostasClarify } from '../../../card/clarify'
 
 const VALID_RESUME_STEPS = new Set(['Arquitetura', 'Testes', 'Seguranca', 'Review', 'Limpeza'])
 
@@ -83,9 +84,9 @@ export default defineEventHandler(async (event): Promise<CardActionResponse> => 
     const cur = readCards().find(c => c.id === id)
     if (!cur) { setResponseStatus(event, 404); return { error: 'card nao encontrado' } }
     if (cur.status !== 'CLARIFY') { setResponseStatus(event, 409); return { error: 'só dá pra responder um card em CLARIFY' } }
-    const answers = b?.answers ?? []
-    if (!answers.length) { setResponseStatus(event, 400); return { error: 'respostas vazias' } }
-    card = answerClarify(id, answers)
+    const resultado = validarRespostasClarify(readClarify(id), b?.answers)
+    if (!resultado.ok) { setResponseStatus(event, 400); return { error: resultado.error } }
+    card = answerClarify(id, resultado.answers)
   }
   else if (action === 'edit') card = editCard(id, { title: b?.title, desc: b?.desc, risk: b?.risk })
   else if (action === 'replay') {

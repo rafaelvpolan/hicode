@@ -74,7 +74,7 @@ const {
           @review="abrirReview"
           @preview="abrirPreview"
           @reset="(id) => resetPreview(id, false)"
-          @clarify="answerClarify"
+          @clarify="({ id, answers }) => answerClarify(id, answers)"
         />
       </BasePilha>
     </BasePainel>

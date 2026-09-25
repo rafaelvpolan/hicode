@@ -23,7 +23,7 @@ interface CardRowEmits {
   review: [id: string]
   preview: [id: string]
   reset: [id: string]
-  clarify: [id: string, answers: { q: string; answer: string }[]]
+  clarify: [payload: { id: string; answers: { q: string; answer: string }[] }]
 }
 
 const props = defineProps<CardRowProps>()
@@ -47,7 +47,7 @@ const bloqueado = computed<boolean>(() => estaBloqueado(props.card.status))
     <CardClarify
       v-else-if="card.status === 'CLARIFY'"
       :card="card"
-      @answered="(answers) => $emit('clarify', card.id, answers)"
+      @answered="(answers) => $emit('clarify', { id: card.id, answers })"
     />
 
     <CardTrilha

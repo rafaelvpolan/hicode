@@ -7,7 +7,7 @@ import type { ClarifyQuestion } from '../panel/shared/types'
 const BASE = mkdtempSync(join(tmpdir(), 'hicode-card-clarify-'))
 process.env.HICODE_CARDS_DIR = join(BASE, 'cards')
 
-const { readClarify, writeClarify } = await import('../panel/server/card/clarify')
+const { readClarify, writeClarify, validarRespostasClarify } = await import('../panel/server/card/clarify')
 
 afterAll(() => rmSync(BASE, { recursive: true, force: true }))
 
@@ -40,4 +40,18 @@ test('writeClarify sobrescreve o arquivo anterior por completo, nao mescla', () 
   const lidas = readClarify('505')
   expect(lidas).toHaveLength(1)
   expect(lidas[0]?.q).toBe('segunda')
+})
+
+
+test('validarRespostasClarify aceita respostas livres completas', () => {
+  const perguntas: ClarifyQuestion[] = [{ q: 'URL?', options: [], recommended: '' }, { q: 'Estilo?', options: ['claro'], recommended: 'claro' }]
+  expect(validarRespostasClarify(perguntas, [{ q: ' URL? ', answer: ' https://ref.test ' }, { q: 'Estilo?', answer: 'claro' }])).toEqual({ ok: true, answers: [{ q: 'URL?', answer: 'https://ref.test' }, { q: 'Estilo?', answer: 'claro' }] })
+})
+test('validarRespostasClarify recusa resposta parcial', () => {
+  const perguntas: ClarifyQuestion[] = [{ q: 'Primeira?', options: [], recommended: '' }, { q: 'Segunda?', options: [], recommended: '' }]
+  expect(validarRespostasClarify(perguntas, [{ q: 'Primeira?', answer: 'sim' }])).toEqual({ ok: false, error: 'Falta responder: "Segunda?".' })
+})
+test('validarRespostasClarify recusa pergunta obsoleta', () => {
+  const perguntas: ClarifyQuestion[] = [{ q: 'Atual?', options: [], recommended: '' }]
+  expect(validarRespostasClarify(perguntas, [{ q: 'Antiga?', answer: 'sim' }])).toEqual({ ok: false, error: 'Pergunta desconhecida: "Antiga?". Atualize o painel e tente novamente.' })
 })

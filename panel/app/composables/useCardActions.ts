@@ -126,8 +126,16 @@ export function useCardActions(options: CardActionsOptions) {
   }
 
   async function answerClarify(id: string, answers: { q: string; answer: string }[]): Promise<void> {
-    await $fetch<CardActionResponse>(`/api/cards/${id}/clarify`, { method: 'POST', body: { answers } })
-    await load()
+    const validas = answers.map(({ q, answer }) => ({ q: q.trim(), answer: answer.trim() })).filter(({ q, answer }) => q && answer)
+    if (!validas.length) { erroMotor.value = 'Preencha ao menos uma resposta antes de enviar.'; return }
+    try {
+      await $fetch<CardActionResponse>(`/api/cards/${id}/clarify`, { method: 'POST', body: { answers: validas } })
+      erroMotor.value = ''
+      await load()
+    } catch (error) {
+      const data = (error as { data?: { error?: string } })?.data
+      erroMotor.value = data?.error || 'Não foi possível enviar as respostas ao motor.'
+    }
   }
 
   async function resetPreview(id: string, hard: boolean): Promise<void> {
