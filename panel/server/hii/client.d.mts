@@ -19,5 +19,8 @@ export declare function clienteHii(base: string, token: string): {
   tarefa(id: string): Promise<Recurso<{ campos: Record<string, string>; objetivo: string }>>
   perguntas(id: string): Promise<Recurso<{ perguntaId: string | null; pendencia: { atual: { q: string; options: string[]; recommended?: string } } | null }>>
   responderPergunta(id: string, perguntaId: string, texto: string, chave: string, etag: string): Promise<Recurso<object>>
+  iaDaTarefa(id: string): Promise<Recurso<{ id: string; papeis: PapelHii[]; ias: { papel: PapelHii; provedor: string; modelo: string }[] }>>
+  definirIaDaTarefa(id: string, escolha: { papel: PapelHii; provedor: string; modelo?: string }, chave: string, etag: string): Promise<Recurso<{ id: string; ias: { papel: PapelHii; provedor: string; modelo: string }[] }>>
+  pacote(id: string): Promise<Recurso<{ id: string; hash: string | null; status: string | null; aprovadoHash: string | null; resumo: string | null; markdown: string }>>
   agir(id: string, acao: 'responder' | 'parar' | 'retomar' | 'confirmar-fecho' | 'recusar-fecho' | 'aprovar-plano' | 'aprovar-url' | 'recusar', texto: string, chave: string, etag: string): Promise<Recurso<object>>
 }

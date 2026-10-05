@@ -1,6 +1,7 @@
 import { exigirSessao } from '../../hii/sessao'
 import { motorHii } from '../../hii/motor'
-interface Pedido { acao: string; id?: string; texto?: string; modo?: 'gateway' | 'orquestrador'; chave: string; etag?: string; perguntaId?: string; etagPergunta?: string }
+import { escolhaDeIa } from '../../hii/ia-da-tarefa'
+interface Pedido { acao: string; id?: string; texto?: string; modo?: 'gateway' | 'orquestrador'; chave: string; etag?: string; perguntaId?: string; etagPergunta?: string; papel?: string; provedor?: string; modelo?: string }
 export default defineEventHandler(async event => {
   exigirSessao(event)
   const { cliente, repo } = motorHii()
@@ -11,6 +12,13 @@ export default defineEventHandler(async event => {
   if (b.acao === 'pedido' && b.id && ['gateway', 'orquestrador'].includes(b.modo || '')) {
     if ((await cliente.sessao(b.id)).valor.repo !== repo) throw createError({ statusCode: 403, statusMessage: 'Sessao fora do projeto' })
     return (await cliente.pedido(b.id, { modo: b.modo || 'gateway', texto: b.texto || '' }, b.chave)).valor
+  }
+  if (b.acao === 'definir-ia' && b.id) {
+    const escolha = escolhaDeIa(b)
+    if (typeof escolha === 'string') throw createError({ statusCode: 400, statusMessage: escolha })
+    if ((await cliente.tarefa(b.id)).valor.campos.repo !== repo) throw createError({ statusCode: 403, statusMessage: 'Tarefa fora do projeto' })
+    if (!b.etag) throw createError({ statusCode: 428, statusMessage: 'Consulte a IA da tarefa antes de alterar' })
+    return (await cliente.definirIaDaTarefa(b.id, escolha, b.chave, b.etag)).valor
   }
   if (b.id && ['responder', 'parar', 'retomar', 'confirmar-fecho', 'recusar-fecho', 'aprovar-plano', 'aprovar-url', 'recusar'].includes(b.acao)) {
     const atual = await cliente.tarefa(b.id)
