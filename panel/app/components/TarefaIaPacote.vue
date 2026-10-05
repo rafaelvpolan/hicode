@@ -8,7 +8,7 @@ interface RespostaPacote { ia: Recurso<{ ias: IaDoPapel[] }>; pacote: Recurso<Pa
 interface Configuracao { provedores: { nome: string; aptidao?: { agentic: boolean; isolatesReadonly: boolean; emitsStructuredJson: boolean } }[] }
 
 const props = defineProps<{ id: string }>()
-const emit = defineEmits<{ aprovar: [] }>()
+const emit = defineEmits<{ aprovar: []; alterado: [] }>()
 
 const ias = ref<IaDoPapel[]>([])
 const etagIa = ref('')
@@ -47,6 +47,7 @@ async function definir(papel: IaDoPapel['papel'], provedor: string): Promise<voi
   try {
     await $fetch('/api/hii/comando', { method: 'POST', body: { acao: 'definir-ia', id: props.id, papel, provedor, etag: etagIa.value, chave: `hicode-ia-${crypto.randomUUID()}` } })
     await carregar()
+    emit('alterado')
   } catch { erro.value = 'O motor recusou a troca de IA (tarefa mudou ou IA sem capacidade para o papel). Recarregue e tente de novo.' }
   finally { ocupado.value = false }
 }
