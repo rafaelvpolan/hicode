@@ -69,3 +69,5 @@ As páginas legadas seguem o modelo local com proteção de origem; /motor e /ap
 
 Cards parados oferecem diagnostico, vinculo persistente com o HII, snapshots de
 configuracao e retomada confirmada pela API. Veja [o fluxo e seus limites](docs/recuperacao.md).
+
+Guia do fluxo local com prompt aprovado, memoria por projeto e Ollama opcional: [docs/execucao-local-prompt-primeiro.md](docs/execucao-local-prompt-primeiro.md).

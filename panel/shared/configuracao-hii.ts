@@ -47,6 +47,7 @@ export function rotuloDeCapacidade(p: ProvedorHii): string {
 export interface ConfiguracaoHii {
   versao: number
   preferencias: Partial<Record<PapelHii, PreferenciaHii>>
+  limites?: { tetoUsdPorCard: number; tetoTokensPorCard: number; avisoDeCotaPct: number; origem: string }
   aplicacao: string
   execucao?: { localidade: 'preferir_local' | 'somente_local' | 'qualquer'; fallbackRemoto: boolean; editavel: boolean }
 }

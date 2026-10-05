@@ -13,7 +13,8 @@
     "test:unit": "bun scripts/test-unit-isolado.mjs",
     "test": "bun run typecheck && bun run lint:types && bun run test:unit && bun run typecheck:panel",
     "test:e2e:status": "bun run panel:build && node scripts/test-motor-status.mjs",
-    "test:e2e:recuperacao": "node scripts/test-recuperacao.mjs"
+    "test:e2e:recuperacao": "node scripts/test-recuperacao.mjs",
+    "test:e2e:prompt": "bun run panel:build && node scripts/test-prompt-primeiro.mjs"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

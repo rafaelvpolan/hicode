@@ -16,6 +16,8 @@ const conectado = ref(false)
 const degradado = ref(false)
 const atividades = ref<Atividade[]>([])
 const selecionada = ref('')
+const tarefaSelecionada = ref('')
+const idParaAbrir = ref('')
 const revisaoDaTarefa = ref('')
 const estadoDaTarefa = ref('')
 const perguntaDaTarefa = ref('')
@@ -30,19 +32,27 @@ const resposta = ref('')
 let fonte: EventSource | null = null
 let timer: ReturnType<typeof setInterval> | undefined
 const detalhe = computed(() => atividades.value.find(a => a.id === selecionada.value))
-async function selecionar(a: Atividade): Promise<void> {
-  selecionada.value = a.id; revisaoDaTarefa.value = ''; estadoDaTarefa.value = ''; perguntaDaTarefa.value = ''; perguntaId.value = ''; etagPergunta.value = ''
-  if (!a.execucao) return
+async function lerTarefa(id: string): Promise<void> {
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) { erro.value = 'ID de tarefa invalido'; return }
+  const mudou = tarefaSelecionada.value !== id
+  tarefaSelecionada.value = id
+  idParaAbrir.value = id
+  if (mudou) { revisaoDaTarefa.value = ''; estadoDaTarefa.value = ''; perguntaDaTarefa.value = ''; perguntaId.value = ''; etagPergunta.value = '' }
   try {
-    const t = await $fetch<{ etag: string; valor: { campos: Record<string, string> }; pergunta: { etag: string; valor: { perguntaId: string | null; pendencia: { atual: { q: string; options: string[] } } | null } } }>('/api/hii/tarefa', { query: { id: a.execucao } })
-    if (selecionada.value !== a.id) return
+    const t = await $fetch<{ etag: string; valor: { campos: Record<string, string> }; pergunta: { etag: string; valor: { perguntaId: string | null; pendencia: { atual: { q: string; options: string[] } } | null } } }>('/api/hii/tarefa', { query: { id } })
+    if (tarefaSelecionada.value !== id) return
     revisaoDaTarefa.value = t.etag
     estadoDaTarefa.value = t.valor.campos.status || ''
-    perguntaDaTarefa.value = t.valor.campos.review_questions || t.valor.campos.clarify_question || t.valor.campos.halt_reason || ''
+    perguntaDaTarefa.value = t.valor.campos.cota_aviso || t.valor.campos.review_questions || t.valor.campos.clarify_question || t.valor.campos.halt_reason || ''
     perguntaId.value = t.pergunta.valor.perguntaId || ''
     etagPergunta.value = t.pergunta.etag
     if (t.pergunta.valor.pendencia) perguntaDaTarefa.value = [t.pergunta.valor.pendencia.atual.q, ...t.pergunta.valor.pendencia.atual.options.map((o, i) => `${i + 1}. ${o}`)].join('\n')
-  } catch { /* atividade historica/retida pode nao ter tarefa disponivel */ }
+    sessionStorage.setItem(`hicode:tarefa:${repo.value}`, id)
+  } catch { if (mudou) erro.value = 'Nao foi possivel abrir esta tarefa no projeto conectado.' }
+}
+async function selecionar(a: Atividade): Promise<void> {
+  selecionada.value = a.id
+  if (a.execucao) await lerTarefa(a.execucao)
 }
 const ordenadas = computed(() => {
   const filhos = (pai: string | null, vistos = new Set<string>(), nivel = 0): { a: Atividade; nivel: number }[] => atividades.value.filter(a => a.pai === pai && !vistos.has(a.id)).sort((a, b) => a.inicio.localeCompare(b.inicio)).flatMap(a => {
@@ -73,6 +83,8 @@ async function carregar(): Promise<void> {
     const s = await $fetch<Snapshot & { repo: string }>('/api/hii/snapshot')
     atualizar(s); autenticado.value = true; conectar(); erro.value = ''
     sessao.value = sessionStorage.getItem(`hicode:sessao:${repo.value}`) || ''
+    const ultimaTarefa = sessionStorage.getItem(`hicode:tarefa:${repo.value}`)
+    if (ultimaTarefa) await lerTarefa(ultimaTarefa)
     const pendente = lerIntencao(sessionStorage, repo.value)
     if (pendente) {
       texto.value = pendente.pedido.texto
@@ -100,6 +112,7 @@ async function enviar(): Promise<void> {
       resposta.value = 'Consulta em andamento…'
     } else {
       aviso.value = `Execucao #${r.id}: ${r.status}`
+      await lerTarefa(r.id)
     }
     texto.value = ''
   } catch { erro.value = 'Pedido sem confirmacao. Reenvie o mesmo pedido para consultar a intencao original com a mesma chave; nao altere o texto.' }
@@ -107,7 +120,7 @@ async function enviar(): Promise<void> {
 }
 async function agir(acao: string): Promise<void> {
   if (ocupado.value) return
-  const id = detalhe.value?.execucao
+  const id = tarefaSelecionada.value
   if (!id) return
   ocupado.value = true
   try {
@@ -118,7 +131,7 @@ async function agir(acao: string): Promise<void> {
   finally { ocupado.value = false }
 }
 async function releraTarefa(): Promise<void> {
-  if (detalhe.value) await selecionar(detalhe.value)
+  if (tarefaSelecionada.value) await lerTarefa(tarefaSelecionada.value)
 }
 async function aprovarPacote(): Promise<void> {
   await releraTarefa()
@@ -129,6 +142,7 @@ async function aprovarPacote(): Promise<void> {
 onMounted(() => {
   void carregar()
   timer = setInterval(async () => {
+    if (autenticado.value && tarefaSelecionada.value && !ocupado.value) await releraTarefa()
     if (!consulta.value) return
     try {
       const c = await $fetch<{ estado: string; resposta: string }>('/api/hii/consulta', { query: { id: consulta.value } })
@@ -158,9 +172,24 @@ onBeforeUnmount(() => { fonte?.close(); if (timer) clearInterval(timer) })
         <button :disabled="ocupado || !texto.trim()">{{ ocupado ? 'Enviando…' : modo === 'ask' ? 'Perguntar' : 'Executar pedido' }}</button>
       </form>
       <pre v-if="resposta" class="resposta">{{ resposta }}</pre>
+      <form class="abrir-tarefa" @submit.prevent="lerTarefa(idParaAbrir.trim())">
+        <label>Abrir tarefa <input v-model="idParaAbrir" aria-label="ID da tarefa" placeholder="025" required></label>
+        <button :disabled="ocupado || !idParaAbrir.trim()">Abrir tarefa</button>
+      </form>
+      <section v-if="tarefaSelecionada" class="tarefa-atual" aria-label="Tarefa selecionada">
+        <h2>Tarefa #{{ tarefaSelecionada }} · {{ estadoDaTarefa || 'Consultando' }}</h2>
+        <pre v-if="perguntaDaTarefa" class="saida">{{ perguntaDaTarefa }}</pre>
+        <TarefaIaPacote :id="tarefaSelecionada" :revisao="revisaoDaTarefa" @aprovar="aprovarPacote" @alterado="releraTarefa" />
+        <div v-if="revisaoDaTarefa" class="acoes">
+          <button :disabled="ocupado" @click="agir('parar')">Parar</button>
+          <button :disabled="ocupado" @click="agir('retomar')">Retomar</button>
+          <button :disabled="ocupado || !texto.trim()" @click="agir('responder')">Responder</button>
+          <button :disabled="ocupado" @click="agir('confirmar-fecho')">Confirmar fecho</button>
+        </div>
+      </section>
       <div class="colunas">
         <section class="arvore"><h2>Atividades</h2><p v-if="!ordenadas.length">Nenhuma atividade observada neste projeto.</p><button v-for="{ a, nivel } in ordenadas" :key="a.id" class="atividade" :class="{ selecionada: selecionada === a.id }" :style="{ paddingLeft: `${16 + nivel * 16}px` }" @click="selecionar(a)"><span class="estado" :data-estado="a.estado">{{ a.estado }}</span><strong>{{ a.recurso.nome }}</strong><small>{{ a.execucao ? `#${a.execucao}` : 'consulta' }} · {{ rotuloDaEtapa(a.etapa, a.detalhes) }} · {{ a.recurso.tipo === 'skill' ? 'instrucoes carregadas' : a.recurso.tipo }}</small></button></section>
-        <section class="detalhe"><h2>Detalhes</h2><p v-if="!detalhe">Selecione uma atividade para acompanhar o executor e sua saida.</p><template v-else><h3>{{ detalhe.recurso.nome }}</h3><dl><dt>Estado / tentativa</dt><dd>{{ detalhe.estado }} · {{ detalhe.tentativa }}</dd><dt>Ultimo progresso / heartbeat</dt><dd>{{ detalhe.atualizado }} / {{ detalhe.heartbeat || 'nao reportado' }}</dd><dt>Observabilidade</dt><dd>{{ detalhe.recurso.observabilidade }}</dd><dt>Custo / tokens</dt><dd>{{ detalhe.metricas.custoUsd.valor === null ? 'custo desconhecido' : `$${detalhe.metricas.custoUsd.valor}` }} / {{ detalhe.metricas.tokens.valor ?? 'desconhecidos' }}</dd></dl><details open><summary>Contexto e motivos</summary><dl><template v-for="(valor, chave) in detalhe.detalhes" :key="chave"><dt>{{ chave }}</dt><dd>{{ valor ?? 'nao reportado' }}</dd></template></dl></details><p v-if="estadoDaTarefa">Estado consultado: {{ estadoDaTarefa }}. Se mudar, o motor recusara a acao pela revisao.</p><pre v-if="perguntaDaTarefa" class="saida">{{ perguntaDaTarefa }}</pre><TarefaIaPacote v-if="detalhe.execucao" :id="detalhe.execucao" @aprovar="aprovarPacote" @alterado="releraTarefa" /><div v-if="detalhe.execucao &amp;&amp; revisaoDaTarefa" class="acoes"><button :disabled="ocupado" @click="agir('parar')">Parar</button><button :disabled="ocupado" @click="agir('retomar')">Retomar</button><button :disabled="ocupado || !texto.trim()" @click="agir('responder')">Responder</button><button :disabled="ocupado" @click="agir('confirmar-fecho')">Confirmar fecho</button></div><p v-if="detalhe.truncado">Inicio da saida fora da retencao.</p><pre v-for="s in detalhe.saida" :key="s.sequencia" class="saida"><small>{{ s.sequencia }} · {{ s.canal }}</small>
+        <section class="detalhe"><h2>Detalhes</h2><p v-if="!detalhe">Selecione uma atividade para acompanhar o executor e sua saida.</p><template v-else><h3>{{ detalhe.recurso.nome }}</h3><dl><dt>Estado / tentativa</dt><dd>{{ detalhe.estado }} · {{ detalhe.tentativa }}</dd><dt>Ultimo progresso / heartbeat</dt><dd>{{ detalhe.atualizado }} / {{ detalhe.heartbeat || 'nao reportado' }}</dd><dt>Observabilidade</dt><dd>{{ detalhe.recurso.observabilidade }}</dd><dt>Custo / tokens</dt><dd>{{ detalhe.metricas.custoUsd.valor === null ? 'custo desconhecido' : `$${detalhe.metricas.custoUsd.valor}` }} / {{ detalhe.metricas.tokens.valor ?? 'desconhecidos' }}</dd></dl><details open><summary>Contexto e motivos</summary><dl><template v-for="(valor, chave) in detalhe.detalhes" :key="chave"><dt>{{ chave }}</dt><dd>{{ valor ?? 'nao reportado' }}</dd></template></dl></details><p v-if="detalhe.truncado">Inicio da saida fora da retencao.</p><pre v-for="s in detalhe.saida" :key="s.sequencia" class="saida"><small>{{ s.sequencia }} · {{ s.canal }}</small>
 {{ s.texto }}</pre></template></section>
       </div>
     </template>
