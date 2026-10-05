@@ -15,7 +15,7 @@ jobs:
         with:
           repository: rafaelvpolan/hii
           path: .hii-ref
-          ref: 42eec66e9f95b6b86a519a3c902b1831967bafac # candidato integrado do PR HII #68
+          ref: af920eba1f19f24e2173bfe8d1ff7bc8ac715769 # motor prompt/local correspondente a esta entrega
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -46,3 +46,4 @@ jobs:
 
       - run: bun run panel:build
       - run: node scripts/test-motor-status.mjs
+      - run: node scripts/test-prompt-primeiro.mjs
